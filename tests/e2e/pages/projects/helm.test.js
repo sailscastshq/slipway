@@ -1,4 +1,5 @@
 const { test } = require('sounding')
+const { waitForHelmCompletion } = require('../../../support/helm-completion')
 const { readFile } = require('node:fs/promises')
 
 function helmWorld(slug) {
@@ -1517,99 +1518,106 @@ test(
   }
 )
 
-test(
-  'project Helm completes models, attributes, and Waterline without stealing run shortcuts',
-  {
-    browser: true,
-    world: helmWorld('helm-completion-project')
-  },
-  async ({ sails, world, login, page, expect }) => {
-    const current = world.current
-    const projectSlug = current.projects.deploymentTarget.slug
-    const environmentSlug = current.environments.production.slug
-    let executionCount = 0
+for (const browser of ['desktop', 'mobile'])
+  test(
+    `project Helm completes models, attributes, and Waterline without stealing run shortcuts${
+      browser === 'mobile' ? ' on mobile' : ''
+    }`,
+    {
+      browser,
+      world: helmWorld(`helm-completion-project-${browser}`)
+    },
+    async ({ sails, world, login, page, expect }) => {
+      const current = world.current
+      const projectSlug = current.projects.deploymentTarget.slug
+      const environmentSlug = current.environments.production.slug
+      let executionCount = 0
 
-    await sails.models.app.updateOne({ id: current.apps.web.id }).set({
-      status: 'running',
-      containerName: 'sounding-helm-completion-app'
-    })
+      await sails.models.app.updateOne({ id: current.apps.web.id }).set({
+        status: 'running',
+        containerName: 'sounding-helm-completion-app'
+      })
 
-    const updateCheckFinished = page.raw.waitForResponse(
-      '**/api/v1/system/check-update'
-    )
-    await login.withPassword('genesisUser', page, {
-      password: current.auth.genesisUserPassword
-    })
-    await updateCheckFinished
+      const updateCheckFinished = page.raw.waitForResponse(
+        '**/api/v1/system/check-update'
+      )
+      await login.withPassword('genesisUser', page, {
+        password: current.auth.genesisUserPassword
+      })
+      await updateCheckFinished
 
-    await page.raw.route(
-      `**/helm/completions?appSlug=${current.apps.web.slug}`,
-      async (route) => {
+      await page.raw.route(
+        `**/helm/completions?appSlug=${current.apps.web.slug}`,
+        async (route) => {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(HELM_COMPLETION_METADATA)
+          })
+        }
+      )
+      await page.raw.route('**/execute', async (route) => {
+        executionCount++
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify(HELM_COMPLETION_METADATA)
-        })
-      }
-    )
-    await page.raw.route('**/execute', async (route) => {
-      executionCount++
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          status: 'success',
-          value: [],
-          logs: [],
-          output: '[]',
-          error: null,
-          durationMs: 2,
-          truncated: false,
-          rowCount: 0,
-          outputBytes: 2,
-          logsPartial: false
+          body: JSON.stringify({
+            success: true,
+            status: 'success',
+            value: [],
+            logs: [],
+            output: '[]',
+            error: null,
+            durationMs: 2,
+            truncated: false,
+            rowCount: 0,
+            outputBytes: 2,
+            logsPartial: false
+          })
         })
       })
-    })
 
-    await page.resize(1440, 900)
-    await page.inLightMode()
-    await page.goto(
-      `/projects/${projectSlug}/environments/${environmentSlug}/helm`
-    )
+      await page.resize(browser === 'mobile' ? 390 : 1440, 900)
+      await page.inLightMode()
+      await page.goto(
+        `/projects/${projectSlug}/environments/${environmentSlug}/helm`
+      )
 
-    await page.fill('@helm-editor', 'Cre')
-    await page.raw.locator('.cm-tooltip-autocomplete').waitFor()
-    expect(
-      await page.raw.locator('.cm-tooltip-autocomplete').textContent()
-    ).toContain('Creator')
-    await page.screenshot('.tmp/issue-272-project-model-completion-light.png')
+      await page.fill('@helm-editor', 'Cre')
+      await page.raw.locator('.cm-tooltip-autocomplete').waitFor()
+      expect(
+        await page.raw.locator('.cm-tooltip-autocomplete').textContent()
+      ).toContain('Creator')
+      await page.screenshot('.tmp/issue-272-project-model-completion-light.png')
 
-    await page.key('Escape')
-    await page.fill('@helm-editor', 'Creator.find({ fir')
-    await page.raw.locator('.cm-tooltip-autocomplete').waitFor()
-    expect(
-      await page.raw.locator('.cm-tooltip-autocomplete').textContent()
-    ).toContain('firstName')
-    await page.screenshot(
-      '.tmp/issue-272-project-attribute-completion-light.png'
-    )
+      await page.key('Escape')
+      await page.fill('@helm-editor', 'Creator.find({ fir')
+      await page.raw.locator('.cm-tooltip-autocomplete').waitFor()
+      expect(
+        await page.raw.locator('.cm-tooltip-autocomplete').textContent()
+      ).toContain('firstName')
+      await page.screenshot(
+        '.tmp/issue-272-project-attribute-completion-light.png'
+      )
 
-    await page.fill('@helm-editor', 'Creator.fi')
-    await page.raw.locator('.cm-tooltip-autocomplete').waitFor()
-    await page.key('Enter')
-    expect(
-      await page.raw.locator('[data-test="helm-editor"]').textContent()
-    ).toBe('Creator.find')
-    expect(executionCount).toBe(0)
+      await page.fill('@helm-editor', 'Creator.fi')
+      await waitForHelmCompletion(page.raw, 'find')
+      await page.key('Enter')
+      expect(
+        await page.raw.locator('[data-test="helm-editor"]').textContent()
+      ).toBe('Creator.find')
+      expect(executionCount).toBe(0)
 
-    await page.key('ControlOrMeta+Enter')
-    await page.wait('@helm-output')
-    expect(executionCount).toBe(1)
-    expect(page).toHaveNoSmoke()
-  }
-)
+      for (const colorScheme of ['light', 'dark']) {
+        await page.raw.emulateMedia({ colorScheme })
+        await page.screenshot(`.tmp/issue-689-${browser}-${colorScheme}.png`)
+      }
+      await page.key('ControlOrMeta+Enter')
+      await page.wait('@helm-output')
+      expect(executionCount).toBe(1)
+      expect(page).toHaveNoSmoke()
+    }
+  )
 
 function cancelledResult(logs, overrides = {}) {
   return {
