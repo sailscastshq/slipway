@@ -63,8 +63,14 @@ module.exports = function questEvent(
     finishedAt: ['running', 'cancelling', 'unconfirmed'].includes(state)
       ? null
       : ms(data.finishedAt || data.timestamp) || Date.now(),
-    duration: !skipped && Number.isFinite(data.duration) ? data.duration : null,
-    exitCode: skipped
+    duration:
+      !['running', 'skipped', 'cancelling', 'unconfirmed'].includes(state) &&
+      Number.isFinite(data.duration)
+        ? data.duration
+        : null,
+    exitCode: ['running', 'skipped', 'cancelling', 'unconfirmed'].includes(
+      state
+    )
       ? null
       : state === 'completed'
       ? 0

@@ -31,14 +31,18 @@ test('disk restart replays evidence without rerunning; only exact successful ack
     calls.push(body)
     return response
   })
-  const event = run(2)
+  const event = run(2),
+    id = idFor(event)
   assert.equal(f.queue.enqueue(event), true)
   assert.equal(f.queue.enqueue(event), true)
   assert.equal(f.queue.pending, 1)
+  event.result.value = 'later mutation must not change the retained receipt'
   assert.equal(
-    fs.statSync(path.join(f.directory, idFor(event) + '.json')).mode & 0o777,
+    fs.statSync(path.join(f.directory, id + '.json')).mode & 0o777,
     0o600
   )
+  await f.queue.flush()
+  assert.equal(calls[0].questEvents[0].run.result.value, false)
   f.queue.stop()
   const restored = createQuestDelivery(f.options)
   await restored.flush()
@@ -46,10 +50,10 @@ test('disk restart replays evidence without rerunning; only exact successful ack
   response = { questAcknowledged: ['f'.repeat(64)] }
   await restored.flush()
   assert.equal(restored.pending, 1)
-  response = { questAcknowledged: [idFor(event)] }
+  response = { questAcknowledged: [id] }
   await restored.flush()
   assert.equal(restored.pending, 0)
-  assert.equal(calls.length, 3)
+  assert.equal(calls.length, 4)
   assert.deepEqual(calls[0].questEvents[0].run.result.value, false)
 })
 test('restart removes only validated bounded incomplete receipts', (t) => {

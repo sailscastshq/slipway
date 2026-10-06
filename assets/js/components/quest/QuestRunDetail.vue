@@ -523,6 +523,8 @@ onBeforeUnmount(() => {
             <span>{{
               logs?.truncated
                 ? 'Logs truncated.'
+                : canLiveLogs && active
+                ? 'Live log tail.'
                 : 'Logs are fetched on request.'
             }}</span
             ><button

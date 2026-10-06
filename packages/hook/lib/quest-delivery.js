@@ -148,7 +148,7 @@ function createQuestDelivery({
       } finally {
         fs.closeSync(directoryFd)
       }
-      queue.set(item.id, { ...item, bytes: size })
+      queue.set(item.id, { ...JSON.parse(body), bytes: size })
       bytes += size
       return true
     } finally {

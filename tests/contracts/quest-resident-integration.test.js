@@ -659,6 +659,26 @@ test(
         `${base}/runs/${controlled.run.runId}/cancel`,
         { runtimeId: initial.runtimeId }
       )
+      if (firstCancel.status !== 202)
+        console.error(
+          '[Quest cancellation evidence]',
+          JSON.stringify(
+            (await evidence())
+              .filter(
+                (event) =>
+                  event.kind.startsWith('control:') ||
+                  event.kind.startsWith('quest:canc') ||
+                  event.kind === 'quest:unconfirmed'
+              )
+              .map(({ kind, reason, name, runId, sequence }) => ({
+                kind,
+                reason,
+                name,
+                runId,
+                sequence
+              }))
+          )
+        )
       assert.equal(firstCancel.status, 202, JSON.stringify(firstCancel.data))
       assert.equal(
         repeatedCancel.status,
