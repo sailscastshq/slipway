@@ -224,7 +224,15 @@ async function main() {
     'Published 87 production server is healthy with the original database volume and founder.'
   )
   const wrap = (relative) => ({
-    with: (input) => loadPublished(relative).fn(input)
+    with: (input) => {
+      const helper = loadPublished(relative)
+      const defaults = Object.fromEntries(
+        Object.entries(helper.inputs || {})
+          .filter(([, definition]) => Object.hasOwn(definition, 'defaultsTo'))
+          .map(([name, definition]) => [name, definition.defaultsTo])
+      )
+      return helper.fn({ ...defaults, ...input })
+    }
   })
   global.sails = {
     config: {
@@ -261,20 +269,55 @@ async function main() {
     allocatePort: { with: async () => 19997 },
     releasePort: { with: async () => {} },
     healthCheckContainer: {
-      with: (input) =>
-        loadPublished('api/helpers/docker/health-check-container.js').fn({
+      with: async (input) => {
+        const result = await loadPublished(
+          'api/helpers/docker/health-check-container.js'
+        ).fn({
           interval: 1000,
           ...input
         })
+        proof.validation = JSON.parse(
+          docker([
+            'exec',
+            'slipway-next',
+            'curl',
+            '-fsS',
+            'http://localhost:1337/health'
+          ])
+        )
+        assert.equal(proof.validation.mode, 'preflight')
+        assert.equal(proof.validation.normalStartupReady, false)
+        assert.equal(
+          JSON.parse(docker(['inspect', 'slipway']))[0].State.Running,
+          true
+        )
+        const receipt = docker([
+          'exec',
+          'slipway',
+          'node',
+          '-e',
+          "const D=require('better-sqlite3');const d=new D('/app/db/app.db',{readonly:true});console.log(JSON.stringify(d.prepare(\"SELECT name FROM sqlite_schema WHERE name='_slipway_release_migrations'\").get()||null));d.close()"
+        ])
+        assert.equal(JSON.parse(receipt), null)
+        proof.stages.push(
+          'Candidate clone preflight passed while the original server remained running; no live release receipt or Sails lift occurred.'
+        )
+        return result
+      }
     }
   })
   const result = await loadPublished('api/helpers/system/apply-update.js').fn()
   assert.equal(result.status, 'updating')
   const deadline = Date.now() + 90000
+  const swapStartedAt = Date.now()
   while (Date.now() < deadline) {
     try {
       const info = JSON.parse(docker(['inspect', 'slipway']))[0]
       if (info.Image === proof.candidateImage) {
+        fs.writeFileSync(
+          path.join(artifact, 'candidate-startup.log'),
+          redact(docker(['logs', 'slipway']))
+        )
         await health('slipway')
         break
       }
@@ -286,6 +329,7 @@ async function main() {
     proof.candidateImage
   )
   proof.health = await health('slipway')
+  proof.swapToHealthyMilliseconds = Date.now() - swapStartedAt
   const verified = JSON.parse(
     docker([
       'exec',
