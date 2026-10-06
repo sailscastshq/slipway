@@ -410,6 +410,14 @@ jobs:
       - run: npm ci --no-audit
       - name: Verify real image, founder session, encryption and recovery
         run: bash tests/prelift/prepare-full-image.sh
+      - name: Preserve bounded catalog diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: upgrade-full-image-catalog-diagnostics
+          path: .tmp/upgrade-full-image/diagnostics
+          if-no-files-found: ignore
+          retention-days: 30
 
   test:
     name: Test (${{ matrix.lane }})

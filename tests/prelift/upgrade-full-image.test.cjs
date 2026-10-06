@@ -105,6 +105,15 @@ async function runController({
           ),
           Target: '/fixture/controller.cjs',
           ReadOnly: true
+        },
+        {
+          Type: 'bind',
+          Source: path.resolve(
+            __dirname,
+            'fixtures/upgrade-catalog-diagnostics.cjs'
+          ),
+          Target: '/fixture/catalog-diagnostics.cjs',
+          ReadOnly: true
         }
       ]
     }
@@ -122,7 +131,30 @@ async function runController({
     0,
     'Disposable trusted controller must complete its bounded protocol'
   )
-  return JSON.parse(fs.readFileSync(output, 'utf8'))
+  const result = JSON.parse(fs.readFileSync(output, 'utf8'))
+  if (!result.success) {
+    const evidence = path.resolve('.tmp/upgrade-full-image/diagnostics')
+    fs.mkdirSync(evidence, { recursive: true, mode: 0o700 })
+    fs.writeFileSync(
+      path.join(evidence, name + '.json'),
+      JSON.stringify({
+        head: execFileSync('git', ['rev-parse', 'HEAD'], {
+          encoding: 'utf8',
+          timeout: 2000,
+          maxBuffer: 1024
+        }).trim(),
+        code: /^upgrade[A-Za-z]+$/.test(result.code || '')
+          ? result.code
+          : 'unconfirmed',
+        catalog: result.catalog || { status: 'unconfirmed' },
+        storageStaged: result.storageStaged,
+        backupsVerified: result.backupsVerified,
+        receiptsPrepared: result.receiptsPrepared
+      }),
+      { mode: 0o600, flag: 'wx' }
+    )
+  }
+  return result
 }
 
 test(

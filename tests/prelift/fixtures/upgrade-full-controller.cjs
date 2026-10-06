@@ -110,6 +110,15 @@ async function main() {
         : undefined,
       filename: error.filename,
       probes,
+      catalog: saved
+        ? await require('./catalog-diagnostics.cjs').bounded({
+            services: host.services(
+              saved.reviewed.sourceDirectory,
+              saved.reviewed.instanceId
+            ),
+            steps: saved.reviewed.identity.manifest.steps
+          })
+        : { status: 'unconfirmed' },
       storageStaged: Boolean(saved?.stage),
       backupsVerified: Boolean(saved?.backupSet),
       receiptsPrepared: Boolean(saved?.handle)

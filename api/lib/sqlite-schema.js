@@ -125,7 +125,13 @@ function getSqliteSchema(service) {
 
     return { tables }
   } catch (error) {
-    return { tables: {}, error: error.message }
+    return {
+      tables: {},
+      error: error.message,
+      errorCode: /^SQLITE_[A-Z_]+$/.test(error.code || '')
+        ? error.code
+        : 'unconfirmed'
+    }
   } finally {
     if (db && !service.transaction?.database) {
       db.close()
