@@ -287,7 +287,17 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --no-audit
-      - run: node --test tests/prelift/migration-executor.test.cjs tests/prelift/sqlite-schema.test.cjs tests/prelift/release-migrations.test.cjs tests/prelift/release-swap.test.cjs
+      - name: Verify native migrations and bounded failure fixtures
+        shell: bash
+        run: |
+          mkdir -p .tmp/bosun-verification
+          node --test tests/prelift/migration-executor.test.cjs tests/prelift/sqlite-schema.test.cjs tests/prelift/release-migrations.test.cjs tests/prelift/release-swap.test.cjs tests/prelift/release-verification.test.cjs | tee .tmp/bosun-verification/native-tests.log
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: bosun-native-verification
+          path: .tmp/bosun-verification/native-tests.log
+          retention-days: 30
 
   bosun-release-update:
     name: Released 87 Bosun update and fresh production boot
