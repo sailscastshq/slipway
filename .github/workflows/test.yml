@@ -415,7 +415,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: upgrade-full-image-catalog-diagnostics
-          path: .tmp/upgrade-full-image/diagnostics
+          path: ${{ runner.temp }}/upgrade-full-image-diagnostics
           if-no-files-found: ignore
           retention-days: 30
 

@@ -22,4 +22,4 @@ tag="localhost:$port/slipway-full-fixture:88"
 docker tag slipway-full-upgrade-fixture:88 "$tag"
 docker push "$tag" >/dev/null
 identity=$(docker image inspect --format '{{index .RepoDigests 0}}' "$tag")
-sudo env PATH="$PATH" SLIPWAY_FULL_IMAGE_FIXTURE=1 SLIPWAY_FULL_IMAGE="$identity" node --test tests/prelift/upgrade-full-image.test.cjs
+sudo env PATH="$PATH" SLIPWAY_FULL_IMAGE_FIXTURE=1 SLIPWAY_FULL_IMAGE="$identity" SLIPWAY_FULL_IMAGE_DIAGNOSTICS="${RUNNER_TEMP:-$PWD/.tmp}/upgrade-full-image-diagnostics" node --test tests/prelift/upgrade-full-image.test.cjs

@@ -133,8 +133,12 @@ async function runController({
   )
   const result = JSON.parse(fs.readFileSync(output, 'utf8'))
   if (!result.success) {
-    const evidence = path.resolve('.tmp/upgrade-full-image/diagnostics')
-    fs.mkdirSync(evidence, { recursive: true, mode: 0o700 })
+    const evidence = path.resolve(
+      process.env.SLIPWAY_FULL_IMAGE_DIAGNOSTICS ||
+        '.tmp/upgrade-full-image-diagnostics'
+    )
+    // Only the redacted report is runner-readable; requests/storage stay private.
+    fs.mkdirSync(evidence, { recursive: true, mode: 0o755 })
     fs.writeFileSync(
       path.join(evidence, name + '.json'),
       JSON.stringify({
@@ -151,7 +155,7 @@ async function runController({
         backupsVerified: result.backupsVerified,
         receiptsPrepared: result.receiptsPrepared
       }),
-      { mode: 0o600, flag: 'wx' }
+      { mode: 0o644, flag: 'wx' }
     )
   }
   return result
