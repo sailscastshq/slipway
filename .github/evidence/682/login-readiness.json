@@ -1,0 +1,339 @@
+{
+  "scope": "Synthetic local real-browser login and unchanged loading-state assertions; event-controlled pending genuine login POST, no sleeps. Precognition 204 is not authentication. No cookie values recorded.",
+  "ci": {
+    "run": 37457088094,
+    "job": 112247234697,
+    "artifact": 11410435952,
+    "url": "/login",
+    "failure": "Migrate-tab locator timeout before loading-state assertions",
+    "historic_interleaving": "No network trace; exact CI interleaving remains unconfirmed."
+  },
+  "cases": [
+    {
+      "revision": "a04da27e5a71ef4ccd811d0def09a104e06c4682",
+      "mode": "passive",
+      "result": "all loading-state assertions passed",
+      "events": [
+        {
+          "ms": 344.07,
+          "type": "response",
+          "path": "/login",
+          "method": "GET",
+          "status": 200
+        },
+        {
+          "ms": 487.76,
+          "type": "response",
+          "path": "/login",
+          "method": "POST",
+          "status": 204
+        },
+        {
+          "ms": 776.26,
+          "type": "helper-return",
+          "path": "/login",
+          "sessionChanged": false
+        },
+        {
+          "ms": 777.92,
+          "type": "response",
+          "path": "/login",
+          "method": "POST",
+          "status": 302
+        },
+        {
+          "ms": 824.53,
+          "type": "response",
+          "path": "/bosun",
+          "method": "GET",
+          "status": 200
+        },
+        {
+          "ms": 946.37,
+          "type": "bosun-goto-return",
+          "path": "/bosun",
+          "sessionChanged": true
+        }
+      ]
+    },
+    {
+      "revision": "a04da27e5a71ef4ccd811d0def09a104e06c4682",
+      "mode": "gated-before",
+      "result": "expected Migrate timeout at /login",
+      "events": [
+        {
+          "ms": 24.98,
+          "type": "response",
+          "path": "/login",
+          "method": "GET",
+          "status": 200,
+          "precognitive": false
+        },
+        {
+          "ms": 160.18,
+          "type": "response",
+          "path": "/login",
+          "method": "POST",
+          "status": 204,
+          "precognitive": true
+        },
+        {
+          "ms": 191.41,
+          "type": "real-login-held"
+        },
+        {
+          "ms": 192.42,
+          "type": "helper-return",
+          "path": "/login",
+          "sessionChanged": false
+        },
+        {
+          "ms": 201.66,
+          "type": "response",
+          "path": "/bosun",
+          "method": "GET",
+          "status": 302,
+          "precognitive": false
+        },
+        {
+          "ms": 205.92,
+          "type": "response",
+          "path": "/login",
+          "method": "GET",
+          "status": 200,
+          "precognitive": false
+        },
+        {
+          "ms": 233.74,
+          "type": "bosun-goto-return",
+          "path": "/login",
+          "sessionChanged": false
+        }
+      ]
+    },
+    {
+      "revision": "a04da27e5a71ef4ccd811d0def09a104e06c4682",
+      "mode": "gated-after",
+      "result": "all loading-state assertions passed",
+      "events": [
+        {
+          "ms": 25.74,
+          "type": "response",
+          "path": "/login",
+          "method": "GET",
+          "status": 200,
+          "precognitive": false
+        },
+        {
+          "ms": 156.46,
+          "type": "response",
+          "path": "/login",
+          "method": "POST",
+          "status": 204,
+          "precognitive": true
+        },
+        {
+          "ms": 189.83,
+          "type": "real-login-held"
+        },
+        {
+          "ms": 190.84,
+          "type": "helper-return",
+          "path": "/login",
+          "sessionChanged": false
+        },
+        {
+          "ms": 419.35,
+          "type": "response",
+          "path": "/login",
+          "method": "POST",
+          "status": 302,
+          "precognitive": false
+        },
+        {
+          "ms": 462.91,
+          "type": "authenticated-ready",
+          "path": "/",
+          "sessionChanged": true
+        },
+        {
+          "ms": 504.96,
+          "type": "response",
+          "path": "/bosun",
+          "method": "GET",
+          "status": 200,
+          "precognitive": false
+        },
+        {
+          "ms": 611.73,
+          "type": "bosun-goto-return",
+          "path": "/bosun",
+          "sessionChanged": true
+        }
+      ]
+    },
+    {
+      "revision": "63f14bba1e8e4938a171a6ec73ffca1046236b19",
+      "mode": "passive",
+      "result": "all loading-state assertions passed",
+      "events": [
+        {
+          "ms": 30.07,
+          "type": "response",
+          "path": "/login",
+          "method": "GET",
+          "status": 200
+        },
+        {
+          "ms": 167.54,
+          "type": "response",
+          "path": "/login",
+          "method": "POST",
+          "status": 204
+        },
+        {
+          "ms": 441.59,
+          "type": "helper-return",
+          "path": "/login",
+          "sessionChanged": false
+        },
+        {
+          "ms": 445.58,
+          "type": "response",
+          "path": "/login",
+          "method": "POST",
+          "status": 302
+        },
+        {
+          "ms": 486.27,
+          "type": "response",
+          "path": "/bosun",
+          "method": "GET",
+          "status": 200
+        },
+        {
+          "ms": 612.43,
+          "type": "bosun-goto-return",
+          "path": "/bosun",
+          "sessionChanged": true
+        }
+      ]
+    },
+    {
+      "revision": "63f14bba1e8e4938a171a6ec73ffca1046236b19",
+      "mode": "gated-before",
+      "result": "expected Migrate timeout at /login",
+      "events": [
+        {
+          "ms": 175.85,
+          "type": "response",
+          "path": "/login",
+          "method": "GET",
+          "status": 200,
+          "precognitive": false
+        },
+        {
+          "ms": 308.52,
+          "type": "response",
+          "path": "/login",
+          "method": "POST",
+          "status": 204,
+          "precognitive": true
+        },
+        {
+          "ms": 351.79,
+          "type": "real-login-held"
+        },
+        {
+          "ms": 352.92,
+          "type": "helper-return",
+          "path": "/login",
+          "sessionChanged": false
+        },
+        {
+          "ms": 364.34,
+          "type": "response",
+          "path": "/bosun",
+          "method": "GET",
+          "status": 302,
+          "precognitive": false
+        },
+        {
+          "ms": 369.96,
+          "type": "response",
+          "path": "/login",
+          "method": "GET",
+          "status": 200,
+          "precognitive": false
+        },
+        {
+          "ms": 398.68,
+          "type": "bosun-goto-return",
+          "path": "/login",
+          "sessionChanged": false
+        }
+      ]
+    },
+    {
+      "revision": "63f14bba1e8e4938a171a6ec73ffca1046236b19",
+      "mode": "gated-after",
+      "result": "all loading-state assertions passed",
+      "events": [
+        {
+          "ms": 26.49,
+          "type": "response",
+          "path": "/login",
+          "method": "GET",
+          "status": 200,
+          "precognitive": false
+        },
+        {
+          "ms": 158.97,
+          "type": "response",
+          "path": "/login",
+          "method": "POST",
+          "status": 204,
+          "precognitive": true
+        },
+        {
+          "ms": 189.76,
+          "type": "real-login-held"
+        },
+        {
+          "ms": 190.98,
+          "type": "helper-return",
+          "path": "/login",
+          "sessionChanged": false
+        },
+        {
+          "ms": 422.87,
+          "type": "response",
+          "path": "/login",
+          "method": "POST",
+          "status": 302,
+          "precognitive": false
+        },
+        {
+          "ms": 467.07,
+          "type": "authenticated-ready",
+          "path": "/",
+          "sessionChanged": true
+        },
+        {
+          "ms": 509.65,
+          "type": "response",
+          "path": "/bosun",
+          "method": "GET",
+          "status": 200,
+          "precognitive": false
+        },
+        {
+          "ms": 610.23,
+          "type": "bosun-goto-return",
+          "path": "/bosun",
+          "sessionChanged": true
+        }
+      ]
+    }
+  ]
+}

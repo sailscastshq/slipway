@@ -51,3 +51,24 @@ pass 3/3 (25.45s). Added real Alt+F10, ArrowRight and Escape checks verify visib
 keyboard focus on toolbar controls and return to the same editor selection.
 Light/dark captures assert actual editor focus with no surface/wrapper outline.
 The same four existing Library screenshot identities are replaced, not copied.
+
+## Combined CI login precondition
+
+On combined head `a04da27e`, CI run `37457088094` failed the unchanged
+`loading-state.test.js` Migrate-tab lookup while the browser was at `/login`.
+The test never reached its loading-state assertions. The file was identical
+to base `63f14bba`; no editor runtime change was indicated by this failure.
+
+Passive real-browser traces on both revisions show Sounding 0.2.0 returning
+from `login.withPassword` while still at `/login` with the anonymous session
+cookie. The real login redirect response arrives afterward. A preceding
+precognition response is only validation, not authentication. Holding the real
+login POST until the test attempts Bosun navigation reproduces the same
+Migrate timeout at `/login` on both revisions. Waiting for the authenticated
+home navigation restores the changed session cookie before Bosun returns 200;
+all original loading-state assertions pass on both revisions under that probe.
+The setup now waits for that home navigation, with no sleeps or timeout changes.
+
+`login-readiness.json` preserves timing, session-change booleans and controlled
+before/after results without credentials or cookie values. CI had no network
+trace, so its exact historical request interleaving remains unconfirmed.
