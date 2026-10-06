@@ -372,6 +372,15 @@ module.exports.routes = {
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/quest/jobs/:name/run':
     'api/v1/quest/run-job',
 
+  'POST /api/v1/projects/:projectSlug/quest/runs/:runId/cancel':
+    'api/v1/quest/cancel-run',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/quest/runs/:runId/cancel':
+    'api/v1/quest/cancel-run',
+  'POST /api/v1/projects/:projectSlug/apps/:appSlug/quest/runs/:runId/cancel':
+    'api/v1/quest/cancel-run',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/quest/runs/:runId/cancel':
+    'api/v1/quest/cancel-run',
+
   // Quest SSE Stream
   'GET /api/v1/projects/:projectSlug/quest/stream': 'api/v1/quest/stream-jobs',
   'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/quest/stream':

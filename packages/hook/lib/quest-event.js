@@ -60,12 +60,17 @@ module.exports = function questEvent(
       : 'unknown',
     requestedAt: ms(data.startedAt || data.timestamp) || Date.now(),
     startedAt: skipped ? null : ms(data.startedAt || data.timestamp),
-    finishedAt:
-      state === 'running'
-        ? null
-        : ms(data.finishedAt || data.timestamp) || Date.now(),
-    duration: !skipped && Number.isFinite(data.duration) ? data.duration : null,
-    exitCode: skipped
+    finishedAt: ['running', 'cancelling', 'unconfirmed'].includes(state)
+      ? null
+      : ms(data.finishedAt || data.timestamp) || Date.now(),
+    duration:
+      !['running', 'skipped', 'cancelling', 'unconfirmed'].includes(state) &&
+      Number.isFinite(data.duration)
+        ? data.duration
+        : null,
+    exitCode: ['running', 'skipped', 'cancelling', 'unconfirmed'].includes(
+      state
+    )
       ? null
       : state === 'completed'
       ? 0
@@ -73,7 +78,7 @@ module.exports = function questEvent(
       ? data.exitCode
       : null,
     signal:
-      state === 'failed' &&
+      ['failed', 'cancelled'].includes(state) &&
       typeof data.signal === 'string' &&
       /^SIG[A-Z0-9]{1,16}$/.test(data.signal)
         ? data.signal

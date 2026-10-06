@@ -4,6 +4,12 @@ const probe = require('../../../lib/probe')
 
 module.exports = (sails) => ({
   initialize(done) {
+    const warn = sails.log.warn
+    sails.log.warn = function (...args) {
+      if (args[0] === 'Owned Quest cancellation is unavailable:')
+        probe('control:ownership-unavailable', { reason: String(args[1]) })
+      return warn.apply(this, args)
+    }
     // The static one-shot must retain its real source-loaded input schema.
     // Stop its initial auto-start timer at the synchronous hook-ready boundary,
     // before timer callbacks can run. The owned fixture signal starts it later.
@@ -30,7 +36,15 @@ module.exports = (sails) => ({
         })
       })
     )
-    for (const event of ['start', 'complete', 'error', 'skip']) {
+    for (const event of [
+      'start',
+      'complete',
+      'error',
+      'skip',
+      'cancelling',
+      'cancelled',
+      'unconfirmed'
+    ]) {
       sails.on(`quest:job:${event}`, (data) =>
         probe(`quest:${event}`, {
           name: data.name,

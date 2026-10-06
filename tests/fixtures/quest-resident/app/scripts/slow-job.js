@@ -7,6 +7,8 @@ module.exports = {
   fn: async function (inputs) {
     const probe = require('../lib/probe')
     probe('business:start', { name: 'slow-job', inputs })
+    console.log('Synthetic slow job started: ' + inputs.label)
+    console.error('Synthetic slow warning')
     await new Promise((resolve) => setTimeout(resolve, inputs.delayMs))
     probe('business:finish', { name: 'slow-job', inputs })
     return { finished: true, label: inputs.label }
