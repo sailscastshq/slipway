@@ -1,7 +1,7 @@
 const { test } = require('sounding')
 const image = `ghcr.io/sailscastshq/slipway@sha256:${'c'.repeat(64)}`
 const command = `sudo bash scripts/upgrade-host-native.sh plan --bundle '<verified-host-bundle.tar.gz>' --bundle-sha256 '<verified-archive-sha256>' --image '${image}'`
-async function hostPage(page, upgrade = null) {
+async function hostPage(page, upgrade = null, native = true) {
   const mutations = []
   await page.raw.route('**/settings/update**', async (route) => {
     if (route.request().method() === 'POST') {
@@ -23,13 +23,13 @@ async function hostPage(page, upgrade = null) {
         )
     const payload = JSON.parse(isJson ? source : match[2])
     Object.assign(payload.props, {
-      coordinated: true,
-      hostNative: true,
+      coordinated: native,
+      hostNative: native,
       upgrade,
       updateInfo: {
-        currentVersion: '0.0.88',
-        latestVersion: upgrade ? '0.0.88' : '0.0.89',
-        updateAvailable: !upgrade,
+        currentVersion: native ? '0.0.88' : '0.0.87',
+        latestVersion: !native ? '0.0.87' : upgrade ? '0.0.88' : '0.0.89',
+        updateAvailable: native && !upgrade,
         releaseNotes: '',
         publishedAt: null
       }
@@ -140,7 +140,7 @@ test(
   { browser: true, world: 'configured-slipway' },
   async (ctx) => {
     const { page, expect } = ctx
-    const mutations = await hostPage(page)
+    const mutations = await hostPage(page, null, false)
     let plans = 0
     await page.raw.route('**/api/v1/system/upgrade/plan', (route) => {
       plans++
@@ -159,7 +159,19 @@ test(
             }
       )
     })
+    await page.raw.route('**/api/v1/system/check-update', (route) =>
+      route.fulfill({
+        json: {
+          currentVersion: '0.0.87',
+          latestVersion: '0.0.89',
+          updateAvailable: true
+        }
+      })
+    )
     await open(ctx)
+    await page.raw
+      .getByRole('button', { name: 'Check for updates', exact: true })
+      .click()
     const review = page.raw.getByRole('button', {
       name: 'Review host upgrade',
       exact: true

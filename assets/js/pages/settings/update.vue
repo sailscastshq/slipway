@@ -12,7 +12,7 @@ import Check from '@/components/ui/icons/Check.vue'
 import BookOpen from '@/components/ui/icons/BookOpen.vue'
 import ArrowRight from '@/components/ui/icons/ArrowRight.vue'
 import { Head, Link, useForm } from '@inertiajs/vue3'
-import { inject, ref, watch, onUnmounted } from 'vue'
+import { computed, inject, ref, watch, onUnmounted } from 'vue'
 import { useEventSource } from '@/composables/sse'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
@@ -45,6 +45,13 @@ const updateError = ref(null)
 const updatePhase = ref('')
 const updateDetail = ref('')
 const localUpdateInfo = ref(props.updateInfo)
+const hostNative = computed(() => {
+  if (props.hostNative || props.coordinated) return true
+  const version = localUpdateInfo.value.latestVersion || ''
+  if (!/^\d+\.\d+\.\d+$/.test(version)) return false
+  const [major, minor, patch] = version.split('.').map(Number)
+  return major > 0 || minor > 0 || patch >= 88
+})
 const lastChecked = ref(new Date())
 const updateTargetVersion = ref(props.updateInfo.latestVersion || null)
 
@@ -155,7 +162,7 @@ function resumeUpgrade() {
 }
 
 async function applyUpdate() {
-  if (props.coordinated || props.hostNative) {
+  if (props.coordinated || hostNative.value) {
     updateError.value = null
     if (!reviewedPlan.value) {
       checking.value = true
@@ -166,7 +173,7 @@ async function applyUpdate() {
           throw new Error(
             plan.message || 'Upgrade plan could not be confirmed.'
           )
-        if (props.hostNative && plan.execution !== 'host-native')
+        if (hostNative.value && plan.execution !== 'host-native')
           throw new Error('A verified host command is required.')
         reviewedPlan.value = plan
       } catch (error) {
@@ -177,7 +184,7 @@ async function applyUpdate() {
       return
     }
     const plan = reviewedPlan.value
-    if (props.hostNative || plan.execution === 'host-native') return
+    if (hostNative.value || plan.execution === 'host-native') return
     dispatchUpgrade(
       {
         instanceId: plan.instanceId,
