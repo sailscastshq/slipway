@@ -69,6 +69,22 @@ advisories also remain unresolved here; this task does not establish a prior
 Slipway risk exception. Keep #647 open. No unrestricted audit fix, global audit
 waiver, forced major override, tag, npm release or production operation is used.
 
+## Approved removal of unused development diagnostics
+
+The follow-up based on main `707a8e2086c78c9643737f74ebcc19517411b076`
+removes `sails-hook-dev`, which Slipway does not use. This intentionally retires
+its `/dev` diagnostics routes; it preserves the application development server,
+Shipwright assets and Vue HMR. The owning asset/HMR regression now verifies
+that the hook is absent, `/health` returns 200 and `/dev` returns 404.
+
+The lockfile removes 43 package nodes, including the old pretty-bytes CLI,
+meow and trim-newlines chain. No retained package changes version, and Node
+support remains unchanged. Fresh audit: nine entries (two critical, four high,
+three moderate), representing **three** underlying unresolved advisories:
+sockets' proxy-addr, sprintf-js and braces. The historical trim-newlines path
+above is removed by this follow-up. Keep #647 open; these other advisories
+remain unresolved and unaccepted. No global audit waiver or release is used.
+
 ## Verification and release gate
 
 Reproduce with the committed lockfile and supported Node version:
