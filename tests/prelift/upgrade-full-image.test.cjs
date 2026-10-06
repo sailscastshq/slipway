@@ -39,99 +39,37 @@ async function healthy(id) {
   }
   throw new Error('Disposable full-image readiness was not confirmed')
 }
-async function runController({
-  input,
-  containers,
-  directory,
-  image,
-  sourceId,
-  original
-}) {
+let nativeRunSequence = 0
+async function runController({ input, directory, image, sourceId }) {
   const name =
-    'slipway-full-controller-' + containers.length + '-' + process.pid
-  const request = path.join(
-      directory,
-      'request-' + containers.length + '.json'
-    ),
-    output = path.join(directory, 'result-' + containers.length + '.json')
-  fs.writeFileSync(
-    request,
-    JSON.stringify({
-      ...input,
-      directory,
-      image,
-      containerId: sourceId,
-      controller: name,
-      output
-    }),
-    { mode: 0o600 }
-  )
-  const created = await docker('POST', `/containers/create?name=${name}`, {
-    Image: image,
-    Entrypoint: ['node'],
-    Cmd: ['/fixture/controller.cjs', request],
-    WorkingDir: '/app',
-    Tty: true,
-    HostConfig: {
-      NetworkMode: 'none',
-      PidMode: 'host',
-      CapAdd: ['SYS_PTRACE'],
-      RestartPolicy: { Name: 'no' },
-      Mounts: [
-        {
-          Type: 'bind',
-          Source: '/',
-          Target: '/slipway-host',
-          ReadOnly: true,
-          BindOptions: { Propagation: 'rslave' }
-        },
-        { Type: 'bind', Source: directory, Target: directory },
-        {
-          Type: 'bind',
-          Source: original,
-          Target: original,
-          ReadOnly: true
-        },
-        {
-          Type: 'bind',
-          Source: '/var/run/docker.sock',
-          Target: '/var/run/docker.sock'
-        },
-        {
-          Type: 'bind',
-          Source: path.resolve(
-            __dirname,
-            'fixtures/upgrade-full-controller.cjs'
-          ),
-          Target: '/fixture/controller.cjs',
-          ReadOnly: true
-        },
-        {
-          Type: 'bind',
-          Source: path.resolve(
-            __dirname,
-            'fixtures/upgrade-catalog-diagnostics.cjs'
-          ),
-          Target: '/fixture/catalog-diagnostics.cjs',
-          ReadOnly: true
-        }
-      ]
-    }
+    'slipway-native-controller-' + ++nativeRunSequence + '-' + process.pid
+  const bundleDirectory = process.env.SLIPWAY_NATIVE_HOST_BUNDLE_DIR
+  assert.ok(bundleDirectory, 'The verified Linux host bundle is required')
+  const native = require(path.join(
+    bundleDirectory,
+    'scripts/upgrade-host-native.cjs'
+  ))
+  const requested = {
+    operation:
+      input.operation ||
+      (input.filename
+        ? 'resume'
+        : input.reviewed?.sourceVersion === 'fresh'
+        ? 'initialize'
+        : 'apply'),
+    container: sourceId,
+    directory,
+    image,
+    instanceId: input.instanceId || input.reviewed?.instanceId,
+    approval: input.approval || input.reviewed?.reviewHash,
+    ...(input.filename ? { filename: input.filename } : {}),
+    failHealth: input.failHealth,
+    bundleDirectory
+  }
+  const result = await native.supervise(requested, {
+    worker: path.resolve(__dirname, 'fixtures/upgrade-native-full-worker.cjs'),
+    timeoutMs: 240000
   })
-  containers.push(created.Id)
-  await docker('POST', `/containers/${created.Id}/start`)
-  const exit = await docker(
-    'POST',
-    `/containers/${created.Id}/wait?condition=not-running`,
-    undefined,
-    240000
-  )
-  assert.equal(
-    exit.StatusCode,
-    0,
-    'Disposable trusted controller must complete its bounded protocol'
-  )
-  const result = JSON.parse(fs.readFileSync(output, 'utf8'))
   if (!result.success) {
     const evidence = path.resolve(
       process.env.SLIPWAY_FULL_IMAGE_DIAGNOSTICS ||
@@ -296,14 +234,6 @@ test(
         'synthetic-existing-opaque-key',
         { mode: 0o600 }
       )
-      const reviewed = host.plan({
-        sourceDirectory: original,
-        instanceId: 'full-image-fixture',
-        image,
-        sourceVersion: '0.0.87',
-        containerId: sourceId,
-        containerName: sourceName
-      })
       const controller = (input) =>
         runController({
           input,
@@ -313,6 +243,8 @@ test(
           sourceId,
           original
         })
+      const reviewed = await controller({ operation: 'plan' })
+      assert.equal(reviewed.success, true, JSON.stringify(reviewed))
       const failed = await controller({ reviewed, failHealth: true })
       assert.equal(failed.code, 'upgradeHostHealth', JSON.stringify(failed))
       const held = host.read(failed.filename)
@@ -323,7 +255,8 @@ test(
       assert.equal((await info(candidate)).HostConfig.RestartPolicy.Name, 'no')
       const resumed = await controller({
         filename: failed.filename,
-        approval: reviewed.reviewHash
+        approval: reviewed.reviewHash,
+        instanceId: reviewed.instanceId
       })
       assert.equal(resumed.success, true)
       assert.equal(resumed.phase, 'ready')
@@ -487,7 +420,7 @@ test(
       const health = await healthy(candidate)
       assert.equal(health.version, '0.0.88')
       assert.equal(health.upgrade.verified, true)
-      assert.equal(health.upgrade.manifestHash, reviewed.identity.hash)
+      assert.equal(health.upgrade.manifestHash, state.reviewed.identity.hash)
       const response = await fetch((await url(candidate)) + '/setup', {
         signal: AbortSignal.timeout(5000),
         redirect: 'manual'

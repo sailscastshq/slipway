@@ -1,0 +1,9 @@
+ARG BUILDER_IMAGE
+FROM ${BUILDER_IMAGE}
+WORKDIR /source
+COPY . .
+RUN npm ci --no-audit
+ARG SOURCE_REVISION
+ARG BUILDER_IMAGE
+RUN node scripts/package-upgrade-host.cjs /bundle "$SOURCE_REVISION" "$BUILDER_IMAGE" && \
+    tar -czf /slipway-host.tar.gz -C /bundle .

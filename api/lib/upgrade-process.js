@@ -5,6 +5,12 @@ const { fork } = require('node:child_process')
 const codes = require('./upgrade-error-codes')
 const fenceReasons = require('./upgrade-fence-reasons')
 const limit = 1024 * 1024
+let spawnObserver
+function observeSpawns(observer) {
+  if (spawnObserver || typeof observer !== 'function')
+    throw failure('upgradeWorkerInput')
+  spawnObserver = observer
+}
 function failure(code, reason) {
   return Object.assign(
     new Error('Upgrade worker requires recovery inspection.'),
@@ -26,7 +32,8 @@ function createSupervisor(worker) {
     input,
     timeoutMs,
     verifyFence,
-    audit
+    audit,
+    signal
   }) {
     if (
       !Number.isSafeInteger(timeoutMs) ||
@@ -71,6 +78,9 @@ function createSupervisor(worker) {
         }
       }
       const timer = setTimeout(() => stop('upgradeWorkerTimeout'), timeoutMs)
+      const interrupted = () => stop('upgradeWorkerInterrupted')
+      signal?.addEventListener('abort', interrupted, { once: true })
+      if (signal?.aborted) interrupted()
       const count = (chunk) => {
         outputBytes += chunk.length
         if (outputBytes > 65536) stop('upgradeWorkerOutput')
@@ -126,6 +136,7 @@ function createSupervisor(worker) {
       const finish = () => {
         if (!workerClosed || !guardianClosed) return
         clearTimeout(timer)
+        signal?.removeEventListener('abort', interrupted)
         if (error) reject(error)
         else if (exitCode !== 0 || exitSignal || !responded)
           reject(failure('upgradeWorkerFailed'))
@@ -147,13 +158,20 @@ function createSupervisor(worker) {
             [],
             {
               execArgv: [],
+              detached: true,
               env: {},
               stdio: ['ignore', 'ignore', 'ignore', 'ipc']
             }
           )
-          guardian.on('message', (message) => {
+          guardian.on('message', async (message) => {
             if (message?.type !== 'armed' || error || workerClosed) return
-            child.send({ operation, input, timeoutMs })
+            try {
+              if (spawnObserver) await spawnObserver({ pid: child.pid, start })
+              if (!error && !workerClosed)
+                child.send({ operation, input, timeoutMs })
+            } catch {
+              stop('upgradeWorkerGuardLost')
+            }
           })
           guardian.on('error', () => stop('upgradeWorkerGuardLost'))
           guardian.on('close', () => {
@@ -174,5 +192,6 @@ function createSupervisor(worker) {
 }
 module.exports = {
   createSupervisor,
+  observeSpawns,
   runBounded: createSupervisor(path.join(__dirname, 'upgrade-worker.js'))
 }
