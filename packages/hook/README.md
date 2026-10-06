@@ -428,3 +428,7 @@ rollout behavior and Lookout comparisons.
 ## Wake and read-only Bridge support views
 
 Version 0.0.10 adds the full Wake collection/goals/revenue runtime and opt-in read-only support sessions. Both capabilities remain disabled until explicitly configured. See [Wake setup, privacy, revenue replay and retention](../../docs/wake.md) and [Bridge support configuration and safety boundaries](../../docs/bridge-support.md). Custom session mappings are inherited from `slipway.identity`; Wake also supports anonymous sessionless apps.
+
+## Quest reconnect and control (0.0.13)
+
+This release integrates Quest 0.0.8 opt-in live logs and verified cancellation, plus bounded private receipt persistence. Node 22+ and Sails ^1.5.0 are required. Upgrade both hooks, retain existing telemetry configuration and explicitly configure the Linux controls and private persistent receipt directory. See [CHANGELOG.md](CHANGELOG.md) for the complete app upgrade instructions, bounds and uncertain-outcome behavior.
