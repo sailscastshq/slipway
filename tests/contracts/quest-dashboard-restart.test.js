@@ -268,7 +268,7 @@ test(
       assert.ok(ingests.length < 120)
       const burstIds = new Set(burst.map((run) => run.runId))
       const burstPackets = ingests.filter((packet) =>
-        packet.body.metrics.some((metric) =>
+        packet.body.metrics?.some((metric) =>
           burstIds.has(metric.attributes?.questRun?.runId)
         )
       )

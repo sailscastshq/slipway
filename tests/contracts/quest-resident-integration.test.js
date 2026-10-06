@@ -879,7 +879,15 @@ test(
           (event) => event.kind === 'quest:start'
         ).length,
         transport: 'Real Docker exec/private UDS + real dashboard HTTP/browser',
-        cancellation: 'unsupported'
+        cancellation: {
+          runId: controlled.run.runId,
+          state: 'cancelled',
+          persisted: true,
+          duplicateRequests: 2,
+          businessStarts: businessFor(finalEvents, 'slow-job').filter(
+            (event) => event.inputs.label === 'owned-cancellation'
+          ).length
+        }
       }
       const root = path.resolve('.tmp/screenshots/quest-real-resident')
       await fs.mkdir(root, { recursive: true })
