@@ -1,0 +1,31 @@
+[
+  {
+    "event": "click",
+    "phase": "before",
+    "target": "Bold",
+    "at": 1762.5999999642372,
+    "domSelection": "Ship with confidence\nBoring releases are good.",
+    "selection": {
+      "type": "text",
+      "anchor": 48,
+      "head": 48
+    },
+    "html": "<h2>Ship with confidence</h2><p>Boring releases are good.</p><p></p>",
+    "focus": "rich-text-content"
+  },
+  {
+    "event": "click",
+    "phase": "after",
+    "target": "Bold",
+    "at": 1763.0999999642372,
+    "domSelection": "Ship with confidence\nBoring releases are good.",
+    "selection": {
+      "type": "text",
+      "anchor": 48,
+      "head": 48
+    },
+    "marks": ["bold"],
+    "html": "<h2>Ship with confidence</h2><p>Boring releases are good.</p><p></p>",
+    "focus": "rich-text-content"
+  }
+]

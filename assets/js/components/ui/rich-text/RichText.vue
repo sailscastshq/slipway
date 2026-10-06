@@ -443,6 +443,7 @@ function tools() {
   return [...(toolbar.value?.querySelectorAll('button:not(:disabled)') ?? [])]
 }
 function focusToolbar() {
+  flushEditorSelection()
   syncToolbar()
   toolbar.value?.querySelector('button[tabindex="0"]')?.focus()
 }
@@ -476,12 +477,23 @@ function toolbarKeydown(event) {
   )
   buttons[target]?.focus()
 }
+function flushEditorSelection() {
+  const view = editor.value?.view
+  // Native keyboard selection can precede ProseMirror's selectionchange
+  // observer. Read it before a toolbar transaction uses the editor state.
+  if (view?.hasFocus()) {
+    view.domObserver.forceFlush()
+    view.domObserver.flush()
+  }
+}
 function run(command, attributes) {
   if (locked.value || mode.value !== 'visual') return
+  flushEditorSelection()
   editor.value?.chain().focus()[command](attributes).run()
 }
 function rememberSelection() {
   if (!editor.value) return
+  flushEditorSelection()
   selectionBookmark = editor.value.state.selection.getBookmark()
   selectedImage = editor.value.isActive('image')
 }
