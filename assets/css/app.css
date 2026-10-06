@@ -108,8 +108,8 @@ button:disabled,
 
 /* Form inputs and rich-text writing surfaces handle their own focus.
    Toolbar buttons retain the visible keyboard-focus outline. */
-*:focus-visible:not(input):not(textarea):not(select):not(
-    [data-slot='rich-text-content']
+*:focus-visible:not(input):not(textarea):not(select):where(
+    :not([data-slot='rich-text-content'])
   ) {
   outline: 2px solid var(--color-brand);
   outline-offset: 2px;

@@ -40,7 +40,8 @@ Screenshots: `.tmp/screenshots/issue-682/{desktop,mobile}-{light,dark}.png`.
 The delivered focused screenshot showed the global `*:focus-visible` brand
 outline on the rich-text contenteditable surface, overriding `outline-none`.
 The wrapper also applied a focus-within outline. The correction excludes only
-`[data-slot="rich-text-content"]` from the global outline rule and removes only
+`[data-slot="rich-text-content"]` through zero-specificity `:where()` so unrelated
+controls retain the original focus-rule cascade, and removes only
 the wrapper outline utilities. Toolbar focus, borders, disabled states and
 selected-image outlines remain intact.
 
