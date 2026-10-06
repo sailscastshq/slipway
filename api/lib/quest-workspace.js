@@ -21,7 +21,8 @@ async function resolveContext(
   req,
   projectSlug,
   environmentSlug = 'production',
-  mutate = false
+  mutate = false,
+  { appId } = {}
 ) {
   const user = await User.forRequest(req)
   if (!user) throw 'notFound'
@@ -43,7 +44,9 @@ async function resolveContext(
     project: project.id
   })
   if (!environment) throw 'notFound'
-  const { app } = await require('./app-selection')(req, environment.id)
+  const { app } = await require('./app-selection')(req, environment.id, {
+    appId
+  })
   return { user, project, environment, app }
 }
 

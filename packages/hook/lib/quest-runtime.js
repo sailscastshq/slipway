@@ -517,15 +517,18 @@ function createQuestRuntime({
         let offset = Math.max(0, bytes.length - 32768)
         while (offset < bytes.length && (bytes[offset] & 0xc0) === 0x80)
           offset++
-        return bytes.subarray(offset).toString('utf8')
+        return {
+          value: bytes.subarray(offset).toString('utf8'),
+          truncated: offset > 0 || Boolean(truncated)
+        }
       }
+      const stdout = clean(data.logs?.stdout, data.logs?.stdoutTruncated)
+      const stderr = clean(data.logs?.stderr, data.logs?.stderrTruncated)
       const snapshot = {
         sequence: data.sequence,
-        stdout: clean(data.logs?.stdout, data.logs?.stdoutTruncated),
-        stderr: clean(data.logs?.stderr, data.logs?.stderrTruncated),
-        truncated: Boolean(
-          data.logs?.stdoutTruncated || data.logs?.stderrTruncated
-        )
+        stdout: stdout.value,
+        stderr: stderr.value,
+        truncated: stdout.truncated || stderr.truncated
       }
       const window = logWindows.get(data.runId) || {
         entries: [],

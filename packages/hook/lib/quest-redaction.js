@@ -82,6 +82,7 @@ function createQuestRedactor(
         // Upstream completed diagnostic tails trim their boundary whitespace.
         if (typeof value === 'string') {
           add(value.trim())
+          for (const line of value.split(/\r?\n/)) add(line)
           // JSON logging is a common representation of nested input values.
           add(JSON.stringify(value).slice(1, -1))
         }
@@ -104,6 +105,11 @@ function createQuestRedactor(
     seen.delete(value)
   }
   try {
+    // Environment values need the same streaming boundary protection as
+    // declared inputs, before any live snapshot or receipt is retained.
+    for (const [name, value] of Object.entries(process.env))
+      if (SENSITIVE_KEY.test(name) && typeof value === 'string')
+        collect(value, true)
     const fields = metadata?.inputs || {}
     const sources = metadata?.scheduledInputs?.fields || {}
     const sourceValues = metadata?.scheduledInputs?.values || {}

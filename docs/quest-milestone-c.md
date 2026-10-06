@@ -77,7 +77,10 @@ descendants inherit a separate ownership marker without the result FD contract;
 it signals
 only that verified group, then observes termination. Duplicate requests coalesce.
 The UI shows Cancelling after resident admission and Cancelled only from confirmed
-termination. TERM-resistant children may receive a separately ownership-checked
+termination caused by the admitted cancellation. A confirmed already-exited
+child and actual successful business result retain normal Completed truth.
+An unconfirmed cancellation outcome is published while the child may still run;
+it does not wait for child close. TERM-resistant children may receive a separately ownership-checked
 KILL. Changed identity, permission failure, escaped tagged descendants or the
 five-second confirmation deadline remain Unconfirmed. The overlap guard remains
 held for unconfirmed termination. Every control is scoped and audited. Results

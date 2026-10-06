@@ -192,3 +192,153 @@ test('live replay is bounded, redacts split chunks and never changes terminal tr
   assert.equal((await read(34)).state, 'completed')
   assert.equal(bridge.runs.get(data.runId).result.value, false)
 })
+
+test('multiline environment secrets are sanitized before immutable live replay, error receipts and acknowledgements', async (t) => {
+  const {
+    createQuestRuntime
+  } = require('../../../packages/hook/lib/quest-runtime')
+  const { EventEmitter } = require('node:events')
+  const previous = process.env.SERVICE_SECRET
+  process.env.SERVICE_SECRET =
+    'synthetic-private-first\nsynthetic-private-second'
+  t.after(() => {
+    if (previous === undefined) delete process.env.SERVICE_SECRET
+    else process.env.SERVICE_SECRET = previous
+  })
+  const sails = new EventEmitter(),
+    runtimeId = 'environment-live-runtime'
+  sails.quest = {
+    getRuntime: () => ({
+      contractVersion: 1,
+      runtimeId,
+      capabilities: {
+        residentState: true,
+        runIdentity: true,
+        childSchedulerSuppression: true,
+        liveLogs: true
+      }
+    }),
+    metadata: () => ({ inputs: {} })
+  }
+  const bridge = createQuestRuntime({ sails, appId: '7', deploymentId: '42' })
+  const data = {
+    name: 'synthetic',
+    runId: 'environment-live-run',
+    runtimeId,
+    sequence: 1,
+    timestamp: Date.now(),
+    inputs: {}
+  }
+  bridge.record('running', data)
+  const read = () =>
+    bridge.dispatch({
+      command: 'logs',
+      appId: '7',
+      deploymentId: '42',
+      runtimeId,
+      runId: data.runId,
+      afterSequence: 0
+    })
+  const samples = [
+    'public line\nsynthetic-pri',
+    'public line\nsynthetic-private-first\n',
+    'public line\nsynthetic-private-first\nsynthetic-private-sec',
+    'public line\nsynthetic-private-first\nsynthetic-private-second\n'
+  ]
+  let earliest
+  for (let index = 0; index < samples.length; index++) {
+    const raw = {
+      ...data,
+      sequence: index + 2,
+      logs: { stdout: samples[index], stderr: samples[index] }
+    }
+    bridge.record('log', raw)
+    raw.logs.stdout = 'later caller mutation'
+    const replay = await read()
+    assert.equal(JSON.stringify(replay).includes('synthetic-private'), false)
+    earliest ||= JSON.stringify(replay.entries[0])
+    assert.equal(JSON.stringify(replay.entries[0]), earliest)
+  }
+  bridge.record('unconfirmed', {
+    ...data,
+    sequence: 8,
+    error: { message: 'synthetic-private-first\nsynthetic-private-second' },
+    logs: { stdout: samples.at(-1), stderr: 'synthetic-private-first' }
+  })
+  const receipt = { ...bridge.runs.get(data.runId), appId: '7' }
+  assert.equal(JSON.stringify(receipt).includes('synthetic-private'), false)
+  let sent
+  const f = fixture(t, async (body) => {
+    sent = body
+    return { questAcknowledged: body.questEvents.map((item) => item.id) }
+  })
+  assert.equal(f.queue.enqueue(receipt), true)
+  assert.equal(
+    fs
+      .readFileSync(path.join(f.directory, idFor(receipt) + '.json'), 'utf8')
+      .includes('synthetic-private'),
+    false
+  )
+  await f.queue.flush()
+  assert.equal(JSON.stringify(sent).includes('synthetic-private'), false)
+  assert.equal(f.queue.pending, 0)
+})
+
+test('a first oversized live snapshot reports local truncation with UTF-8 safe cursor replay', async () => {
+  const {
+    createQuestRuntime
+  } = require('../../../packages/hook/lib/quest-runtime')
+  const { EventEmitter } = require('node:events')
+  const sails = new EventEmitter(),
+    runtimeId = 'local-tail-runtime'
+  sails.quest = {
+    getRuntime: () => ({
+      contractVersion: 1,
+      runtimeId,
+      capabilities: {
+        residentState: true,
+        runIdentity: true,
+        childSchedulerSuppression: true,
+        liveLogs: true
+      }
+    }),
+    metadata: () => ({ inputs: {} })
+  }
+  const bridge = createQuestRuntime({ sails, appId: '7', deploymentId: '42' })
+  const data = {
+    name: 'synthetic',
+    runId: 'local-tail-run',
+    runtimeId,
+    sequence: 1,
+    timestamp: Date.now(),
+    inputs: {}
+  }
+  bridge.record('running', data)
+  bridge.record('log', {
+    ...data,
+    sequence: 2,
+    logs: {
+      stdout: '界'.repeat(16384) + '\n',
+      stderr: 'ordinary line\n',
+      stdoutTruncated: false,
+      stderrTruncated: false
+    }
+  })
+  const read = (afterSequence) =>
+    bridge.dispatch({
+      command: 'logs',
+      appId: '7',
+      deploymentId: '42',
+      runtimeId,
+      runId: data.runId,
+      afterSequence
+    })
+  const first = await read(0)
+  assert.equal(first.truncated, true)
+  assert.equal(first.entries[0].truncated, true)
+  assert.ok(Buffer.byteLength(first.stdout) <= 32768)
+  assert.equal(first.stdout.includes('\ufffd'), false)
+  assert.equal(first.gap, false)
+  assert.equal((await read(2)).entries.length, 0)
+  assert.equal((await read(2)).truncated, true)
+})

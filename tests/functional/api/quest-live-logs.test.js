@@ -18,8 +18,18 @@ test(
     try {
       const user = world.current.users.genesisUser
       const client = await bearerRequest(context, user)
+      await sails.models.app
+        .updateOne({ id: f.app.id })
+        .set({ isDefault: false })
+      const primary = await world.create('app').with({
+        environment: f.app.environment,
+        slug: 'primary',
+        isDefault: true,
+        status: 'stopped'
+      })
+      const scopedBase = `/api/v1/projects/quest-live-logs/environments/production/apps/${f.app.slug}/quest`
       const admitted = await client.post(
-        `${f.base}/jobs/synthetic-report/run`,
+        `${scopedBase}/jobs/synthetic-report/run`,
         f.body()
       )
       assert.equal(admitted.status, 202)
@@ -38,11 +48,54 @@ test(
         token: crypto.createHash('sha256').update(token).digest('hex')
       })
       const address = sails.hooks.http.server.address()
-      async function open(cursor) {
+      assert.equal(
+        (
+          await client.get(
+            `${f.base}/runs/${admitted.data.run.runId}/logs?stream=true&appId=${primary.id}`
+          )
+        ).status,
+        404
+      )
+      assert.equal(
+        (
+          await client.get(
+            `${scopedBase}/runs/${admitted.data.run.runId}/logs?stream=true&appId=${primary.id}`
+          )
+        ).status,
+        404
+      )
+      const staging = await world.create('environment').with({
+        project: world.current.projects.deploymentTarget.id,
+        slug: 'other-scope'
+      })
+      const foreign = await world.create('app').with({
+        environment: staging.id,
+        slug: 'foreign',
+        isDefault: false
+      })
+      const beforeForeignRead = f.calls.length
+      assert.equal(
+        (
+          await client.get(
+            `${f.base}/runs/${admitted.data.run.runId}/logs?stream=true&appId=${foreign.id}`
+          )
+        ).status,
+        404
+      )
+      assert.equal(
+        f.calls.length,
+        beforeForeignRead,
+        'foreign app ID starts no resident read'
+      )
+      async function open(cursor, bySlug = false) {
         const controller = new AbortController()
         controllers.push(controller)
         const response = await fetch(
-          `http://127.0.0.1:${address.port}${f.base}/runs/${admitted.data.run.runId}/logs?stream=true&afterSequence=${cursor}`,
+          `http://127.0.0.1:${address.port}${
+            bySlug ? scopedBase : f.base
+          }/runs/${
+            admitted.data.run.runId
+          }/logs?stream=true&afterSequence=${cursor}&appId=${f.app.id}`,
           {
             headers: {
               authorization: `Bearer sl_${token}`,
@@ -72,7 +125,7 @@ test(
       assert.equal(initial.first.entries.length, 1)
       assert.match(initial.first.stdout, /Synthetic retained line/)
       await initial.reader.cancel()
-      const repeated = await open(2)
+      const repeated = await open(2, true)
       assert.equal(repeated.first.sequence, 2)
       assert.equal(repeated.first.entries.length, 0)
       await sails.models.teammembership
