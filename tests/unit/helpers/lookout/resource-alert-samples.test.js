@@ -59,61 +59,160 @@ test('Docker samples require complete finite readings and command execution has 
   )
   await assert.rejects(failed.fn(), /stats deadline/)
 })
-test('additive observability migration is repeatable and preserves legacy incidents and telemetry', async () => {
-  const { DatabaseSync } = require('node:sqlite')
-  const helperPath = path.resolve(
-    'api/helpers/lookout/ensure-observability-schema.js'
-  )
-  const helper = require(helperPath)
-  const db = new DatabaseSync(':memory:')
-  const original = global.sails
-  const before = []
-  try {
-    db.exec(
-      'CREATE TABLE resource_alert_states (id INTEGER PRIMARY KEY, container_name TEXT, memory_active INTEGER, last_sample_at INTEGER)'
+test('native observability migration preserves legacy incidents and telemetry before repeatable admitted startup', async () => {
+  const Database = require('better-sqlite3')
+  const {
+    fixture,
+    complete,
+    seed,
+    profiles
+  } = require('../../../prelift/release-fixtures.cjs')
+  const startup = require('../../../../api/lib/upgrade-startup')
+  const ledger = require('../../../../api/lib/upgrade-ledger')
+  const helper = require('../../../../api/helpers/lookout/ensure-observability-schema')
+  await fixture(profiles.old, async (state) => {
+    const service = state.services.find(
+      (item) => item.datastore === 'observability'
     )
-    db.prepare('INSERT INTO resource_alert_states VALUES (1, ?, 1, 123)').run(
-      'legacy'
-    )
-    global.sails = {
-      getDatastore: () => ({
-        sendNativeQuery: async (sql, values = []) => {
-          before.push(sql)
-          const stmt = db.prepare(sql)
-          return { rows: stmt.all(...values) }
-        }
-      })
-    }
-    await helper.fn()
-    await helper.fn()
-    assert.deepEqual(
-      { ...db.prepare('SELECT * FROM resource_alert_states').get() },
-      {
-        id: 1,
+    const source = new Database(service.path)
+    let incidents, telemetry
+    try {
+      seed(source, 'resource_alert_states', {
         container_name: 'legacy',
-        memory_active: 1,
+        memory_active: '1',
         last_sample_at: 123
-      }
-    )
-    assert.equal(
-      db
+      })
+      seed(source, 'telemetry_spans', {
+        created_at: 123,
+        trace_id: 'legacy-trace',
+        span_id: 'legacy-span',
+        name: 'legacy-request',
+        started_at: 123,
+        attributes: '{"retained":true}'
+      })
+      incidents = source
         .prepare(
-          "SELECT count(*) n FROM sqlite_master WHERE name='resource_alert_deliveries'"
+          'SELECT id, container_name, memory_active, last_sample_at FROM resource_alert_states'
         )
-        .get().n,
-      1
+        .all()
+      telemetry = source.prepare('SELECT * FROM telemetry_spans').all()
+    } finally {
+      source.close()
+    }
+    // Registered 86 catalogs, real mandatory backups, clone preflight and the
+    // existing transaction/receipt engine establish all four stores before any
+    // current-release helper is admitted. No package-version or guard override.
+    const identity = await complete(state)
+    const run = fs
+      .readdirSync(state.directory)
+      .find((name) => name.startsWith('run-'))
+    const markerFile = path.join(state.directory, 'launch.json')
+    startup.writeMarker(markerFile, {
+      format: 1,
+      phase: 'ready',
+      filename: path.join(state.directory, run, 'run.json'),
+      instanceId: identity.manifest.instanceId,
+      version: identity.manifest.version,
+      image: identity.manifest.image,
+      manifestHash: identity.hash
+    })
+    const environment = {
+      SLIPWAY_UPGRADE_MARKER: markerFile,
+      SLIPWAY_UPGRADE_INSTANCE: identity.manifest.instanceId,
+      SLIPWAY_UPGRADE_IMAGE: identity.manifest.image,
+      SLIPWAY_UPGRADE_MANIFEST: identity.hash
+    }
+    const previousEnvironment = Object.fromEntries(
+      Object.keys(environment).map((name) => [name, process.env[name]])
     )
-    assert.ok(before.every((sql) => !/DROP TABLE|ALTER TABLE/i.test(sql)))
-    const plan = db
-      .prepare(
-        "EXPLAIN QUERY PLAN SELECT id FROM resource_alert_deliveries WHERE status='pending' AND next_attempt_at<=1 AND lease_until<=1 LIMIT 5"
+    const original = global.sails
+    const databases = new Map(
+      state.services.map((item) => [item.datastore, new Database(item.path)])
+    )
+    const before = state.services.map((item) => ledger.schemaHash(item))
+    const queries = []
+    try {
+      Object.assign(process.env, environment)
+      global.sails = {
+        config: {
+          models: { migrate: 'safe' },
+          datastores: Object.fromEntries(
+            state.services.map((item) => [
+              item.datastore,
+              { adapter: 'sails-sqlite', url: item.path }
+            ])
+          )
+        },
+        getDatastore: (name = 'default') => ({
+          manager: databases.get(name),
+          sendNativeQuery: async (sql, values = []) => {
+            queries.push(sql)
+            const stmt = databases.get(name).prepare(sql)
+            return {
+              rows: stmt.reader
+                ? stmt.all(...values)
+                : (stmt.run(...values), [])
+            }
+          }
+        })
+      }
+      require('../../../../api/hooks/upgrade-admission')(
+        global.sails
+      ).configure()
+      assert.equal(global.sails.upgradeAdmission.verified, true)
+      await helper.fn()
+      await helper.fn()
+      const db = databases.get('observability')
+      assert.deepEqual(
+        db
+          .prepare(
+            'SELECT id, container_name, memory_active, last_sample_at FROM resource_alert_states'
+          )
+          .all(),
+        incidents
       )
-      .all()
-    assert.ok(
-      plan.some((row) => row.detail.includes('resource_alert_deliveries_due'))
-    )
-  } finally {
-    global.sails = original
-    db.close()
-  }
+      assert.deepEqual(
+        db.prepare('SELECT * FROM telemetry_spans').all(),
+        telemetry
+      )
+      assert.equal(
+        db
+          .prepare(
+            "SELECT count(*) n FROM sqlite_schema WHERE name='resource_alert_deliveries'"
+          )
+          .get().n,
+        1
+      )
+      assert.ok(
+        queries.length > 0,
+        'Retained startup business work must execute'
+      )
+      assert.ok(
+        queries.every((sql) => !/\b(?:CREATE|ALTER|DROP)\b/i.test(sql)),
+        'Admitted startup must issue zero DDL'
+      )
+      state.services.forEach((item, index) =>
+        assert.equal(ledger.schemaHash(item), before[index])
+      )
+      const plan = db
+        .prepare(
+          "EXPLAIN QUERY PLAN SELECT id FROM resource_alert_deliveries WHERE status='pending' AND next_attempt_at<=1 AND lease_until<=1 LIMIT 5"
+        )
+        .all()
+      assert.ok(
+        plan.some((row) => row.detail.includes('resource_alert_deliveries_due'))
+      )
+      assert.equal(
+        startup.fromEnvironment(global.sails.config.datastores).verified,
+        true
+      )
+    } finally {
+      global.sails = original
+      for (const db of databases.values()) db.close()
+      for (const [name, value] of Object.entries(previousEnvironment)) {
+        if (value === undefined) delete process.env[name]
+        else process.env[name] = value
+      }
+    }
+  })
 })
