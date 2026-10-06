@@ -12,7 +12,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update', 'remove'])
 const fieldClass =
-  'focus:border-brand mt-2 block w-full rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 dark:border-gray-700 dark:bg-transparent dark:text-white dark:focus:border-brand'
+  'focus:border-brand mt-2 w-full rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 dark:border-gray-700 dark:bg-transparent dark:text-white dark:focus:border-brand'
 const popover = ref()
 const menuId = `config-variable-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
 async function focusEditor(open) {
@@ -133,7 +133,7 @@ function previewPolicyDescription(policy) {
             :value="metadata.description || ''"
             @blur="update('description', $event.target.value)"
             maxlength="160"
-            :class="fieldClass"
+            :class="[fieldClass, 'block']"
             placeholder="What uses this value?"
           />
         </label>
