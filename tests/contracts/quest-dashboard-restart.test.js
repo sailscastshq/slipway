@@ -163,12 +163,9 @@ test(
       // proving SQLite survived the genuine process death.
       assert.deepEqual(await read(b, index.runId), originalReceipt)
       assert.deepEqual(await read(b, index.runId, true), originalLogs)
-      assert.equal((await read(b, missing.runId)).status, 404)
       const startsBeforeRecovery = starts().length
-      const recovered = await b.call('recover', {
-        runId: missing.runId,
-        runtimeId: initial.runtimeId
-      })
+      // No resident recovery request: retry only the private retained receipt.
+      const recovered = await persisted(b, missing)
       assert.equal(recovered.status, 200)
       assert.equal(recovered.data.run.runId, missing.runId)
       assert.equal(recovered.data.run.runtimeId, initial.runtimeId)
@@ -209,6 +206,16 @@ test(
       }
 
       const events = fixture.evidence()
+      assert.ok(
+        events.some(
+          (event) =>
+            event.kind === 'telemetry:ingest' &&
+            event.body.questEvents?.some(
+              (item) => item.run.runId === missing.runId
+            )
+        ),
+        'Missing receipt is delivered from disk without resident recovery or execution replay'
+      )
       const ingests = events.filter(
         (event) => event.kind === 'telemetry:ingest'
       )
@@ -227,6 +234,15 @@ test(
           Buffer.byteLength(JSON.stringify(packet.body)),
           packet.bytes
         )
+        if (packet.body.questEvents) {
+          assert.ok(packet.body.questEvents.length <= 8)
+          wireBytes += packet.bytes
+          for (const item of packet.body.questEvents) {
+            assert.ok(Buffer.byteLength(JSON.stringify(item)) <= 32 * 1024)
+            assert.match(item.id, /^[a-f0-9]{64}$/)
+          }
+          continue
+        }
         assert.ok(Number.isFinite(packet.body.registration.startedAt))
         wireBytes += packet.bytes
         for (const [kind, limit, timestamp] of [
@@ -286,7 +302,7 @@ test(
           (metric) => metric.attributes?.questRun?.runId === missing.runId
         ).length,
         0,
-        'Offline packet was lost, never replayed'
+        'Generic metrics remain best effort; durable receipt replay does not duplicate them'
       )
       await fixture.waitFor(
         () =>

@@ -10,7 +10,7 @@ const DIRECTORY = '/tmp/slipway-quest-runtimes'
 const MAX_REQUEST_BYTES = 32 * 1024
 const MAX_RESULT_BYTES = 128 * 1024
 const MAX_RUNS = 32
-const terminal = new Set(['completed', 'failed', 'skipped'])
+const terminal = new Set(['completed', 'failed', 'skipped', 'cancelled'])
 const milliseconds = (value) => {
   const parsed = Number.isFinite(value)
     ? value
@@ -446,6 +446,7 @@ function createQuestRuntime({
   const runs = new Map(),
     requests = new Map(),
     listeners = [],
+    logWindows = new Map(),
     ownedFiles = new Map()
   let activeAdmission = null,
     server,
@@ -462,6 +463,7 @@ function createQuestRuntime({
       const evicted = completed?.[0] || runs.keys().next().value
       forgetQuestRedactor(sails, runs.get(evicted).runtimeId, evicted)
       runs.delete(evicted)
+      logWindows.delete(evicted)
     }
   }
   const summary = (run) => {
@@ -500,6 +502,55 @@ function createQuestRuntime({
     )
       return
     const old = runs.get(data.runId)
+    if (kind === 'log') {
+      if (!old || terminal.has(old.state) || data.sequence <= old.sequence)
+        return
+      const redactor = questRedactor(sails, data, 'running')
+      const clean = (text, truncated) => {
+        const sanitized = redactor.text(text || '', {
+          preserveWhitespace: true,
+          live: true,
+          tail: true,
+          truncated
+        })
+        const bytes = Buffer.from(sanitized)
+        let offset = Math.max(0, bytes.length - 32768)
+        while (offset < bytes.length && (bytes[offset] & 0xc0) === 0x80)
+          offset++
+        return bytes.subarray(offset).toString('utf8')
+      }
+      const snapshot = {
+        sequence: data.sequence,
+        stdout: clean(data.logs?.stdout, data.logs?.stdoutTruncated),
+        stderr: clean(data.logs?.stderr, data.logs?.stderrTruncated),
+        truncated: Boolean(
+          data.logs?.stdoutTruncated || data.logs?.stderrTruncated
+        )
+      }
+      const window = logWindows.get(data.runId) || {
+        entries: [],
+        bytes: 0,
+        droppedThrough: 0
+      }
+      const size = Buffer.byteLength(JSON.stringify(snapshot))
+      if (size > 128 * 1024) return
+      window.entries.push(snapshot)
+      window.bytes += size
+      while (window.entries.length > 16 || window.bytes > 128 * 1024) {
+        const removed = window.entries.shift()
+        window.bytes -= Buffer.byteLength(JSON.stringify(removed))
+        window.droppedThrough = removed.sequence
+      }
+      logWindows.set(data.runId, window)
+      remember({
+        ...old,
+        sequence: data.sequence,
+        stdout: snapshot.stdout,
+        stderr: snapshot.stderr,
+        logsTruncated: snapshot.truncated
+      })
+      return
+    }
     if (kind === 'skipped' && old) return
     if (old && (data.sequence <= old.sequence || terminal.has(old.state)))
       return
@@ -541,19 +592,20 @@ function createQuestRuntime({
             old?.startedAt ||
             milliseconds(data.timestamp) ||
             now(),
-      finishedAt:
-        kind === 'running'
-          ? null
-          : milliseconds(data.finishedAt) ||
-            milliseconds(data.timestamp) ||
-            now(),
+      finishedAt: ['running', 'cancelling', 'unconfirmed'].includes(kind)
+        ? null
+        : milliseconds(data.finishedAt) ||
+          milliseconds(data.timestamp) ||
+          now(),
       duration:
         kind === 'skipped'
           ? null
           : Number.isFinite(data.duration)
           ? data.duration
           : null,
-      exitCode: ['running', 'skipped'].includes(kind)
+      exitCode: ['running', 'skipped', 'cancelling', 'unconfirmed'].includes(
+        kind
+      )
         ? null
         : kind === 'completed'
         ? 0
@@ -563,12 +615,18 @@ function createQuestRuntime({
         ? data.error.code
         : null,
       signal:
-        kind === 'failed' &&
+        ['failed', 'cancelled'].includes(kind) &&
         typeof data.signal === 'string' &&
         /^SIG[A-Z0-9]{1,16}$/.test(data.signal)
           ? data.signal
           : null,
-      result: ['running', 'skipped'].includes(kind)
+      result: [
+        'running',
+        'skipped',
+        'cancelling',
+        'unconfirmed',
+        'cancelled'
+      ].includes(kind)
         ? { status: 'unavailable' }
         : boundedResult,
       inputs: redactor.inputs(data.inputs, (value) =>
@@ -582,7 +640,7 @@ function createQuestRuntime({
               redactor,
               data.logs.stdoutTruncated
             )
-          : null,
+          : old?.stdout || null,
       stderr:
         typeof data.logs?.stderr === 'string'
           ? logTail(
@@ -591,7 +649,7 @@ function createQuestRuntime({
               redactor,
               data.logs.stderrTruncated
             )
-          : null,
+          : old?.stderr || null,
       logsTruncated: Boolean(
         data.logs?.stdoutTruncated ||
           data.logs?.stderrTruncated ||
@@ -635,11 +693,67 @@ function createQuestRuntime({
           results: info.capabilities.businessResults === true,
           pause: typeof sails.quest.pause === 'function',
           resume: typeof sails.quest.resume === 'function',
-          cancel: false
+          cancel:
+            info.capabilities.cancellation === true &&
+            typeof sails.quest.cancel === 'function',
+          liveLogs: info.capabilities.liveLogs === true
         },
         jobs: metadata(),
         runs: [...runs.values()].map(summary)
       }
+    if (message.command === 'logs') {
+      const run = runs.get(message.runId)
+      if (!run)
+        throw fail(
+          'This runtime no longer retains that run.',
+          'QUEST_RUN_UNAVAILABLE'
+        )
+      if (
+        !Number.isSafeInteger(message.afterSequence) ||
+        message.afterSequence < 0
+      )
+        throw fail('Invalid log replay cursor.', 'QUEST_INPUT_INVALID')
+      const window = logWindows.get(message.runId)
+      return {
+        runId: run.runId,
+        runtimeId: run.runtimeId,
+        sequence: run.sequence,
+        state: run.state,
+        live: info.capabilities.liveLogs === true,
+        gap: Boolean(window?.droppedThrough > message.afterSequence),
+        entries: (window?.entries || []).filter(
+          (entry) => entry.sequence > message.afterSequence
+        ),
+        stdout: run.stdout || '',
+        stderr: run.stderr || '',
+        truncated: run.logsTruncated
+      }
+    }
+    if (message.command === 'cancel') {
+      const run = runs.get(message.runId)
+      if (!run || run.runtimeId !== message.runtimeId)
+        throw fail(
+          'This runtime does not retain that run.',
+          'QUEST_RUN_UNAVAILABLE'
+        )
+      if (terminal.has(run.state)) return { run: summary(run) }
+      if (
+        info.capabilities.cancellation !== true ||
+        typeof sails.quest.cancel !== 'function'
+      )
+        throw fail('Owned cancellation is unsupported.')
+      const request = sails.quest.cancel(run.runId)
+      Promise.resolve(request).catch(() => {})
+      if (
+        runs.get(run.runId)?.state !== 'cancelling' &&
+        !terminal.has(runs.get(run.runId)?.state)
+      )
+        throw fail(
+          'The runtime did not confirm cancellation admission.',
+          'QUEST_UNCONFIRMED'
+        )
+      return { run: summary(runs.get(run.runId)) }
+    }
     if (message.command === 'run') {
       const run = runs.get(message.runId)
       if (!run)
@@ -821,7 +935,11 @@ function createQuestRuntime({
       ['start', 'running'],
       ['complete', 'completed'],
       ['error', 'failed'],
-      ['skip', 'skipped']
+      ['skip', 'skipped'],
+      ['log', 'log'],
+      ['cancelling', 'cancelling'],
+      ['cancelled', 'cancelled'],
+      ['unconfirmed', 'unconfirmed']
     ]) {
       const listener = (data) => {
         try {

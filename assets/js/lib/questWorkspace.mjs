@@ -27,12 +27,18 @@ export function normalizeQuestWorkspace(workspace, fallback = {}) {
       : null,
     target: source.target || {},
     capabilities: Object.fromEntries(
-      ['invoke', 'pause', 'resume', 'cancel', 'results', 'typedInputs'].map(
-        (name) => [
-          name,
-          mode === 'resident' && source.capabilities?.[name] === true
-        ]
-      )
+      [
+        'invoke',
+        'pause',
+        'resume',
+        'cancel',
+        'liveLogs',
+        'results',
+        'typedInputs'
+      ].map((name) => [
+        name,
+        mode === 'resident' && source.capabilities?.[name] === true
+      ])
     ),
     jobs: Array.isArray(source.jobs) ? source.jobs : fallback.jobs || [],
     runs: Array.isArray(source.runs) ? source.runs : [],

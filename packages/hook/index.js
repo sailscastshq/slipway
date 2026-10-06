@@ -67,6 +67,8 @@ module.exports = function defineSlipwayHook(sails) {
   let supportRuntime = null
   let unregisterHelmRuntime = null
   let questRuntime = null
+  let questDelivery = null
+  let questDeliveryTimer = null
 
   return {
     supportView: {
@@ -449,6 +451,8 @@ module.exports = function defineSlipwayHook(sails) {
       }
       // Final flush
       flush(true)
+      clearInterval(questDeliveryTimer)
+      questDelivery?.stop()
       return Promise.resolve(supportRuntime?.stop()).then(() => done(), done)
     }
   }
@@ -691,6 +695,36 @@ module.exports = function defineSlipwayHook(sails) {
       return done()
     }
 
+    // Explicit app-owned persistent directory; no writes in script bootstraps.
+    const delivery = sails.config.slipway.quest?.delivery
+    if (
+      !isTransientRuntime &&
+      delivery?.directory &&
+      config.captureQuestEvents !== false
+    ) {
+      try {
+        questDelivery = require('./lib/quest-delivery').createQuestDelivery({
+          directory: delivery.directory,
+          appId: config.appId,
+          deploymentId: config.deploymentId,
+          send: (body) =>
+            requestJson({
+              url: config.telemetryUrl,
+              token: config.telemetryToken,
+              body
+            }),
+          warn: (message) => sails.log.warn(message)
+        })
+        questDeliveryTimer = setInterval(() => questDelivery.flush(), 10000)
+        questDeliveryTimer.unref?.()
+        questDelivery.flush()
+      } catch {
+        sails.log.warn(
+          'Quest durable delivery is unavailable; verify the private persistent directory.'
+        )
+      }
+    }
+
     sails.log.info('sails-hook-slipway: Initializing telemetry instrumentation')
     flushTimer = setInterval(flush, config.flushInterval)
 
@@ -883,6 +917,32 @@ module.exports = function defineSlipwayHook(sails) {
             requestId: retained.requestId,
             requestedAt: retained.requestedAt
           })
+        try {
+          if (
+            questDelivery &&
+            !questDelivery.enqueue(
+              JSON.parse(
+                [
+                  ...telemetryPayloads({
+                    metrics: [
+                      {
+                        name: 'quest.job.receipt',
+                        attributes: { questRun: run }
+                      }
+                    ]
+                  })
+                ][0]
+              ).metrics[0].attributes.questRun
+            )
+          )
+            sails.log.warn(
+              'Quest event could not be retained for durable delivery.'
+            )
+        } catch {
+          sails.log.warn(
+            'Quest event storage failed; durable delivery is unconfirmed.'
+          )
+        }
         return { jobName: data.name, runId: run.runId, questRun: run }
       }
       let inputs = {}
@@ -926,6 +986,18 @@ module.exports = function defineSlipwayHook(sails) {
         recordedAt: questTimestamp(data.timestamp)
       })
     })
+
+    for (const state of ['cancelling', 'cancelled', 'unconfirmed']) {
+      sails.on(`quest:job:${state}`, function (data) {
+        queueMetric({
+          name: `quest.job.${state}`,
+          value: Number.isFinite(data.duration) ? data.duration : 0,
+          unit: 'ms',
+          attributes: runAttributes(data, state),
+          recordedAt: questTimestamp(data.timestamp)
+        })
+      })
+    }
 
     sails.on('quest:job:skip', function (data) {
       const redactor = questRedactor(sails, data, 'skipped')
@@ -1418,6 +1490,10 @@ module.exports = function defineSlipwayHook(sails) {
               )
             }
           })
+          response.on('error', reject)
+          response.on('aborted', () =>
+            reject(new Error('Telemetry acknowledgement was interrupted.'))
+          )
           response.on('end', () => {
             let parsed = {}
             try {

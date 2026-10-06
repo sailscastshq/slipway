@@ -23,6 +23,8 @@ const props = defineProps({
   job: Object,
   canRun: Boolean,
   canCancel: Boolean,
+  canLiveLogs: Boolean,
+  csrf: String,
   embedded: Boolean
 })
 const emit = defineEmits(['close', 'run-again', 'loaded'])
@@ -33,6 +35,14 @@ const logs = ref(null)
 const logsLoading = ref(false)
 const logsError = ref('')
 const tab = ref('result')
+const cancelling = ref(false)
+const cancelReview = ref(false)
+const controlError = ref('')
+const logConnection = ref('')
+let logSource,
+  reconnectTimer,
+  logSequence = 0,
+  reconnects = 0
 let sequence = 0
 let controller
 const legacy = computed(() => !!props.eventId)
@@ -76,6 +86,10 @@ async function load(reset = false) {
   logsLoading.value = false
   controller = new AbortController()
   if (reset) {
+    stopLogs()
+    logSequence = 0
+    cancelReview.value = false
+    controlError.value = ''
     run.value = null
     logs.value = null
     logsError.value = ''
@@ -149,7 +163,10 @@ async function loadLogs() {
     if (!response.ok)
       throw new Error(`Could not load logs (HTTP ${response.status}).`)
     const data = await response.json()
-    if (current === sequence && id === props.runId) logs.value = data
+    if (current === sequence && id === props.runId) {
+      logs.value = data
+      if (props.canLiveLogs && active.value && tab.value === 'logs') startLogs()
+    }
   } catch (failure) {
     if (current === sequence && failure.name !== 'AbortError')
       logsError.value = failure.message
@@ -157,6 +174,79 @@ async function loadLogs() {
     if (current === sequence) logsLoading.value = false
   }
 }
+function stopLogs() {
+  logSource?.close()
+  logSource = null
+  clearTimeout(reconnectTimer)
+}
+function startLogs() {
+  stopLogs()
+  if (!props.canLiveLogs || !active.value || tab.value !== 'logs') return
+  const id = props.runId
+  logConnection.value = 'Connecting'
+  logSource = new EventSource(
+    `${props.apiUrl}/runs/${encodeURIComponent(
+      id
+    )}/logs?stream=true&afterSequence=${logSequence}`
+  )
+  logSource.onmessage = (event) => {
+    if (id !== props.runId) return
+    const snapshot = JSON.parse(event.data)
+    if (snapshot.connection === 'unavailable') {
+      logConnection.value = 'Unconfirmed'
+      return
+    }
+    if (snapshot.runId !== id || !Number.isSafeInteger(snapshot.sequence))
+      return
+    logSequence = Math.max(logSequence, snapshot.sequence)
+    logs.value = { ...snapshot, gap: logs.value?.gap || snapshot.gap }
+    logConnection.value = 'Connected'
+    reconnects = 0
+    if (!['running', 'cancelling', 'unconfirmed'].includes(snapshot.state)) {
+      stopLogs()
+      logConnection.value = 'Finished'
+      load()
+    }
+  }
+  logSource.onerror = () => {
+    stopLogs()
+    logConnection.value = 'Disconnected'
+    if (++reconnects <= 3) reconnectTimer = setTimeout(startLogs, 2000)
+  }
+}
+async function requestCancellation() {
+  if (!run.value || cancelling.value) return
+  cancelling.value = true
+  controlError.value = ''
+  try {
+    const response = await fetch(
+      `${props.apiUrl}/runs/${encodeURIComponent(props.runId)}/cancel`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrf-token': props.csrf || ''
+        },
+        body: JSON.stringify({ runtimeId: run.value.runtimeId })
+      }
+    )
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(
+        data.message ||
+          'Cancellation admission is unconfirmed. Refresh this run before taking another action.'
+      )
+    if (data.run?.runId !== props.runId)
+      throw new Error('Cancellation receipt identity did not match this run.')
+    cancelReview.value = false
+    await load()
+  } catch (failure) {
+    controlError.value = failure.message
+  } finally {
+    cancelling.value = false
+  }
+}
+
 watch(
   () => [props.runId, props.eventId, props.apiUrl],
   () => {
@@ -170,11 +260,15 @@ watch(
   () => load()
 )
 watch(tab, (value) => {
-  if (value === 'logs' && !logs.value) loadLogs()
+  if (value === 'logs') {
+    if (!logs.value) loadLogs()
+    else startLogs()
+  } else stopLogs()
 })
 onBeforeUnmount(() => {
   sequence++
   controller?.abort()
+  stopLogs()
 })
 </script>
 
@@ -207,6 +301,12 @@ onBeforeUnmount(() => {
         </p>
       </div>
       <div class="flex shrink-0 items-center gap-2">
+        <Button
+          v-if="canCancel && active && run?.state !== 'cancelling'"
+          class="min-h-8 border border-gray-200 bg-transparent px-2.5 py-1 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-300"
+          @click="cancelReview = true"
+          >Cancel run</Button
+        >
         <Button
           v-if="canRun && !legacy && run && !active"
           class="min-h-8 min-w-0 border border-gray-200 bg-transparent px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-transparent dark:text-gray-300 dark:hover:bg-gray-800"
@@ -281,6 +381,33 @@ onBeforeUnmount(() => {
         class="px-4 pb-3 text-xs text-gray-500 dark:text-gray-400"
       >
         This runtime does not support cancellation.
+      </p>
+      <div
+        v-if="cancelReview"
+        class="mx-4 mb-4 border border-gray-200 p-3 text-xs text-gray-600 dark:border-gray-700 dark:text-gray-300"
+      >
+        <p>
+          Request termination of this run’s owned process group. External side
+          effects may already have happened. Cancellation is confirmed only
+          after the runtime observes termination.
+        </p>
+        <div class="mt-3 flex gap-2">
+          <Button
+            :disabled="cancelling"
+            class="border border-gray-300 bg-transparent px-3 py-1 text-xs dark:border-gray-600"
+            @click="requestCancellation"
+            >{{ cancelling ? 'Requesting…' : 'Request cancellation' }}</Button
+          ><button type="button" @click="cancelReview = false">
+            Keep running
+          </button>
+        </div>
+      </div>
+      <p
+        v-if="controlError"
+        role="alert"
+        class="px-4 pb-3 text-xs text-red-600 dark:text-red-400"
+      >
+        {{ controlError }}
       </p>
       <Tabs v-model="tab" aria-label="Run output">
         <div

@@ -15,7 +15,13 @@ const TERMINAL = new Set([
   'timed_out',
   'interrupted'
 ])
-const STATES = new Set(['requested', 'running', 'unconfirmed', ...TERMINAL])
+const STATES = new Set([
+  'requested',
+  'running',
+  'cancelling',
+  'unconfirmed',
+  ...TERMINAL
+])
 const RESULT_STATUSES = new Set([
   'available',
   'undefined',
@@ -603,7 +609,10 @@ async function markUnconfirmed(scope, runId, reason, options = {}) {
   // This is a control-plane observation, not an invented engine event. Keep
   // sequence unchanged so a delayed genuine terminal receipt can still win.
   const updated = await model
-    .updateOne({ ...where, state: { in: ['requested', 'running'] } })
+    .updateOne({
+      ...where,
+      state: { in: ['requested', 'running', 'cancelling'] }
+    })
     .set({
       state: 'unconfirmed',
       error: boundedText(
@@ -671,7 +680,7 @@ async function reconcileUnavailableRuns(scope, observation, options = {}) {
   const model = modelFor(options)
   const where = {
     ...scopeWhere(scope, options),
-    state: { in: ['requested', 'running'] },
+    state: { in: ['requested', 'running', 'cancelling'] },
     // Rows written since inspection began may describe a newer admission or
     // receipt. Never replace that evidence using an older runtime observation.
     updatedAt: { '<': before },

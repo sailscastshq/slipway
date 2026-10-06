@@ -12,6 +12,7 @@ const noCapabilities = Object.freeze({
   pause: false,
   resume: false,
   cancel: false,
+  liveLogs: false,
   results: false,
   typedInputs: false
 })
@@ -243,8 +244,7 @@ async function buildSnapshot(context, inspect = true) {
     base.jobs = live.jobs
     base.capabilities = {
       ...noCapabilities,
-      ...live.capabilities,
-      cancel: false
+      ...live.capabilities
     }
     base.reason = null
     base.runtimeReconciliation = await ledger.reconcileRuntimeLoss(

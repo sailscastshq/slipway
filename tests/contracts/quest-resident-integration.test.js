@@ -16,7 +16,8 @@ const { recoveryTrials } = require('../fixtures/quest-resident/recovery.cjs')
 const { useDockerBinary } = require('../fixtures/quest-resident/dashboard.cjs')
 
 const slug = 'quest-real-resident'
-const terminal = (run) => ['completed', 'failed', 'skipped'].includes(run.state)
+const terminal = (run) =>
+  ['completed', 'failed', 'skipped', 'cancelled'].includes(run.state)
 const startsFor = (events, name) =>
   events.filter((event) => event.kind === 'quest:start' && event.name === name)
 const businessFor = (events, name) =>
@@ -163,7 +164,8 @@ test(
       assert.equal(helperReference.helper, 'buildIndexReport')
       assert.equal(initial.capabilities.invoke, true)
       assert.equal(initial.capabilities.results, true)
-      assert.equal(initial.capabilities.cancel, false)
+      assert.equal(initial.capabilities.cancel, true)
+      assert.equal(initial.capabilities.liveLogs, true)
       assert.ok(
         initial.jobs.every((job) => job.inputMetadataAvailable === true)
       )
@@ -631,6 +633,42 @@ test(
       assert.equal(
         startsFor(await evidence(), 'slow-overlap').length,
         pausedCount
+      )
+
+      const controlled = await invoke('slow-job', {
+        label: 'owned-cancellation',
+        delayMs: 12000
+      })
+      const replay = await fixture.waitFor(
+        () =>
+          call('logs', {
+            runId: controlled.run.runId,
+            runtimeId: initial.runtimeId,
+            afterSequence: 0
+          }),
+        (value) => value.stdout.includes('owned-cancellation'),
+        'real resident live log snapshot'
+      )
+      assert.ok(replay.entries.length > 0)
+      assert.equal(replay.state, 'running')
+      const firstCancel = await client.post(
+        `${base}/runs/${controlled.run.runId}/cancel`,
+        { runtimeId: initial.runtimeId }
+      )
+      const repeatedCancel = await client.post(
+        `${base}/runs/${controlled.run.runId}/cancel`,
+        { runtimeId: initial.runtimeId }
+      )
+      assert.equal(firstCancel.status, 202)
+      assert.equal(repeatedCancel.status, 202)
+      assert.equal(firstCancel.data.run.runId, controlled.run.runId)
+      assert.equal((await waitForRun(controlled.run.runId)).state, 'cancelled')
+      await readPersisted(controlled.run.runId, 'cancelled')
+      assert.equal(
+        businessFor(await evidence(), 'slow-job').filter(
+          (event) => event.inputs.label === 'owned-cancellation'
+        ).length,
+        1
       )
 
       const disconnected = await invoke('slow-job', {
