@@ -1,0 +1,8 @@
+{
+  "sourceHead": "6f13fea10fa76c35094132115d0cded269d34b77",
+  "route": "/bosun?tab=migrate",
+  "capture": "Actual browser UI in a synthetic local configured-slipway world",
+  "scope": "Existing Bosun Migrate UI is unchanged by the update correction; screenshots show its current no-pending-changes state, not a production upgrade or migration execution",
+  "screenshots": ["migrate-1440-light.png", "migrate-390-dark.png"],
+  "browserCheck": "1 passed; no JavaScript errors"
+}
