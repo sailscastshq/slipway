@@ -209,6 +209,11 @@ test('catalog drift after freeze rejects the private copy and removes its unappr
   }))
 test('failed target health keeps both storage trees and resumes the committed checkpoint', () =>
   runFixture(async ({ options, driver, events, source }) => {
+    const acquire = driver.acquire
+    driver.acquire = async (input) => ({
+      ...(await acquire(input)),
+      originalRestartPolicy: { Name: 'always', MaximumRetryCount: 0 }
+    })
     const healthy = driver.health
     driver.health = async () => ({ ready: false })
     let failure
@@ -222,10 +227,18 @@ test('failed target health keeps both storage trees and resumes the committed ch
     assert.equal(before.phase, 'recoveryRequired')
     assert.equal(before.migration.pending.length, 0)
     const state = host.read(failure.filename)
+    assert.deepEqual(state.originalRestartPolicy, {
+      Name: 'always',
+      MaximumRetryCount: 0
+    })
     assert.ok(fs.existsSync(source))
     assert.ok(fs.existsSync(state.stage.dataDirectory))
     assert.ok(fs.existsSync(state.backupSet.directory))
     driver.health = healthy
+    driver.acquire = async (input) => ({
+      ...(await acquire(input)),
+      originalRestartPolicy: { Name: 'no', MaximumRetryCount: 0 }
+    })
     const after = await host.resume({
       filename: failure.filename,
       expectedReviewHash: options.reviewed.reviewHash,
@@ -235,6 +248,10 @@ test('failed target health keeps both storage trees and resumes the committed ch
     assert.equal(after.phase, 'ready')
     assert.equal(after.errorCode, null)
     assert.equal(after.errorReason, null)
+    assert.deepEqual(host.read(failure.filename).originalRestartPolicy, {
+      Name: 'always',
+      MaximumRetryCount: 0
+    })
     assert.ok(!events.includes('restore'))
   }))
 test('wrong review approval fails before stopping writers or creating host state', () =>

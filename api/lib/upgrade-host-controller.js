@@ -246,6 +246,10 @@ async function execute({ filename, driver, timeoutMs, expectedReviewHash }) {
       id: control.actor?.id || 0,
       team: control.actor?.team || 0
     }
+    // Persist before freeze: a new process resuming the checkpoint observes
+    // the intentionally disabled source policy, not the original deployment.
+    if (!state.originalRestartPolicy && control.originalRestartPolicy)
+      state.originalRestartPolicy = control.originalRestartPolicy
     save(filename, state)
     await driver.freeze({ control, reviewed: state.reviewed })
     await fence(

@@ -23,6 +23,34 @@ async function supervise(
   process.once('SIGINT', interrupt)
   let result
   try {
+    // Resume already owns a durable checkpoint. Preserve its identity even
+    // if the outer deadline interrupts the worker before another IPC event.
+    if (input.operation === 'resume') {
+      if (
+        !fs
+          .realpathSync(input.filename)
+          .startsWith(fs.realpathSync(input.directory) + path.sep)
+      )
+        throw Object.assign(new Error('Unbound resume'), {
+          code: 'upgradeHostTarget'
+        })
+      const saved = require('../api/lib/upgrade-host-controller').read(
+        input.filename
+      )
+      if (
+        saved.reviewed.instanceId !== input.instanceId ||
+        saved.reviewed.reviewHash !== input.approval ||
+        saved.reviewed.identity.manifest.image !== input.image
+      )
+        throw Object.assign(new Error('Unbound resume'), {
+          code: 'upgradeHostTarget'
+        })
+      checkpoint = {
+        filename: input.filename,
+        id: saved.id,
+        instanceId: saved.reviewed.instanceId
+      }
+    }
     result = await createSupervisor(worker)({
       operation: 'host',
       input,

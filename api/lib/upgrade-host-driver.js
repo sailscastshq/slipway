@@ -193,6 +193,7 @@ module.exports = function createHostDriver({
         owned = {
           id: input.id,
           owner: `host:${controller.boot}:${controller.pid}:${controller.start}`,
+          originalRestartPolicy: { ...current.HostConfig.RestartPolicy },
           actor
         }
         return owned
@@ -375,10 +376,20 @@ module.exports = function createHostDriver({
       try {
         verifyLock()
         if (state.phase === 'ready') {
+          const policy = state.originalRestartPolicy
+          if (
+            !policy ||
+            !['no', 'always', 'unless-stopped', 'on-failure'].includes(
+              policy.Name
+            ) ||
+            !Number.isSafeInteger(policy.MaximumRetryCount ?? 0) ||
+            (policy.MaximumRetryCount ?? 0) < 0
+          )
+            fail('upgradeLaunchConfig')
           const value = startup.readMarker(state.target.marker)
           startup.writeMarker(state.target.marker, { ...value, phase: 'ready' })
           await call('POST', `/containers/${state.target.id}/update`, {
-            RestartPolicy: current.HostConfig.RestartPolicy
+            RestartPolicy: policy
           })
         } else await holdCandidate(state)
       } finally {

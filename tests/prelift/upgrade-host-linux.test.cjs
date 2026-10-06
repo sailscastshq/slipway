@@ -118,7 +118,6 @@ test(
             throw error
           }
         }
-        const realHealth = driver.health
         driver.health = async () => ({ ready: false })
         let failed
         try {
@@ -176,11 +175,21 @@ test(
           'synthetic-existing-private-key'
         )
         assert.ok(fs.existsSync(held.backupSet.directory))
-        driver.health = realHealth
+        const resumedDriver = driverFactory({
+          docker,
+          directory: stateRoot,
+          current: originalAfter,
+          imageId: imageInfo.Id,
+          imageConfig: {
+            ...imageInfo.Config,
+            WorkingDir: '/app',
+            Cmd: ['node', 'tests/prelift/fixtures/upgrade-ready-server.cjs']
+          }
+        })
         const result = await host.resume({
           filename: failed.filename,
           expectedReviewHash: reviewed.reviewHash,
-          driver,
+          driver: resumedDriver,
           timeoutMs: 60000
         })
         assert.equal(result.phase, 'ready')
