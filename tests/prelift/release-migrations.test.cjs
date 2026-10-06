@@ -599,3 +599,21 @@ test('partial and complete manual Bosun adoption retain data and settle to byte-
       assert.deepEqual(hashes(directory), before)
     })
 })
+
+test('production processes cannot enable legacy DDL through absent or test-mode Sails config', () => {
+  const ready = require('../../api/lib/release-schema-ready')
+  const previous = process.env.NODE_ENV
+  try {
+    process.env.NODE_ENV = 'development'
+    assert.equal(ready({}), false)
+    process.env.NODE_ENV = 'production'
+    assert.throws(() => ready({}), /release schema is not ready/)
+    assert.throws(
+      () => ready({ config: { environment: 'test' } }),
+      /release schema is not ready/
+    )
+  } finally {
+    if (previous === undefined) delete process.env.NODE_ENV
+    else process.env.NODE_ENV = previous
+  }
+})
