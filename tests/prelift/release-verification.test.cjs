@@ -312,7 +312,8 @@ test('external disk polling observes journals, live growth, clones and retained 
             'journals',
             'liveGrowth',
             'clones',
-            'backups'
+            'backups',
+            'validationBackups'
           ]) {
             assert.ok(measurement.categories[category]?.logical > 0, category)
             assert.ok(measurement.categories[category]?.allocated > 0, category)

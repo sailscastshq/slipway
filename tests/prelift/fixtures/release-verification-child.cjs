@@ -62,7 +62,9 @@ if (mode === 'lock') {
       const category = /-(journal|wal|shm)$/.test(name)
         ? 'journals'
         : name.includes(`${path.sep}migration-backups${path.sep}`)
-        ? 'backups'
+        ? name.startsWith(path.join(root, 'live') + path.sep)
+          ? 'backups'
+          : 'validationBackups'
         : name.includes(`${path.sep}temporary${path.sep}`)
         ? 'clones'
         : 'liveGrowth'
