@@ -5,7 +5,7 @@ const path = require('node:path')
 const os = require('node:os')
 const { spawnSync } = require('node:child_process')
 const image = `ghcr.io/sailscastshq/slipway@sha256:${'a'.repeat(64)}`
-function fixture({ existing = true, digest = image }, run) {
+function fixture({ existing = true, digest = image, bundle = true }, run) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'upgrade-installer-'))
   const bin = path.join(root, 'bin'),
     envFile = path.join(root, 'existing.env'),
@@ -32,6 +32,8 @@ else if(a[0]==='run'&&a.includes('--entrypoint')&&a[a.indexOf('--entrypoint')+1]
   fs.writeFileSync(path.join(bin, 'curl'), '#!/bin/bash\nprintf 127.0.0.1\n', {
     mode: 0o700
   })
+  const bundleFile = path.join(root, 'host.tar.gz')
+  fs.writeFileSync(bundleFile, 'synthetic fixture archive')
   const environment = {
     ...process.env,
     PATH: bin + path.delimiter + process.env.PATH,
@@ -40,6 +42,8 @@ else if(a[0]==='run'&&a.includes('--entrypoint')&&a[a.indexOf('--entrypoint')+1]
     FIXTURE_HOST_SCRIPT: hostScript,
     FIXTURE_EXISTING: existing ? 'yes' : 'no',
     FIXTURE_DIGEST: digest,
+    SLIPWAY_HOST_BUNDLE: bundle ? bundleFile : '',
+    SLIPWAY_HOST_BUNDLE_SHA256: bundle ? 'b'.repeat(64) : '',
     SLIPWAY_ENV_FILE: envFile,
     SLIPWAY_UPGRADE_STATE_DIR: path.join(root, 'state'),
     SLIPWAY_APPS_DIR: path.join(root, 'apps'),
@@ -73,7 +77,8 @@ else if(a[0]==='run'&&a.includes('--entrypoint')&&a[a.indexOf('--entrypoint')+1]
 test('existing coordinated installer returns a review command before changing proxy, config or live app', () =>
   fixture({}, ({ result, calls, contents, original }) => {
     assert.equal(result.status, 2, result.stderr)
-    assert.ok(result.stdout.includes(' plan --image ' + image))
+    assert.ok(result.stdout.includes(' plan --bundle '))
+    assert.ok(result.stdout.includes('--image ' + image))
     assert.equal(contents, original)
     assert.ok(
       !calls.some((a) =>
@@ -113,6 +118,10 @@ test('fresh installer creates an unstarted labeled template and dispatches exact
     )
     assert.deepEqual(fs.readFileSync(hostCall, 'utf8').trim().split('\n'), [
       'initialize',
+      '--bundle',
+      path.dirname(hostCall) + '/host.tar.gz',
+      '--bundle-sha256',
+      'b'.repeat(64),
       '--image',
       image,
       '--container',
@@ -140,5 +149,20 @@ test('nonofficial digest fails before any installer config or proxy mutation', (
           ].includes(a[0])
         )
       )
+    }
+  ))
+
+test('fresh installer with no verified host bundle stops before network or proxy changes', () =>
+  fixture(
+    { existing: false, bundle: false },
+    ({ result, calls, contents, original }) => {
+      assert.equal(result.status, 2)
+      assert.equal(contents, original)
+      assert.ok(
+        !calls.some((a) =>
+          ['network', 'create', 'start', 'stop', 'rm'].includes(a[0])
+        )
+      )
+      assert.match(result.stderr, /SLIPWAY_HOST_BUNDLE/)
     }
   ))

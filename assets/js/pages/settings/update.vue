@@ -23,6 +23,7 @@ defineOptions({
 
 const props = defineProps({
   coordinated: { type: Boolean, default: false },
+  hostNative: { type: Boolean, default: false },
   upgrade: { type: Object, default: null },
   updateInfo: {
     type: Object,
@@ -154,7 +155,7 @@ function resumeUpgrade() {
 }
 
 async function applyUpdate() {
-  if (props.coordinated) {
+  if (props.coordinated || props.hostNative) {
     updateError.value = null
     if (!reviewedPlan.value) {
       checking.value = true
@@ -165,6 +166,8 @@ async function applyUpdate() {
           throw new Error(
             plan.message || 'Upgrade plan could not be confirmed.'
           )
+        if (props.hostNative && plan.execution !== 'host-native')
+          throw new Error('A verified host command is required.')
         reviewedPlan.value = plan
       } catch (error) {
         updateError.value = error.message
@@ -174,6 +177,7 @@ async function applyUpdate() {
       return
     }
     const plan = reviewedPlan.value
+    if (props.hostNative || plan.execution === 'host-native') return
     dispatchUpgrade(
       {
         instanceId: plan.instanceId,
@@ -371,8 +375,14 @@ function formatDate(dateString) {
           <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
             Resume the reviewed checkpoint before applying another upgrade.
           </p>
+          <pre
+            v-if="hostNative && upgradeReceipt.hostCommand"
+            class="mt-4 overflow-x-auto whitespace-pre-wrap rounded-md bg-gray-100 p-3 text-xs dark:bg-gray-800"
+            >{{ upgradeReceipt.hostCommand }}</pre
+          >
           <button
             v-if="
+              !hostNative &&
               upgradeReceipt.id &&
               upgradeReceipt.reviewHash &&
               upgradeReceipt.instanceId
@@ -605,11 +615,20 @@ function formatDate(dateString) {
             <!-- Ready State -->
             <div v-else class="flex items-center justify-between gap-4">
               <div
-                v-if="coordinated && reviewedPlan && !updating"
+                v-if="(coordinated || hostNative) && reviewedPlan && !updating"
                 role="status"
                 class="mb-4 text-sm text-gray-600 dark:text-gray-400"
               >
-                <p>
+                <p v-if="reviewedPlan.execution === 'host-native'">
+                  {{ reviewedPlan.message }} Choose the verified archive and
+                  checksum before running this command.
+                </p>
+                <pre
+                  v-if="reviewedPlan.execution === 'host-native'"
+                  class="mt-3 overflow-x-auto whitespace-pre-wrap rounded-md bg-gray-100 p-3 text-xs dark:bg-gray-800"
+                  >{{ reviewedPlan.hostCommand }}</pre
+                >
+                <p v-else>
                   Reviewed upgrade: {{ reviewedPlan.sourceVersion }} →
                   {{ reviewedPlan.identity.manifest.version }}
                 </p>
@@ -629,21 +648,29 @@ function formatDate(dateString) {
               </div>
 
               <p class="text-sm text-gray-600 dark:text-gray-400">
-                The dashboard will briefly go offline while the container
-                restarts, then reload automatically.
+                {{
+                  hostNative
+                    ? 'The reviewed upgrade runs through a transient command on the host. No automatic UI execution is enabled.'
+                    : 'The dashboard will briefly go offline while the container restarts, then reload automatically.'
+                }}
               </p>
               <button
                 @click="applyUpdate"
                 :disabled="
                   checking ||
                   upgradeForm.processing ||
-                  upgradeReceipt?.recoveryRequired
+                  upgradeReceipt?.recoveryRequired ||
+                  (hostNative && reviewedPlan)
                 "
                 class="inline-flex shrink-0 items-center space-x-2 rounded-md bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
               >
                 <Download class="h-4 w-4" stroke-width="2" />
                 <span>{{
-                  coordinated
+                  hostNative
+                    ? reviewedPlan
+                      ? 'Host command ready'
+                      : 'Review host upgrade'
+                    : coordinated
                     ? reviewedPlan
                       ? 'Apply reviewed upgrade'
                       : 'Review upgrade'

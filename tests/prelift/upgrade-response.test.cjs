@@ -32,6 +32,7 @@ for (const inertia of [false, true]) {
         { req, res },
         { approval: 'a'.repeat(64), instanceId: 'fixture' },
         {
+          allowContainerDispatch: true,
           broker: async () => ({
             apply: async () => ({
               result: { id: 'fixture-id', status: 'accepted' },
@@ -66,6 +67,7 @@ for (const inertia of [false, true]) {
       { req, res },
       {},
       {
+        allowContainerDispatch: true,
         broker: async () => {
           throw Object.assign(new Error('synthetic-secret'), {
             code: 'upgradeHostApproval'
@@ -82,38 +84,76 @@ for (const inertia of [false, true]) {
   })
 }
 
-test('Inertia redirected receipt page flushes before its owned controller starts', async () => {
-  const module = require('../../api/lib/system-upgrade-action')
-  const previousBroker = module.broker,
+for (const inertia of [false, true]) {
+  for (const method of ['apply', 'resume']) {
+    test(`${
+      inertia ? 'Inertia' : 'REST'
+    } ${method} requires the host command without dispatch`, async () => {
+      const res = response(),
+        req = { get: () => inertia, session: {} }
+      await action(
+        method,
+        { req, res },
+        {},
+        {
+          broker: async () => {
+            throw new Error('unexpected privileged dispatch')
+          },
+          advertised: async () => {
+            throw new Error('unexpected image pull')
+          }
+        }
+      )
+      assert.equal(res.statusCode, inertia ? 303 : 409)
+      if (inertia) {
+        assert.equal(res.Location, '/settings/update')
+        assert.match(req.session.errors.approval, /one-time host/)
+      } else assert.equal(res.body.code, 'upgradeHostRequired')
+    })
+  }
+}
+test('host review returns a pinned command and requires separately verified artifacts', async () => {
+  const image = 'ghcr.io/sailscastshq/slipway@sha256:' + 'a'.repeat(64)
+  const result = await action(
+    'plan',
+    { req: {}, res: response() },
+    {},
+    {
+      advertised: async () => image,
+      broker: async () => {
+        throw new Error('unexpected dispatch')
+      }
+    }
+  )
+  assert.equal(result.execution, 'host-native')
+  assert.equal(result.requiresVerifiedBundle, true)
+  assert.ok(result.hostCommand.includes(image))
+  assert.ok(result.hostCommand.includes('<verified-archive-sha256>'))
+  assert.ok(!result.reviewHash)
+})
+test('redirected status view never starts a privileged helper', async () => {
+  const host = require('../../api/lib/upgrade-host-review')
+  const previous = host.status,
     previousSails = global.sails
-  const res = response()
-  let started = 0
-  const saved = { id: 'fixture-id', phase: 'reviewed' }
+  const res = response(),
+    saved = { id: 'fixture-id', recoveryRequired: true }
   try {
     global.sails = {
       helpers: {
-        system: { checkForUpdates: async () => ({ updateAvailable: true }) }
-      },
-      log: { warn() {} }
-    }
-    module.broker = async () => ({
-      status: () => saved,
-      start: async (id) => {
-        assert.equal(id, saved.id)
-        started++
+        system: { checkForUpdates: async () => ({ latestVersion: '0.0.88' }) }
       }
-    })
+    }
+    host.status = () => saved
     const result =
       await require('../../api/controllers/system/view-update').fn.call(
         { req: {}, res },
         { upgradeId: saved.id }
       )
     assert.deepEqual(result.props.upgrade, saved)
-    assert.equal(started, 0)
-    res.emit('finish')
-    assert.equal(started, 1)
+    assert.equal(result.props.hostNative, true)
+    assert.equal(res.listenerCount('finish'), 0)
   } finally {
-    module.broker = previousBroker
+    host.status = previous
     if (previousSails === undefined) delete global.sails
     else global.sails = previousSails
   }

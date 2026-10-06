@@ -86,7 +86,7 @@ module.exports = function launchConfig({
       Type: 'bind',
       Source: stateRoot,
       Target: stateRoot,
-      ReadOnly: false
+      ReadOnly: true
     })
   const replaced = new Set([
     'NODE_ENV',

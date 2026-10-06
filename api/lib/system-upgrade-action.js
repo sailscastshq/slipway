@@ -71,6 +71,22 @@ function failure(res, error, req) {
 async function action(method, context, inputs, dependencies = {}) {
   const { req, res } = context
   try {
+    // The approved first slice has no persistent privileged UI transport.
+    // Only explicit trusted compatibility tests can exercise the old broker.
+    if (!dependencies.allowContainerDispatch) {
+      const host = require('./upgrade-host-review')
+      if (method === 'plan')
+        return host.review(await (dependencies.advertised || advertised)())
+      if (method === 'latest')
+        return host.status() || { status: 'idle', execution: 'host-native' }
+      if (method === 'status')
+        return (
+          host.status(inputs.id) || { status: 'idle', execution: 'host-native' }
+        )
+      throw Object.assign(new Error('Run the reviewed host command.'), {
+        code: 'upgradeHostRequired'
+      })
+    }
     const client = await (dependencies.broker || broker)(req)
     if (method === 'plan')
       return await client.plan(await (dependencies.advertised || advertised)())

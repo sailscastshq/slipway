@@ -49,6 +49,10 @@ jobs:
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
           test "$(node -p "require('./package.json').version")" = "${RELEASE_TAG#v}"
 
+      - name: Bind image metadata to the checked-out release source
+        id: release-source
+        run: echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
         with:
@@ -61,6 +65,8 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          labels: |
+            org.opencontainers.image.revision=${{ steps.release-source.outputs.revision }}
           tags: |
             type=semver,pattern={{version}},value=${{ inputs.tag || github.event.release.tag_name }}
             type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag || github.event.release.tag_name }}

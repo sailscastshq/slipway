@@ -109,7 +109,7 @@ test('coordinated launch preserves private state access and replaces stale marke
   assert.equal(
     result.HostConfig.Mounts.find((mount) => mount.Target === '/private')
       .ReadOnly,
-    false
+    true
   )
   assert.ok(
     !result.HostConfig.Mounts.some(

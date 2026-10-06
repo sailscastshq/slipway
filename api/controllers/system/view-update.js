@@ -17,28 +17,14 @@ module.exports = {
     let upgrade = null
     if (upgradeId) {
       try {
-        const broker = await require('../../lib/system-upgrade-action').broker(
-          this.req
-        )
-        upgrade = broker.status(upgradeId)
-        this.res.once('finish', () => {
-          broker
-            .start(upgradeId)
-            .catch(() =>
-              sails.log.warn(
-                'Upgrade dispatch outcome is unconfirmed; inspect the saved checkpoint.'
-              )
-            )
-        })
+        upgrade = require('../../lib/upgrade-host-review').status(upgradeId)
       } catch {
         upgrade = { id: upgradeId, recoveryRequired: true }
       }
     }
     if (!upgradeId && sails.upgradeAdmission) {
       try {
-        upgrade = (
-          await require('../../lib/system-upgrade-action').broker(this.req)
-        ).latest()
+        upgrade = require('../../lib/upgrade-host-review').status()
       } catch {
         upgrade = { recoveryRequired: true }
       }
@@ -48,6 +34,10 @@ module.exports = {
       props: {
         updateInfo,
         coordinated: Boolean(sails.upgradeAdmission),
+        hostNative:
+          Boolean(sails.upgradeAdmission) ||
+          (/^\d+\.\d+\.\d+$/.test(updateInfo.latestVersion || '') &&
+            require('semver').gte(updateInfo.latestVersion, '0.0.88')),
         upgrade
       }
     }

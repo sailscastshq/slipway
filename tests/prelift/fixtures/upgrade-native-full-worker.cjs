@@ -50,13 +50,37 @@ process.on('message', async (message) => {
   if (!value.success && value.filename) {
     const host = require(path.join(lib, 'upgrade-host-controller'))
     const saved = host.read(value.filename)
-    value.catalog = await require('./upgrade-catalog-diagnostics.cjs').bounded({
-      services: host.services(
-        saved.reviewed.sourceDirectory,
-        saved.reviewed.instanceId
-      ),
-      steps: saved.reviewed.identity.manifest.steps
+    // Read-only SQLite connections may still alter WAL shared-memory files.
+    // Diagnostics must never open the byte-bound stopped source.
+    const storage = require(path.join(lib, 'upgrade-storage-stage'))
+    const options = { maxBytes: saved.maxBytes, timeoutMs: 5000 }
+    const before = storage.inspectStorage({
+      ...options,
+      directory: saved.reviewed.sourceDirectory
     })
+    const copy = storage.stageStorage({
+      ...options,
+      source: saved.reviewed.sourceDirectory,
+      directory: input.directory
+    })
+    try {
+      value.catalog =
+        await require('./upgrade-catalog-diagnostics.cjs').bounded({
+          services: host.services(
+            copy.dataDirectory,
+            saved.reviewed.instanceId
+          ),
+          steps: saved.reviewed.identity.manifest.steps
+        })
+      const after = storage.inspectStorage({
+        ...options,
+        directory: saved.reviewed.sourceDirectory
+      })
+      if (before.hash !== after.hash)
+        throw new Error('Diagnostic source changed')
+    } finally {
+      fs.rmSync(copy.directory, { recursive: true, force: true })
+    }
     value.storageStaged = Boolean(saved.stage)
     value.backupsVerified = Boolean(saved.backupSet)
     value.receiptsPrepared = Boolean(saved.handle)

@@ -258,7 +258,7 @@ test(
         approval: reviewed.reviewHash,
         instanceId: reviewed.instanceId
       })
-      assert.equal(resumed.success, true)
+      assert.equal(resumed.success, true, JSON.stringify(resumed))
       assert.equal(resumed.phase, 'ready')
       const state = host.read(resumed.filename)
       assert.equal(state.target.id, candidate)

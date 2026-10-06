@@ -366,14 +366,19 @@ if [ "$TARGET_COORDINATED" = yes ]; then
     fi
     SLIPWAY_UPGRADE_STATE_DIR="${SLIPWAY_UPGRADE_STATE_DIR:-/var/lib/slipway/upgrades}"
     install -d -m 700 "$SLIPWAY_UPGRADE_STATE_DIR"
-    docker run --rm --network none --entrypoint cat "$SLIPWAY_IMAGE" scripts/upgrade-host.sh > "$SLIPWAY_UPGRADE_STATE_DIR/upgrade-host.sh"
-    chmod 700 "$SLIPWAY_UPGRADE_STATE_DIR/upgrade-host.sh"
+    docker run --rm --network none --entrypoint cat "$SLIPWAY_IMAGE" scripts/upgrade-host-native.sh > "$SLIPWAY_UPGRADE_STATE_DIR/upgrade-host-native.sh"
+    chmod 700 "$SLIPWAY_UPGRADE_STATE_DIR/upgrade-host-native.sh"
     if container_exists "$SLIPWAY_CONTAINER"; then
         echo "Review the native upgrade plan before replacing this installation:"
-        printf 'bash %q plan --image %q --container %q --state-dir %q\n' "$SLIPWAY_UPGRADE_STATE_DIR/upgrade-host.sh" "$SLIPWAY_IMAGE" "$SLIPWAY_CONTAINER" "$SLIPWAY_UPGRADE_STATE_DIR"
+        printf 'bash %q plan --bundle %q --bundle-sha256 %q --image %q --container %q --state-dir %q\n' "$SLIPWAY_UPGRADE_STATE_DIR/upgrade-host-native.sh" "${SLIPWAY_HOST_BUNDLE:-<verified-host-bundle.tar.gz>}" "${SLIPWAY_HOST_BUNDLE_SHA256:-<verified-archive-sha256>}" "$SLIPWAY_IMAGE" "$SLIPWAY_CONTAINER" "$SLIPWAY_UPGRADE_STATE_DIR"
         echo "Then apply using the returned exact --instance and --approve-plan values. Failed upgrades retain a resume checkpoint."
         exit 2
     fi
+    if [ ! -f "${SLIPWAY_HOST_BUNDLE:-}" ] || [[ ! "${SLIPWAY_HOST_BUNDLE_SHA256:-}" =~ ^[a-f0-9]{64}$ ]]; then
+        echo "Set SLIPWAY_HOST_BUNDLE and SLIPWAY_HOST_BUNDLE_SHA256 to a verified Linux host archive before initializing." >&2
+        exit 2
+    fi
+    bash "$SLIPWAY_UPGRADE_STATE_DIR/upgrade-host-native.sh" verify --bundle "$SLIPWAY_HOST_BUNDLE" --bundle-sha256 "$SLIPWAY_HOST_BUNDLE_SHA256" --state-dir "$SLIPWAY_UPGRADE_STATE_DIR"
 fi
 
 # 3. Create network for Slipway and apps
@@ -490,7 +495,7 @@ if [ "$TARGET_COORDINATED" = yes ]; then
     # This never-started container supplies the intended launch config. Root
     # initialization independently rejects any nonempty native catalog/storage.
     run_slipway_container "$SLIPWAY_CONTAINER" "$SLIPWAY_PORT" create
-    bash "$SLIPWAY_UPGRADE_STATE_DIR/upgrade-host.sh" initialize --image "$SLIPWAY_IMAGE" --container "$SLIPWAY_CONTAINER" --state-dir "$SLIPWAY_UPGRADE_STATE_DIR"
+    bash "$SLIPWAY_UPGRADE_STATE_DIR/upgrade-host-native.sh" initialize --bundle "$SLIPWAY_HOST_BUNDLE" --bundle-sha256 "$SLIPWAY_HOST_BUNDLE_SHA256" --image "$SLIPWAY_IMAGE" --container "$SLIPWAY_CONTAINER" --state-dir "$SLIPWAY_UPGRADE_STATE_DIR"
     configure_bootstrap_dashboard_route
     configure_host_firewall
     echo "Slipway installed with verified native receipts. Dashboard: $SLIPWAY_URL"
