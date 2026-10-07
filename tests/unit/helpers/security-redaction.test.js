@@ -9,6 +9,16 @@ test('diagnostics mask nested credentials, URLs and common reversible encodings 
   const secret = 'secret-canary-<&-12-characters'
   const redact = createRedactor()
   redact.remember({ envVars: { ODD_NAME: secret } })
+  redact.remember({ key: 'smtpPassword', value: 'legacy-smtp-canary-718' })
+  redact.remember({
+    key: 'webhookUrl',
+    value: 'https://hooks.example.test/private-canary-718'
+  })
+  expect(
+    redact.text(
+      'legacy-smtp-canary-718 https://hooks.example.test/private-canary-718'
+    )
+  ).toBe('[REDACTED] [REDACTED]')
   redact.remember({
     key: 'globalEnvVars',
     encryptedValue: JSON.stringify({

@@ -93,6 +93,8 @@ module.exports = function secretsHook(sails) {
                   key
                 )
             )
+            // Older settings may still use the supported plaintext value column.
+            if (name === 'setting') fields.push('value')
             for (let offset = 0; ; offset += 100) {
               const records = await model
                 .find()

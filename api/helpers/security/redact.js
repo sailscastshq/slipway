@@ -197,9 +197,11 @@ function createRedactor() {
         } catch {
           /* encrypted storage is not diagnostic data */
         }
-      } else if (value.encryptedValue) {
+      } else if (value.key === 'backupStorageConfig' || value.encryptedValue) {
         try {
-          const configured = JSON.parse(value.encryptedValue)
+          const configured = JSON.parse(
+            value.encryptedValue || value.value || '{}'
+          )
           if (value.key === 'backupStorageConfig') {
             collect(configured)
             // These adapter credential names do not match the generic key test.
@@ -209,6 +211,13 @@ function createRedactor() {
         } catch {
           add(value.encryptedValue)
         }
+      }
+      if (
+        typeof value.key === 'string' &&
+        (sensitive.test(value.key) ||
+          /^(discordWebhookUrl|slackWebhookUrl|webhookUrl)$/.test(value.key))
+      ) {
+        collect(value.value, true)
       }
     }
     collect(record)
