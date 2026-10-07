@@ -1,3 +1,4 @@
+const { StringDecoder } = require('node:string_decoder')
 const HIDDEN = '[REDACTED]'
 const sensitive =
   /password|secret|token|credential|authorization|encrypted|privatekey|accesskey|apikey|authversion/i
@@ -275,10 +276,14 @@ function createRedactor() {
   function stream() {
     let pending = ''
     let withheld = false
+    const decoder = new StringDecoder('utf8')
     return {
       write(chunk) {
         let output = ''
-        for (const segment of String(chunk).split(/(?<=\n)/)) {
+        const decoded = Buffer.isBuffer(chunk)
+          ? decoder.write(chunk)
+          : String(chunk)
+        for (const segment of decoded.split(/(?<=\n)/)) {
           if (!withheld) pending += segment
           if (pending.length > 65536) {
             output += '[Diagnostic line withheld: size limit exceeded]\n'
@@ -294,7 +299,7 @@ function createRedactor() {
         return output
       },
       end() {
-        const output = text(pending)
+        const output = this.write(decoder.end()) + text(pending)
         pending = ''
         return output
       }

@@ -93,4 +93,11 @@ test('command streams mask secrets split across chunks and withhold overlong lin
   expect(stream.write('trailing secret\n')).toBe('')
   expect(stream.write('next')).toBe('')
   expect(stream.end()).toBe('next')
+  const unicode = 'unicode-🔐-credential-718'
+  redact.remember({ password: unicode })
+  const utf8 = redact.stream()
+  const bytes = Buffer.from(unicode + '\n')
+  const boundary = Buffer.from('unicode-').length + 2
+  expect(utf8.write(bytes.subarray(0, boundary))).toBe('')
+  expect(utf8.write(bytes.subarray(boundary))).toBe('[REDACTED]\n')
 })

@@ -2155,7 +2155,9 @@ test(
         name: 'Command output',
         exact: true
       })
-      await expect(output).toHaveText(commandOutput)
+      // A partial line is held until completion so split credentials cannot
+      // escape through intermediate command events.
+      await expect(output).toHaveText('Waiting for command output…')
       finish(commandResult)
       await expect(
         page.raw.locator('[data-test="helm-command-status"]')

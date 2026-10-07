@@ -106,6 +106,28 @@ module.exports = {
       let settled = false
       let terminationError = null
       let forceKillId
+      const redaction =
+        sails.hooks?.secrets ||
+        require('../security/redact')._private.createRedactor()
+      redaction.remember({ envVars: buildArgs })
+      const diagnosticStreams = {
+        stdout: redaction.stream(),
+        stderr: redaction.stream()
+      }
+      let logWrites = Promise.resolve()
+      let logError
+      const capture = (channel, text) => {
+        if (!text) return
+        if (channel === 'stdout') stdout += text
+        else stderr += text
+        sails.log.verbose(text)
+        if (deploymentId)
+          logWrites = logWrites
+            .then(() => Deployment.appendBuildLog(deploymentId, text))
+            .catch((error) => {
+              logError = error
+            })
+      }
 
       const cleanup = () => {
         clearTimeout(timeoutId)
@@ -165,31 +187,24 @@ module.exports = {
       signal?.addEventListener('abort', abort, { once: true })
       if (signal?.aborted) abort()
 
-      buildProcess.stdout.on('data', async (data) => {
-        const chunk = data.toString()
-        stdout += chunk
-        sails.log.verbose(chunk)
-
-        // Stream to deployment logs if provided
-        if (deploymentId) {
-          await Deployment.appendBuildLog(deploymentId, chunk)
-        }
+      buildProcess.stdout.on('data', (data) => {
+        capture('stdout', diagnosticStreams.stdout.write(data))
       })
 
-      buildProcess.stderr.on('data', async (data) => {
-        const chunk = data.toString()
-        stderr += chunk
-        // Docker outputs progress to stderr, so log as verbose
-        sails.log.verbose(chunk)
-
-        if (deploymentId) {
-          await Deployment.appendBuildLog(deploymentId, chunk)
-        }
+      buildProcess.stderr.on('data', (data) => {
+        capture('stderr', diagnosticStreams.stderr.write(data))
       })
 
       buildProcess.on('close', async (code) => {
+        capture('stdout', diagnosticStreams.stdout.end())
+        capture('stderr', diagnosticStreams.stderr.end())
+        await logWrites
         if (terminationError) {
           settle(reject, terminationError)
+          return
+        }
+        if (logError) {
+          settle(reject, new Error('Could not persist Docker build output.'))
           return
         }
 

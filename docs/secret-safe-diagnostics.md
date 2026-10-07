@@ -50,14 +50,13 @@ remain available only on their successful credential-issuing responses. Bridge
 direct-upload signing preserves only the short-lived upload URLs (including
 multipart part URLs); Bearing page rendering preserves only its scoped realtime
 subscription token. These are intentional capability grants, not configuration
-inspection. Errors
-from those actions are still masked. Password-reset forms retain only their
+inspection. Errors from those actions are still masked. Password-reset forms retain only their
 validated reset token. These exceptions do not expose configuration maps.
 
 New deployment logs, container-log snapshots, telemetry diagnostic fields and
 Helm history source/context are redacted before persistence. Existing stored
 records are masked when read; this release does not rewrite historical storage.
-Helm command NDJSON redacts complete lines across chunk boundaries. Lines over
+Docker builds and Helm command NDJSON redact complete lines across chunk boundaries. Lines over
 64 KiB are withheld; an incomplete line appears when the command finishes.
 Configured multiline secrets also register their nontrivial component lines.
 
