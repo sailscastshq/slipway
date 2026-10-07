@@ -118,6 +118,9 @@
     "sails": {
       "compression": "1.8.2"
     },
-    "better-sqlite3": "$better-sqlite3"
+    "better-sqlite3": "$better-sqlite3",
+    "sails-hook-sockets": {
+      "proxy-addr": "2.0.8"
+    }
   }
 }

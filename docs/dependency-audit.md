@@ -1,5 +1,46 @@
 # Dependency audit follow-up (#647)
 
+## Current assessment: 2026-10-07
+
+Base: `1ecd83ce032eceab67a43dd109bb470ddd1527ed`. Node 24.14.1,
+npm 11.11.0. The original #647 entries are resolved: Nodemailer 10.0.14,
+DOMPurify 3.4.16, brace-expansion 1.1.21 / 2.1.7, ip-address 10.7.3,
+and removal of the unused sails-hook-dev → pretty-bytes → meow →
+trim-newlines chain. The historical sections below describe earlier states.
+
+This follow-up selects **proxy-addr 2.0.8 only beneath sails-hook-sockets**.
+The hook remains 3.0.2. Its receiver calls `proxyaddr(req, expressTrust)` and
+`proxyaddr.all(req, expressTrust)` using a connection address and handshake
+headers. Both APIs and this request shape are supported by 2.0.8. The scoped
+override deduplicates onto Express's existing patched dependency, removing
+the old nested proxy-addr 1.1.5, forwarded 0.1.2 and ipaddr.js 1.4.0 nodes.
+It changes a transitive major deliberately, with receiver-level regression
+coverage; it does not change Slipway's Node floor or replace the sockets hook.
+Remove the override when a published hook release selects the patched version.
+
+The owning socket-address trials exercise the installed hook's actual receiver
+with Express-compiled no-trust, full-trust, numeric-hop, loopback, IPv4-subnet
+and custom-function configurations. They also verify that the hook-resolved
+dependency rejects the advisory's malformed mapped-IPv6 subnet, while accepting
+the correctly sized subnet. Production's `trustProxy: true` is unchanged:
+this update does not claim to narrow the trusted reverse-proxy boundary.
+
+Fresh committed-lock audit: **9 → 7 entries; 2 → 0 critical**, with four high
+and three moderate entries remaining. Those seven entries represent two
+underlying advisories, including vulnerable parent packages:
+
+| Advisory                                                                           | Exact remaining chain and input boundary                                                                                                                                                                                                                                                                                                                             | Follow-up                                                                                                                                                                                                                                        |
+| ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), high     | Shipwright 1.5.1 → fast-glob 3.3.3 → micromatch 4.0.8 → braces 3.0.3. `lib/entry.js` expands configured entry patterns; `lib/tags.js` expands configured/default inject patterns. Slipway config contains no request-derived glob patterns. Dependencies ship in the production image, and tag discovery can run during rendering; this is not a dev-only exemption. | No published patch as of this audit. Keep patterns repository-owned; reassess if configuration accepts untrusted patterns. Update when a compatible patch is published. npm's Shipwright 0.4.0 downgrade would break the current build contract. |
+| [GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c), moderate | Sails 1.5.18 → i18n-2 0.7.3 → sprintf-js 1.1.3. The formatter receives translated message formats, not interpolation values as format strings. No `__` / `__n` application calls were found in api, views or config; locale files are repository-owned. Accept-Language selects a supported locale, not a precision format.                                          | No published patch as of this audit. Do not introduce request-controlled translation/format strings. Reassess before adding formatting calls or imported locale content, and select the compatible upstream patch when available.                |
+
+These findings remain unresolved. Reachability evidence is not a clean audit
+or maintainer risk acceptance. #647 remains open until compatible remediation
+or an explicit release decision about these two residual advisories. No global
+audit waiver or unrestricted `npm audit fix` is used. Exact-head complete CI,
+configured mail and editor sanitation, local Docker boot and prior-release
+database upgrade remain merge gates for this follow-up.
+
 The prior 2026-10-03 registry audit of `2cc1184` reported ten entries: eight high,
 one moderate and one low, with zero critical. The candidate lockfile patches
 Nodemailer 10.0.0 → 10.0.14, DOMPurify 3.4.15 → 3.4.16,
