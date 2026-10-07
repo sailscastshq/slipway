@@ -58,7 +58,7 @@ function objects(db) {
   return db
     .prepare(
       `SELECT type, name, tbl_name, sql FROM sqlite_schema
-    WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%'
+    WHERE sql IS NOT NULL AND lower(name) NOT GLOB 'sqlite_*'
     AND name <> 'lost_and_found' ORDER BY type, name`
     )
     .all()
@@ -95,6 +95,14 @@ function parity(source, recovered) {
   try {
     verify(candidate)
     if (
+      original
+        .prepare("SELECT 1 FROM sqlite_schema WHERE name='lost_and_found'")
+        .get()
+    )
+      throw new Error(
+        'Source already contains lost_and_found; review existing salvage evidence before recovery'
+      )
+    if (
       JSON.stringify(objects(original)) !== JSON.stringify(objects(candidate))
     )
       throw new Error(
@@ -103,7 +111,7 @@ function parity(source, recovered) {
     const tables = original
       .prepare(
         `SELECT name FROM sqlite_schema WHERE type='table'
-      AND (name NOT LIKE 'sqlite_%' OR name='sqlite_sequence')
+      AND (lower(name) NOT GLOB 'sqlite_*' OR name='sqlite_sequence')
       AND name <> 'lost_and_found' ORDER BY name`
       )
       .all()

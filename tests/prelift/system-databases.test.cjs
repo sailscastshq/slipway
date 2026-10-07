@@ -24,7 +24,7 @@ async function fixture(run) {
         )
       if (datastore === 'default') {
         db.exec(
-          "CREATE TABLE custom_data(id INTEGER PRIMARY KEY, payload TEXT); INSERT INTO custom_data VALUES(1,'retained'); CREATE VIEW custom_view AS SELECT * FROM custom_data; CREATE TRIGGER custom_trigger AFTER INSERT ON custom_data BEGIN UPDATE custom_data SET payload=payload WHERE id=new.id; END;"
+          "CREATE TABLE sqliteCustom(id INTEGER PRIMARY KEY, payload TEXT); INSERT INTO sqliteCustom VALUES(1,'also retained'); CREATE TABLE custom_data(id INTEGER PRIMARY KEY, payload TEXT); INSERT INTO custom_data VALUES(1,'retained'); CREATE VIEW custom_view AS SELECT * FROM custom_data; CREATE TRIGGER custom_trigger AFTER INSERT ON custom_data BEGIN UPDATE custom_data SET payload=payload WHERE id=new.id; END;"
         )
       }
       db.close()
@@ -77,6 +77,14 @@ test('native parity rejects altered application rows and schema before any live 
         .some((item) => item.table === 'custom_data' && item.rows === 1)
     )
     let db = new Database(target)
+    db.exec("UPDATE sqliteCustom SET payload='changed'")
+    db.close()
+    assert.throws(
+      () => doctor.parity(path.join(source, 'app.db'), target),
+      /table differs: sqliteCustom/
+    )
+    db = new Database(target)
+    db.exec("UPDATE sqliteCustom SET payload='also retained'")
     db.exec("UPDATE custom_data SET payload='changed'")
     db.close()
     assert.throws(
@@ -89,6 +97,13 @@ test('native parity rejects altered application rows and schema before any live 
     assert.throws(
       () => doctor.parity(path.join(source, 'app.db'), target),
       /schema differs/
+    )
+    db = new Database(path.join(source, 'app.db'))
+    db.exec('CREATE TABLE lost_and_found (payload TEXT)')
+    db.close()
+    assert.throws(
+      () => doctor.parity(path.join(source, 'app.db'), target),
+      /already contains lost_and_found/
     )
   }))
 
