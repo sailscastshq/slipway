@@ -15,6 +15,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  docker-port-allocation:
+    name: Docker host port allocation
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit
+      - run: docker build -t slipway:port-proof tests/fixtures/docker-port-allocation
+      - run: node_modules/.bin/sounding test --file tests/contracts/docker-port-allocation.test.js --test-concurrency=1
+
   dependency-upgrade:
     name: Dependency local boot and previous release upgrade
     if: github.event_name != 'workflow_call'

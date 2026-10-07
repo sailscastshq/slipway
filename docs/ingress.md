@@ -12,6 +12,19 @@ Caddy reaches every container over the private `slipway` Docker network. The
 initial dashboard URL also passes through Caddy, so setup does not require a
 temporary public dashboard port.
 
+Deployments, rollbacks and update validation share the port allocator. It checks
+app records, atomic reservations and the Docker host's published TCP ports before
+probing a local socket. A free socket inside the dashboard container does not
+prove the host port is free. Published numbers on any IPv4 or IPv6 interface are
+excluded from Slipway's shared pool, including port ranges. Unpublished container
+ports and UDP mappings do not consume that TCP pool.
+
+If Docker binding discovery fails or returns an unreadable response, allocation
+stops without changing reservations. Verify Docker daemon/socket access and retry.
+An external process can still acquire a port between discovery and container
+startup; Docker remains the final authority. This check covers Docker publications,
+not arbitrary host listeners hidden from the dashboard's network namespace.
+
 ## Default public VPS mode
 
 The normal installer uses this contract:
