@@ -1,9 +1,11 @@
 const historical = require('./releases/legacy-helper-ddl.json').entries
 
-// Definitions shipped by the pre-release production ensure-schema helpers.
+// Definitions from pre-release helpers and the reported production apps schema.
 // These are compatibility alternatives, never instructions to rewrite a table.
 const legacyColumns = {
   apps: {
+    // Observed production schema; matches App.healthPath.defaultsTo.
+    health_path: "TEXT DEFAULT '/health'",
     bridge_enabled: 'BOOLEAN NOT NULL DEFAULT 0',
     bridge_secret: 'TEXT',
     bearing_enabled: 'BOOLEAN NOT NULL DEFAULT 0',

@@ -210,6 +210,59 @@ test('helper-upgraded app columns validate without rewriting defaults, secrets o
     assert.equal((await migrations.run({ directory })).migratedDatastores, 0)
   }))
 
+test('reported production apps schema preserves its health default and appended fields', () =>
+  fixture(async (directory) => {
+    const sql =
+      "CREATE TABLE `apps` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT, `slug` TEXT, `status` TEXT, `dockerfile_path` TEXT, `route_path` TEXT, `app_env_vars` TEXT, `is_default` TEXT, `container_id` TEXT, `container_name` TEXT, `image_id` TEXT, `image_name` TEXT, `port` INTEGER, `host_port` INTEGER, `last_deployed_at` INTEGER, `resource_limits` TEXT, `environment` INTEGER, `current_deployment_id` INTEGER, `health_path` TEXT DEFAULT '/health', secure_env_vars TEXT, env_var_metadata TEXT NOT NULL DEFAULT '{}', bridge_enabled BOOLEAN NOT NULL DEFAULT 0, bridge_secret TEXT, `bearing_enabled` BOOLEAN NOT NULL DEFAULT 0, `bearing_secret` TEXT, wake_enabled BOOLEAN NOT NULL DEFAULT 0, wake_secret TEXT, wake_settings TEXT NOT NULL DEFAULT '{}')"
+    edit(directory, 'app.db', (db) => {
+      db.exec('DROP TABLE apps')
+      db.exec(sql)
+      db.prepare('INSERT INTO apps (id, secure_env_vars) VALUES (?, ?)').run(
+        1,
+        'keep-encrypted-secret'
+      )
+    })
+    const before = hashes(directory)
+    await migrations.run({ directory, preflightOnly: true })
+    assert.deepEqual(hashes(directory), before)
+    await migrations.run({ directory })
+    edit(directory, 'app.db', (db) => {
+      assert.equal(
+        db.prepare("SELECT sql FROM sqlite_schema WHERE name='apps'").get().sql,
+        sql
+      )
+      assert.deepEqual(
+        db
+          .prepare(
+            'SELECT health_path, secure_env_vars, bridge_enabled, bearing_enabled, wake_enabled, wake_settings, env_var_metadata FROM apps WHERE id=1'
+          )
+          .get(),
+        {
+          health_path: '/health',
+          secure_env_vars: 'keep-encrypted-secret',
+          bridge_enabled: 0,
+          bearing_enabled: 0,
+          wake_enabled: 0,
+          wake_settings: '{}',
+          env_var_metadata: '{}'
+        }
+      )
+    })
+    assert.equal((await migrations.run({ directory })).migratedDatastores, 0)
+    const compatible = require('../../api/lib/release-legacy-schema')
+    const definition = require('../../api/lib/releases/0.0.88.json').datastores
+      .default.apps
+    assert.equal(
+      compatible(
+        'default',
+        'apps',
+        sql.replace("DEFAULT '/health'", "DEFAULT '/unexpected'"),
+        definition
+      ),
+      false
+    )
+  }))
+
 test('historical helper-created Bearing tables migrate without losing their native constraints', () =>
   fixture(async (directory) => {
     const historical =
