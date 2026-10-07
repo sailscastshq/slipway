@@ -151,6 +151,200 @@ test('released 86 upgrades through the Bosun executor, preserving founder, secre
     assert.deepEqual(hashes(directory), before)
   }))
 
+test('helper-upgraded app columns validate without rewriting defaults, secrets or live files', () =>
+  fixture(async (directory) => {
+    edit(directory, 'app.db', (db) => {
+      const original = db
+        .prepare("SELECT sql FROM sqlite_schema WHERE name='apps'")
+        .get().sql
+      db.exec('DROP TABLE apps')
+      const base = original.replace(
+        /, `(bridge_enabled|bridge_secret|bearing_enabled|bearing_secret|wake_enabled|wake_settings|wake_secret|secure_env_vars|env_var_metadata)` TEXT/g,
+        ''
+      )
+      db.exec(base)
+      // Exact ALTER definitions and order shipped by the legacy production helpers.
+      db.exec(`ALTER TABLE apps ADD COLUMN bridge_enabled BOOLEAN NOT NULL DEFAULT 0;
+        ALTER TABLE apps ADD COLUMN bridge_secret TEXT;
+        ALTER TABLE apps ADD COLUMN secure_env_vars TEXT;
+        ALTER TABLE apps ADD COLUMN env_var_metadata TEXT NOT NULL DEFAULT '{}';
+        ALTER TABLE apps ADD COLUMN bearing_enabled BOOLEAN NOT NULL DEFAULT 0;
+        ALTER TABLE apps ADD COLUMN bearing_secret TEXT;
+        ALTER TABLE apps ADD COLUMN wake_enabled BOOLEAN NOT NULL DEFAULT 0;
+        ALTER TABLE apps ADD COLUMN wake_secret TEXT;
+        ALTER TABLE apps ADD COLUMN wake_settings TEXT NOT NULL DEFAULT '{}';`)
+      db.prepare('INSERT INTO apps (id, secure_env_vars) VALUES (?, ?)').run(
+        1,
+        'keep-encrypted-secret'
+      )
+    })
+    const before = hashes(directory)
+    const ddl = edit(
+      directory,
+      'app.db',
+      (db) =>
+        db.prepare("SELECT sql FROM sqlite_schema WHERE name='apps'").get().sql
+    )
+    await migrations.run({ directory, preflightOnly: true })
+    assert.deepEqual(hashes(directory), before)
+    await migrations.run({ directory })
+    edit(directory, 'app.db', (db) => {
+      assert.equal(
+        db.prepare("SELECT sql FROM sqlite_schema WHERE name='apps'").get().sql,
+        ddl
+      )
+      assert.deepEqual(
+        db
+          .prepare(
+            'SELECT secure_env_vars, wake_enabled, wake_settings, env_var_metadata FROM apps WHERE id=1'
+          )
+          .get(),
+        {
+          secure_env_vars: 'keep-encrypted-secret',
+          wake_enabled: 0,
+          wake_settings: '{}',
+          env_var_metadata: '{}'
+        }
+      )
+    })
+    assert.equal((await migrations.run({ directory })).migratedDatastores, 0)
+  }))
+
+test('reported production apps schema preserves its health default and appended fields', () =>
+  fixture(async (directory) => {
+    const sql =
+      "CREATE TABLE `apps` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT, `slug` TEXT, `status` TEXT, `dockerfile_path` TEXT, `route_path` TEXT, `app_env_vars` TEXT, `is_default` TEXT, `container_id` TEXT, `container_name` TEXT, `image_id` TEXT, `image_name` TEXT, `port` INTEGER, `host_port` INTEGER, `last_deployed_at` INTEGER, `resource_limits` TEXT, `environment` INTEGER, `current_deployment_id` INTEGER, `health_path` TEXT DEFAULT '/health', secure_env_vars TEXT, env_var_metadata TEXT NOT NULL DEFAULT '{}', bridge_enabled BOOLEAN NOT NULL DEFAULT 0, bridge_secret TEXT, `bearing_enabled` BOOLEAN NOT NULL DEFAULT 0, `bearing_secret` TEXT, wake_enabled BOOLEAN NOT NULL DEFAULT 0, wake_secret TEXT, wake_settings TEXT NOT NULL DEFAULT '{}')"
+    edit(directory, 'app.db', (db) => {
+      db.exec('DROP TABLE apps')
+      db.exec(sql)
+      db.prepare('INSERT INTO apps (id, secure_env_vars) VALUES (?, ?)').run(
+        1,
+        'keep-encrypted-secret'
+      )
+    })
+    const before = hashes(directory)
+    await migrations.run({ directory, preflightOnly: true })
+    assert.deepEqual(hashes(directory), before)
+    await migrations.run({ directory })
+    edit(directory, 'app.db', (db) => {
+      assert.equal(
+        db.prepare("SELECT sql FROM sqlite_schema WHERE name='apps'").get().sql,
+        sql
+      )
+      assert.deepEqual(
+        db
+          .prepare(
+            'SELECT health_path, secure_env_vars, bridge_enabled, bearing_enabled, wake_enabled, wake_settings, env_var_metadata FROM apps WHERE id=1'
+          )
+          .get(),
+        {
+          health_path: '/health',
+          secure_env_vars: 'keep-encrypted-secret',
+          bridge_enabled: 0,
+          bearing_enabled: 0,
+          wake_enabled: 0,
+          wake_settings: '{}',
+          env_var_metadata: '{}'
+        }
+      )
+    })
+    assert.equal((await migrations.run({ directory })).migratedDatastores, 0)
+    const compatible = require('../../api/lib/release-legacy-schema')
+    const definition = require('../../api/lib/releases/0.0.88.json').datastores
+      .default.apps
+    assert.equal(
+      compatible(
+        'default',
+        'apps',
+        sql.replace("DEFAULT '/health'", "DEFAULT '/unexpected'"),
+        definition
+      ),
+      false
+    )
+  }))
+
+test('historical helper-created Bearing tables migrate without losing their native constraints', () =>
+  fixture(async (directory) => {
+    const historical =
+      require('../../api/lib/releases/legacy-helper-ddl.json').entries
+    const tables = [
+      'bearing_spaces',
+      'bearing_participants',
+      'bearing_feedback',
+      'bearing_updates',
+      'bearing_votes'
+    ]
+    const definitions = {}
+    edit(directory, 'app.db', (db) => {
+      for (const name of tables) {
+        const entry = historical.find(
+          (entry) =>
+            entry.source === 'api/helpers/bearing/ensure-schema.js' &&
+            entry.sql.startsWith(`CREATE TABLE ${name} (`)
+        )
+        assert.ok(entry, name)
+        db.exec(`DROP TABLE ${name}`)
+        db.exec(entry.sql)
+        definitions[name] = db
+          .prepare('SELECT sql FROM sqlite_schema WHERE name = ?')
+          .get(name).sql
+      }
+      db.exec(
+        "INSERT INTO bearing_feedback (id, public_id, title, space, app) VALUES (1, 'keep-feedback', 'Keep this feedback', 1, 1)"
+      )
+    })
+    const before = hashes(directory)
+    await migrations.run({ directory, preflightOnly: true })
+    assert.deepEqual(hashes(directory), before)
+    await migrations.run({ directory })
+    edit(directory, 'app.db', (db) => {
+      for (const name of tables)
+        assert.equal(
+          db.prepare('SELECT sql FROM sqlite_schema WHERE name = ?').get(name)
+            .sql,
+          definitions[name]
+        )
+      assert.equal(
+        db.prepare('SELECT title FROM bearing_feedback WHERE id = 1').get()
+          .title,
+        'Keep this feedback'
+      )
+    })
+    assert.equal((await migrations.run({ directory })).migratedDatastores, 0)
+  }))
+
+test('legacy compatibility still rejects changed constraints and unknown app columns', async () => {
+  for (const addition of [
+    'ALTER TABLE apps ADD COLUMN unknown_column TEXT',
+    'ALTER TABLE apps RENAME COLUMN name TO wrong_name'
+  ])
+    await fixture(async (directory) => {
+      edit(directory, 'app.db', (db) => db.exec(addition))
+      const before = hashes(directory)
+      await assert.rejects(
+        migrations.run({ directory }),
+        /incompatible default.apps/
+      )
+      assert.deepEqual(hashes(directory), before)
+    })
+  const compatible = require('../../api/lib/release-legacy-schema')
+  const definition = require('../../api/lib/releases/0.0.88.json').datastores
+    .default.apps
+  for (const sql of [
+    definition.create.replace(
+      '`wake_enabled` TEXT',
+      '`wake_enabled` BOOLEAN NOT NULL DEFAULT 1'
+    ),
+    definition.create.replace(
+      '`name` TEXT',
+      '`name` TEXT CHECK (length(name) < 2)'
+    ),
+    definition.create.replace('`name` TEXT', '`name` TEXT COLLATE NOCASE'),
+    definition.create.replace(', `wake_settings` TEXT', '')
+  ])
+    assert.equal(compatible('default', 'apps', sql, definition), false)
+})
+
 test('fresh production databases initialize without a host bundle or manual DDL', () =>
   fixture(async (directory) => {
     assert.equal((await migrations.run({ directory })).migratedDatastores, 4)

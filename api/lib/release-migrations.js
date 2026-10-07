@@ -6,6 +6,7 @@ const createExecutor = require('./migration-executor')
 const readSchema = require('./sqlite-schema')
 const plans = require('./migration-plans')
 const registry = require('./releases/0.0.88.json')
+const compatibleSchema = require('./release-legacy-schema')
 const applySqliteMigration =
   require('../helpers/dock/apply-sqlite-migration').fn
 
@@ -61,7 +62,12 @@ function current(service) {
     )) {
       if (
         !native[table] ||
-        !definition.accepted.includes(native[table].sql) ||
+        !compatibleSchema(
+          service.datastore,
+          table,
+          native[table].sql,
+          definition
+        ) ||
         (table === 'helm_history_entries' &&
           !native[table].columns.some((column) => column.name === 'mode'))
       )
@@ -76,7 +82,10 @@ function current(service) {
         const index = db
           .prepare('SELECT type, sql FROM sqlite_schema WHERE name = ?')
           .get(name)
-        if (index?.type !== 'index' || !definition.indexes.includes(index.sql))
+        if (
+          index?.type !== 'index' ||
+          !compatibleSchema.index(index.sql, definition.indexes)
+        )
           fail(
             `The recorded release index changed at ${name}; review it before starting Slipway.`
           )
@@ -130,7 +139,9 @@ function prepare(service) {
       const existing = before[table]
       if (!existing) add('create_table', table, definition.create)
       else {
-        if (!definition.accepted.includes(existing.sql))
+        if (
+          !compatibleSchema(service.datastore, table, existing.sql, definition)
+        )
           fail(
             `Review the incompatible ${service.datastore}.${table} schema before updating; no destructive migration was attempted.`
           )
@@ -155,7 +166,10 @@ function prepare(service) {
           .prepare('SELECT type, sql FROM sqlite_schema WHERE name = ?')
           .get(name)
         if (index) {
-          if (index.type !== 'index' || !definition.indexes.includes(index.sql))
+          if (
+            index.type !== 'index' ||
+            !compatibleSchema.index(index.sql, definition.indexes)
+          )
             fail(`Review the incompatible ${name} index before updating.`)
         } else add('create_index', table, sql)
       }
