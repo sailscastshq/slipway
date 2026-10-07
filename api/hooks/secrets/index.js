@@ -75,6 +75,10 @@ module.exports = function secretsHook(sails) {
         try {
           redact.remember({ secret: sails.config.session?.secret })
           redact.remember(sails.config.custom || {})
+          redact.remember({
+            accessKey: sails.config.uploads?.key,
+            secret: sails.config.uploads?.secret
+          })
           for (const name of [
             'app',
             'environment',
