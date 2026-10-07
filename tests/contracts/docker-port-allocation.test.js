@@ -11,7 +11,7 @@ test('containerized allocation skips a Docker-host binding missing from app reco
 }) => {
   const image = process.env.SLIPWAY_PORT_PROOF_IMAGE || 'slipway:port-proof'
   const scope = randomUUID()
-  const names = ['occupied', 'allocator', 'selected'].map(
+  const names = ['occupied', 'allocator', 'selected', 'validation'].map(
     (role) => `slipway-port-proof-${role}-${scope}`
   )
   const owned = []
@@ -78,6 +78,42 @@ test('containerized allocation skips a Docker-host binding missing from app reco
     expect(Number(JSON.parse(selected)['8080/tcp'][0].HostPort)).toBe(
       result.selected
     )
+    // Validation shares a Docker daemon with busy apps but needs no host port.
+    await start(names[3], [
+      image,
+      'node',
+      '-e',
+      'require("http").createServer((req,res)=>res.end(JSON.stringify({status:"ok"}))).listen(1337,"0.0.0.0")'
+    ])
+    const { stdout: validation } = await command([
+      'inspect',
+      '--format',
+      '{{json .HostConfig.PortBindings}}',
+      names[3]
+    ])
+    expect(Object.keys(JSON.parse(validation) || {}).length).toBe(0)
+    const { waitForContainerHttp } =
+      require('../../api/helpers/docker/health-check-container')._private
+    await waitForContainerHttp({
+      execute: (binary, args, options) => run(binary, args, options),
+      dockerPath: 'docker',
+      containerName: names[3],
+      port: 1337,
+      path: '/health',
+      timeout: 10000,
+      interval: 100,
+      clock: {
+        now: Date.now,
+        wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+      }
+    })
+    const { stdout: occupiedState } = await command([
+      'inspect',
+      '--format',
+      '{{.State.Running}}',
+      names[0]
+    ])
+    expect(occupiedState.trim()).toBe('true')
     console.log(`Docker namespace proof: ${JSON.stringify(result)}`)
   } finally {
     for (const name of owned.reverse()) {

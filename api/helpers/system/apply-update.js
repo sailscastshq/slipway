@@ -1,6 +1,21 @@
 const { execFile, spawn } = require('child_process')
 const util = require('util')
-const execFileAsync = util.promisify(execFile)
+const execute = util.promisify(execFile)
+async function execFileAsync(dockerPath, args, options, sensitiveArgs = []) {
+  try {
+    return await execute(dockerPath, args, options)
+  } catch (error) {
+    const safe = new Error(
+      sails.helpers.docker.formatError.with({
+        error,
+        args: [...args, ...sensitiveArgs]
+      })
+    )
+    if (error.code !== undefined) safe.code = error.code
+    safe.stderr = safe.message
+    throw safe
+  }
+}
 
 module.exports = {
   friendlyName: 'Apply update',
@@ -21,7 +36,7 @@ module.exports = {
       description: 'Failed to pull the new image.'
     },
     validationFailed: {
-      description: 'The new image started but failed validation.'
+      description: 'The candidate could not start or did not pass validation.'
     }
   },
 
@@ -32,9 +47,7 @@ module.exports = {
     const imageRepository = `ghcr.io/${githubRepo}`
     const CACHE_KEY = 'slipway_update_progress'
     const appsDir = sails.config.custom.slipwayAppsDir || '/var/slipway/apps'
-    const portHost = sails.config.custom.slipwayPortHost || '127.0.0.1'
-    let tempPort = null
-    let tempPortReserved = false
+    let validationMayExist = false
 
     async function setProgress(phase, detail) {
       await sails.cache.set(
@@ -125,18 +138,12 @@ module.exports = {
       })
       const baseArgs = dockerArgs.runArgs
 
-      // 6. Start a validation container (slipway-next) on a temporary port
+      // 6. Validate through container-local health; no host port is needed.
       await setProgress(
         'validating',
         'Starting temporary container for health check'
       )
-      tempPort = await sails.helpers.docker.allocatePort.with({
-        ownerType: 'system-update',
-        ownerId: 'slipway-next'
-      })
-      tempPortReserved = true
-
-      // Build temp container args: same config but different name + temp port
+      // Keep mounts, environment and network, without publishing a host port.
       const tempArgs = ['run', '-d', '--name', 'slipway-next']
 
       // Network (needed for Docker DNS / volume access)
@@ -149,9 +156,6 @@ module.exports = {
 
       tempArgs.push(...dockerArgs.mountArgs)
 
-      // Temp port binding (different from production port)
-      tempArgs.push('-p', formatPortBinding(portHost, tempPort, 1337))
-
       tempArgs.push(...dockerArgs.envArgs)
 
       tempArgs.push(pullTarget)
@@ -163,6 +167,7 @@ module.exports = {
         /* ignore */
       }
 
+      validationMayExist = true
       try {
         await execFileAsync(dockerPath, tempArgs)
       } catch (err) {
@@ -196,14 +201,6 @@ module.exports = {
             `[slipway] Validation container logs:\n${validationLogs}`
           )
         }
-        // Clean up the failed temp container
-        try {
-          await execFileAsync(dockerPath, ['rm', '-f', 'slipway-next'])
-        } catch {
-          /* ignore */
-        }
-        await releaseTempPort(tempPort)
-        tempPortReserved = false
         await setProgress(
           'failed',
           'New version failed health check — update aborted, current version untouched'
@@ -234,14 +231,9 @@ module.exports = {
       else
         sails.log.info('[slipway] Validation passed — new version is healthy')
 
-      // 8. Stop the validation container (free the temp port before swap)
-      try {
-        await execFileAsync(dockerPath, ['rm', '-f', 'slipway-next'])
-      } catch {
-        /* ignore */
-      }
-      await releaseTempPort(tempPort)
-      tempPortReserved = false
+      // 8. Remove validation before the production swap.
+      await execFileAsync(dockerPath, ['rm', '-f', 'slipway-next'])
+      validationMayExist = false
 
       // 9. Build final run args for the production container
       const runArgs = [
@@ -272,19 +264,24 @@ module.exports = {
         /* ignore */
       }
 
-      await execFileAsync(dockerPath, [
-        'run',
-        '-d',
-        '--rm',
-        '--name',
-        'slipway-bosun',
-        '-v',
-        '/var/run/docker.sock:/var/run/docker.sock',
-        pullTarget,
-        'node',
-        '-e',
-        script
-      ])
+      await execFileAsync(
+        dockerPath,
+        [
+          'run',
+          '-d',
+          '--rm',
+          '--name',
+          'slipway-bosun',
+          '-v',
+          '/var/run/docker.sock:/var/run/docker.sock',
+          pullTarget,
+          'node',
+          '-e',
+          script
+        ],
+        undefined,
+        dockerArgs.envArgs
+      )
 
       sails.log.info('[slipway] Bosun spawned — container swap in ~3 seconds')
 
@@ -303,12 +300,15 @@ module.exports = {
         targetImage: pullTarget
       }
     } catch (err) {
-      if (tempPortReserved && tempPort) {
+      if (validationMayExist) {
         try {
           await execFileAsync(dockerPath, ['rm', '-f', 'slipway-next'])
-        } catch {}
-        await releaseTempPort(tempPort)
-        tempPortReserved = false
+        } catch (cleanupError) {
+          sails.log.error(
+            `[slipway] Could not remove validation container: ${cleanupError.message}`
+          )
+        }
+        validationMayExist = false
       }
 
       // Re-throw Sails exit signals
@@ -319,34 +319,10 @@ module.exports = {
   }
 }
 
-async function releaseTempPort(hostPort) {
-  try {
-    await sails.helpers.docker.releasePort.with({
-      hostPort,
-      ownerType: 'system-update',
-      ownerId: 'slipway-next'
-    })
-  } catch (err) {
-    sails.log.warn(
-      `Could not release update port reservation ${hostPort}: ${
-        err.message || err
-      }`
-    )
-  }
-}
-
 function hasMountDestination(containerInfo, destination) {
   return (containerInfo?.Mounts || []).some(
     (mount) => mount.Destination === destination
   )
-}
-
-function formatPortBinding(host, hostPort, containerPort) {
-  const normalizedHost = String(host || '0.0.0.0').trim() || '0.0.0.0'
-
-  return normalizedHost === '0.0.0.0'
-    ? `${hostPort}:${containerPort}`
-    : `${normalizedHost}:${hostPort}:${containerPort}`
 }
 
 async function migrateAppsDirectoryToBindMount({
