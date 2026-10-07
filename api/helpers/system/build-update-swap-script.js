@@ -28,21 +28,27 @@ module.exports = {
 
   fn: async function ({ runArgs, containerName, backupContainerName }) {
     const checksum = require('../../lib/release-migrations').checksum
+    const { formatDockerError } = require('../docker/format-error')._private
     return `
   const { execFileSync } = require("child_process")
   const containerName = ${JSON.stringify(containerName)}
   const backupName = ${JSON.stringify(backupContainerName)}
   const runArgs = ${JSON.stringify(runArgs)}
   const expectedChecksum = ${JSON.stringify(checksum)}
+  const formatDockerError = ${formatDockerError.toString()}
   let renamed = false
   let candidateMayExist = false
 
   function docker(args, options = {}) {
-    return execFileSync("docker", args, { stdio: "inherit", timeout: 30000, ...options })
+    try {
+      return execFileSync("docker", args, { stdio: "pipe", timeout: 30000, ...options })
+    } catch (error) {
+      throw new Error(formatDockerError(error, args))
+    }
   }
 
   function dockerQuiet(args) {
-    return execFileSync("docker", args, { stdio: "pipe", timeout: 10000 })
+    return docker(args, { timeout: 10000 })
   }
 
   function tryDocker(args) {
@@ -50,7 +56,7 @@ module.exports = {
       docker(args)
       return true
     } catch (error) {
-      console.error("Docker command failed:", args.join(" "), error.message)
+      console.error("Docker command failed:", error.message)
       return false
     }
   }
