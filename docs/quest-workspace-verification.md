@@ -1,8 +1,74 @@
 # Quest workspace browser verification
 
-## Evidence status
+## Current verified release checkpoint — 0.0.90
 
-### Final published-pair gate for #653
+The exact source checkpoint is `2d54b82e6af94e62f8ad4b7233ee72c4f688fc4d`
+([#725](https://github.com/sailscastshq/slipway/pull/725)). Both published
+**Quest 0.0.8** and **Slipway hook 0.0.13** were tested as exact source-packed
+and actual npm-installed consumers. The registry preparation verifies public npm
+SHA-512 metadata, every archived source file and installed lock URL/integrity
+before executing runtime tests. Source-only inspection cannot substitute for
+this proof. Seven local package/initialization trials also pass, including
+ORM-disabled startup and forged-integrity/origin/source rejection.
+
+[General CI](https://github.com/sailscastshq/slipway/actions/runs/37686974309)
+passes the complete suite: 700 unit tests, 200 functional tests, all browser
+shards and the aggregate, native SQLite recovery/rollback and upgrades,
+production boot, migration engines, host port allocation, storage/Bearing and
+Helm. [All nine Quest verification jobs](https://github.com/sailscastshq/slipway/actions/runs/37686974376)
+pass, including both real package variants, browser states and performance
+observations.
+
+Each native restart fixture preserves 36 large results, accepts 80 telemetry
+events and starts zero additional jobs through delivery recovery. Registry:
+724,985 bytes across five accepted requests; source-packed: 802,475 bytes across
+six. Old receipts/logs remain unchanged, offline delivery is actually refused,
+and cleanup confirms three owned processes/registry entries and the private
+runtime directory are removed. Actual Docker/browser execution also proves typed
+inputs, business results distinct from logs, resident pause/overlap and owned
+cancellation. Downloaded archive and consumer-lock hashes were independently
+checked against provenance; source-file and npm metadata checks run before CI
+runtime evidence.
+
+All 76 current desktop/mobile and light/dark UI state captures were downloaded
+and visually reviewed, alongside original real-runtime input/result screenshots.
+This review identified no additional layout correction. Captures use synthetic
+jobs; no customer or production job was executed.
+
+### Measured costs and limits
+
+The current synthetic 500-event, 32 MiB historical-log fixture reduces initial
+history JSON from **32,865,408 bytes to 4,451 bytes**, loading detail logs
+separately. Seven alternating warmed in-memory SQLite read/mapping samples have
+medians **62.583 → 17.647 ms**, excluding JSON serialization. This is not a
+whole-page or production runtime benchmark.
+
+Raw production-built navigation samples were independently recomputed (ten per
+phase/viewport). Original → current ready medians are desktop light
+**110.20 → 112.60 ms**, desktop dark **107.20 → 113.85 ms**, mobile light
+**108.65 → 117.40 ms**, mobile dark **108.35 → 113.05 ms**. Current JS/CSS adds
+**57,908 bytes**. Same-source preload off/on medians improve by approximately
+**4.8–11.6 ms** with identical requested asset bytes. This does not remove the
+original-page byte/latency cost or establish universal non-regression.
+
+The original latency non-regression aspiration remains unmet. This release
+records the fuller workspace tradeoff explicitly; it makes no universal speedup
+claim and does not invent maintainer acceptance of a performance threshold.
+Published-package and functional gates are now verified. App-owned control and
+private receipt-directory opt-ins remain required; see
+[Milestone C rollout and limits](quest-milestone-c.md). Source schedules and
+process-local overlap remain authoritative. Evidence retries never rerun work,
+and no distributed exactly-once guarantee is offered.
+
+## Historical checkpoints
+
+The sections below retain earlier measurements, then-pending gates and package
+versions for auditability. They are historical, and do not supersede the current
+verified checkpoint above.
+
+### Earlier evidence status
+
+#### Then-pending published-pair gate for #653
 
 The current follow-up selects registry Quest **0.0.8** in Slipway's committed
 lockfile. Both Quest 0.0.8 and Slipway hook **0.0.13** are published. The resident

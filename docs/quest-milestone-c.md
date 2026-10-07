@@ -1,6 +1,6 @@
 # Quest reconnect and control rollout
 
-This draft implements the bounded Milestone C work in issue #653. Scripts and
+The published package pair for the bounded Milestone C work in issue #653 is verified for 0.0.90; see the [current verification record](quest-workspace-verification.md). Scripts and
 Quest remain the scheduler. Receipt retries deliver evidence only; they never
 run a script, catch up missed schedules, or promise exactly-once side effects.
 
