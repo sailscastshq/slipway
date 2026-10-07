@@ -508,3 +508,72 @@ test('legacy updater bootstrap refuses unknown sources and is idempotent without
     await fs.rm(root, { recursive: true, force: true })
   }
 })
+
+test('0.0.87 bootstrap validates both helpers before changing files and allows migration health time', async ({
+  expect
+}) => {
+  const fs = require('node:fs/promises')
+  const path = require('node:path')
+  const { execFileSync } = require('node:child_process')
+  const root = await fs.mkdtemp(
+    path.join(require('node:os').tmpdir(), 'slipway-bootstrap-87-')
+  )
+  const system = path.join(root, 'api/helpers/system')
+  const docker = path.join(root, 'api/helpers/docker')
+  const helper = path.join(system, 'apply-update.js')
+  const swap = path.join(system, 'build-update-swap-script.js')
+  const script = path.resolve('scripts/bootstrap-unpublished-update.cjs')
+  const source =
+    "module.exports = { fn: async function () { tempArgs.push('-p', formatPortBinding(portHost, tempPort, 1337))\n await sails.helpers.docker.healthCheckContainer.with({ timeout: 60000, path: '/health' }) } }"
+  try {
+    await fs.mkdir(system, { recursive: true })
+    await fs.mkdir(docker, { recursive: true })
+    await fs.writeFile(
+      path.join(root, 'package.json'),
+      JSON.stringify({ version: '0.0.87' })
+    )
+    await fs.writeFile(helper, source)
+    await fs.writeFile(
+      path.join(docker, 'health-check-container.js'),
+      "const probe = ['exec', `http://localhost:${port}${healthPath}`]"
+    )
+    await fs.writeFile(swap, 'module.exports = {}')
+    let failure
+    try {
+      execFileSync(process.execPath, [script, root], { stdio: 'pipe' })
+    } catch (error) {
+      failure = error
+    }
+    expect(failure.status).toBe(1)
+    expect(await fs.readFile(helper, 'utf8')).toBe(source)
+    expect((await fs.readdir(system)).length).toBe(2)
+    await fs.writeFile(
+      swap,
+      'for (let attempt = 0; attempt < 30; attempt++) {}'
+    )
+    execFileSync(process.execPath, [script, root], { stdio: 'pipe' })
+    expect(
+      (await fs.readFile(helper, 'utf8')).includes('timeout: 360000,')
+    ).toBe(true)
+    expect(
+      (await fs.readFile(helper, 'utf8')).includes("tempArgs.push('-p'")
+    ).toBe(false)
+    expect((await fs.readFile(swap, 'utf8')).includes('attempt < 180;')).toBe(
+      true
+    )
+    expect(
+      execFileSync(process.execPath, [script, root], {
+        encoding: 'utf8',
+        stdio: 'pipe'
+      }).includes('already patched')
+    ).toBe(true)
+    const backups = (await fs.readdir(system)).filter((name) =>
+      name.includes('before-port-bootstrap')
+    )
+    expect(backups.length).toBe(2)
+    for (const name of backups)
+      expect((await fs.stat(path.join(system, name))).mode & 0o777).toBe(0o600)
+  } finally {
+    await fs.rm(root, { recursive: true, force: true })
+  }
+})
