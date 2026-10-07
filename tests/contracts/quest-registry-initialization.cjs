@@ -13,7 +13,6 @@ for (const reduced of [false, true]) {
     }`,
     { timeout: 10000 },
     async (t) => {
-      assert.equal(require('sails-hook-quest/package.json').version, '0.0.7')
       const appPath = fs.mkdtempSync(path.join(os.tmpdir(), 'quest-registry-'))
       fs.mkdirSync(path.join(appPath, 'scripts'))
       fs.writeFileSync(

@@ -34,12 +34,14 @@ underlying advisories, including vulnerable parent packages:
 | [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), high     | Shipwright 1.5.1 → fast-glob 3.3.3 → micromatch 4.0.8 → braces 3.0.3. `lib/entry.js` expands configured entry patterns; `lib/tags.js` expands configured/default inject patterns. Slipway config contains no request-derived glob patterns. Dependencies ship in the production image, and tag discovery can run during rendering; this is not a dev-only exemption. | No published patch as of this audit. Keep patterns repository-owned; reassess if configuration accepts untrusted patterns. Update when a compatible patch is published. npm's Shipwright 0.4.0 downgrade would break the current build contract. |
 | [GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c), moderate | Sails 1.5.18 → i18n-2 0.7.3 → sprintf-js 1.1.3. The formatter receives translated message formats, not interpolation values as format strings. No `__` / `__n` application calls were found in api, views or config; locale files are repository-owned. Accept-Language selects a supported locale, not a precision format.                                          | No published patch as of this audit. Do not introduce request-controlled translation/format strings. Reassess before adding formatting calls or imported locale content, and select the compatible upstream patch when available.                |
 
-These findings remain unresolved. Reachability evidence is not a clean audit
-or maintainer risk acceptance. #647 remains open until compatible remediation
-or an explicit release decision about these two residual advisories. No global
-audit waiver or unrestricted `npm audit fix` is used. Exact-head complete CI,
-configured mail and editor sanitation, local Docker boot and prior-release
-database upgrade remain merge gates for this follow-up.
+These findings remain unresolved. The maintainer explicitly approved carrying
+these two advisory families into **0.0.90** on 2026-10-07; the decision and
+remediation boundaries are recorded in [#724](https://github.com/sailscastshq/slipway/issues/724#issuecomment-6046781418), which stays open.
+#647 closed after #723 passed all 23 exact-head checks, including 700 unit and
+200 functional tests, browser/editor sanitation, configured mail, local Docker
+boot and prior-release upgrade. This release-specific decision is not a clean
+audit, a global waiver or acceptance for a future release. No unrestricted
+`npm audit fix` is used.
 
 The prior 2026-10-03 registry audit of `2cc1184` reported ten entries: eight high,
 one moderate and one low, with zero critical. The candidate lockfile patches

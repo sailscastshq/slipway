@@ -2,6 +2,26 @@
 
 ## Evidence status
 
+### Final published-pair gate for #653
+
+The current follow-up selects registry Quest **0.0.8** in Slipway's committed
+lockfile. Both Quest 0.0.8 and Slipway hook **0.0.13** are published. The resident
+integration job now runs the same fixture against two independently prepared
+consumers: exact source-packed packages and exact-version registry installs.
+The registry variant downloads public npm archives, checks SHA-512 integrity
+against registry metadata, compares every packaged file with the verified source,
+and checks the installed consumer lock's registry URLs and integrity. Source
+links or cached source packages cannot substitute for the published pair.
+
+Both variants must pass actual child execution, typed input/result parity,
+resident pause/overlap, cancellation and ownership, browser invocation and
+disk-backed dashboard restart/delivery. Their separate artifacts retain package
+identity, installed dependency trees, byte budgets and process cleanup evidence.
+Seven local package/initialization trials pass, including ORM-disabled startup
+and rejection of forged archive integrity, non-npm registry origins and changed
+source bytes. Linux runtime, current browser captures and performance comparisons
+remain pending for this follow-up; the historical evidence below is not its result.
+
 The latest fully executed source checkpoint is
 `e9ef653a998c12db9cb37bd8ace650f890a514a4`: all eight Quest jobs pass, including
 actual npm-packed Docker/browser and native telemetry/restart proofs. General
