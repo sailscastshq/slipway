@@ -236,17 +236,24 @@ function createRedactor() {
       dirty = false
     }
     let result = matcher ? value.replace(matcher, HIDDEN) : value
-    return result
-      .replace(/([a-z][a-z0-9+.-]*:\/\/)([^\s/]*@)/gi, '$1[REDACTED]@')
-      .replace(
-        /([?&](?:password|secret|token|api[_-]?key|access[_-]?key|signature|credential|authorization|x-amz-[a-z-]+|x-goog-[a-z-]+)=)[^&#\s]*/gi,
-        '$1[REDACTED]'
-      )
-      .replace(
-        /(\b(?:password|secret|token|api[_-]?key|access[_-]?key|authorization)\s*[=:]\s*)(?:"[^"\n]*"|'[^'\n]*'|[^\s,;]+)/gi,
-        '$1[REDACTED]'
-      )
-      .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9+/_=.-]+/gi, '$1 [REDACTED]')
+    return (
+      result
+        // Start only at a scheme boundary: restarting inside a long ordinary
+        // string makes the greedy scheme scan quadratic and stalls ingestion.
+        .replace(
+          /(?<![a-z0-9+.-])([a-z][a-z0-9+.-]*:\/\/)([^\s/]*@)/gi,
+          '$1[REDACTED]@'
+        )
+        .replace(
+          /([?&](?:password|secret|token|api[_-]?key|access[_-]?key|signature|credential|authorization|x-amz-[a-z-]+|x-goog-[a-z-]+)=)[^&#\s]*/gi,
+          '$1[REDACTED]'
+        )
+        .replace(
+          /(\b(?:password|secret|token|api[_-]?key|access[_-]?key|authorization)\s*[=:]\s*)(?:"[^"\n]*"|'[^'\n]*'|[^\s,;]+)/gi,
+          '$1[REDACTED]'
+        )
+        .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9+/_=.-]+/gi, '$1 [REDACTED]')
+    )
   }
   function protect(value, seen = new WeakSet(), depth = 0) {
     if (typeof value === 'string') return text(value)

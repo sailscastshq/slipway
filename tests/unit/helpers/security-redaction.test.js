@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict')
+const { performance } = require('node:perf_hooks')
 const { test } = require('sounding')
 const { createRedactor, preserveValues, publicValues } =
   require('../../../api/helpers/security/redact')._private
@@ -41,6 +42,16 @@ test('diagnostics mask nested credentials, URLs and common reversible encodings 
   )
   expect(redact.text('https://storage.example.test')).toBe(
     'https://storage.example.test'
+  )
+  const ordinary = 'x.'.repeat(32000)
+  const started = performance.now()
+  expect(redact.text(ordinary)).toBe(ordinary)
+  assert.ok(
+    performance.now() - started < 500,
+    'A normal 64 KiB diagnostic must not stall request processing'
+  )
+  expect(redact.text('custom+transport://user:pass@server/path')).toBe(
+    'custom+transport://[REDACTED]@server/path'
   )
   expect(redact.text('backup-access-canary-718 azure-account-canary-718')).toBe(
     '[REDACTED] [REDACTED]'

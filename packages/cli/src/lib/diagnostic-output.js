@@ -3,7 +3,10 @@
 export function safeDiagnostic(value) {
   if (typeof value === 'string')
     return value
-      .replace(/([a-z][a-z0-9+.-]*:\/\/)([^\s/]*@)/gi, '$1[REDACTED]@')
+      .replace(
+        /(?<![a-z0-9+.-])([a-z][a-z0-9+.-]*:\/\/)([^\s/]*@)/gi,
+        '$1[REDACTED]@'
+      )
       .replace(
         /([?&](?:password|secret|token|api[_-]?key|signature|credential|x-amz-[a-z-]+|x-goog-[a-z-]+)=)[^&#\s]*/gi,
         '$1[REDACTED]'

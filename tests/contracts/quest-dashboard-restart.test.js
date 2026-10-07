@@ -415,6 +415,33 @@ test(
         ...fixture.summary()
       }
     } catch (error) {
+      const evidence = fixture.evidence()
+      console.error(
+        '[Quest native transport diagnostics]',
+        JSON.stringify({
+          summary: fixture.summary(),
+          packets: evidence
+            .filter((event) => event.kind === 'telemetry:ingest')
+            .slice(-8)
+            .map((event) => ({
+              status: event.status,
+              bytes: event.bytes,
+              metricCount: event.body.metrics?.length || 0,
+              names: (event.body.metrics || []).slice(0, 8).map((metric) => ({
+                name: metric.name,
+                runId: metric.attributes?.questRun?.runId
+              }))
+            })),
+          errors: evidence
+            .filter((event) => event.kind === 'telemetry:error')
+            .slice(-8)
+            .map((event) => event.code),
+          responses: evidence
+            .filter((event) => event.kind === 'telemetry:response')
+            .slice(-8)
+            .map((event) => event.status)
+        })
+      )
       const diagnostics = fixture.diagnostics()
       if (diagnostics) console.error(diagnostics)
       throw error
