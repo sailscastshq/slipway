@@ -432,6 +432,21 @@ test('Bosun protects Docker failure diagnostics and restores the previous contai
   expect(calls.some((args) => args.join(' ') === 'start slipway')).toBe(true)
   const format = sails.helpers.docker.formatError
   expect(
+    format.with({
+      error: { stderr: 'Bind for 127.0.0.1:1342 failed; credential hunter2' },
+      args: [
+        '-e',
+        'PASSWORD=hunter2',
+        '-e',
+        'COUNT=2',
+        '-e',
+        'FLAG=0',
+        '-e',
+        'SLIPWAY_APP_PORT_HOST=127.0.0.1'
+      ]
+    })
+  ).toBe('Bind for 127.0.0.1:1342 failed; credential <redacted>')
+  expect(
     format
       .with({ error: new Error(`Command failed -e KEY=${token}`) })
       .includes(token)

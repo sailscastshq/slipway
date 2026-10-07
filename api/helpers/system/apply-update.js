@@ -197,9 +197,11 @@ module.exports = {
           'slipway-next'
         )
         if (validationLogs) {
-          sails.log.error(
-            `[slipway] Validation container logs:\n${validationLogs}`
-          )
+          const safeLogs = sails.helpers.docker.formatError.with({
+            error: { stderr: validationLogs },
+            args: dockerArgs.envArgs
+          })
+          sails.log.error(`[slipway] Validation container logs:\n${safeLogs}`)
         }
         await setProgress(
           'failed',

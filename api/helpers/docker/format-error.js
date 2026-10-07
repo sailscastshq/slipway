@@ -36,11 +36,18 @@ function formatDockerError(error, args = []) {
     // Numeric values must not erase unrelated ports, addresses or identifiers.
     // The owned host address is public routing configuration, not a credential.
     if (
-      value.length < 8 ||
+      !value ||
       (key === 'SLIPWAY_APP_PORT_HOST' && require('node:net').isIP(value))
     )
       continue
-    message = message.split(value).join('<redacted>')
+    if (value.length < 8) {
+      if (/^\d+$/.test(value)) continue
+      const literal = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      message = message.replace(
+        new RegExp(`(?<![\\w])${literal}(?![\\w])`, 'g'),
+        '<redacted>'
+      )
+    } else message = message.split(value).join('<redacted>')
   }
   return message
 }
