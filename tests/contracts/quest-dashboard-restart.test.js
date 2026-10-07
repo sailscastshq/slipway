@@ -205,6 +205,28 @@ test(
         assert.equal(response.data.run.result.status, 'available')
       }
 
+      // Durable receipts and best-effort generic metrics use independent HTTP
+      // requests. Persisting the sentinel does not prove its metric flush has
+      // finished; observe that transport before taking the fixed evidence set.
+      await fixture.waitFor(
+        () =>
+          fixture
+            .evidence()
+            .filter((event) => event.kind === 'telemetry:ingest')
+            .flatMap((event) => event.body.metrics || []),
+        (metrics) =>
+          burst.every((run) =>
+            ['quest.job.start', 'quest.job.complete'].every((name) =>
+              metrics.some(
+                (metric) =>
+                  metric.name === name &&
+                  metric.attributes?.questRun?.runId === run.runId
+              )
+            )
+          ),
+        'actual generic burst metric delivery'
+      )
+
       const events = fixture.evidence()
       assert.ok(
         events.some(

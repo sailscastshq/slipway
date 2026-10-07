@@ -13,6 +13,7 @@ module.exports = function secretsHook(sails) {
     'api/v1/helm/arm-writes': ['token'],
     'api/v1/bridge/exchange': ['launchUrl'],
     'api/v1/bearing/exchange': ['launchUrl'],
+    'project/bridge-action-context': ['conditionToken'],
     'project/bridge-prepare-upload-field': ['uploadUrl'],
     'project/bridge-resume-upload-field': ['uploadUrl']
   }
@@ -70,6 +71,7 @@ module.exports = function secretsHook(sails) {
     stream: redact.stream,
     initialize(done) {
       sails.after('hook:orm:loaded', async () => {
+        let section = 'instance configuration'
         try {
           redact.remember({ secret: sails.config.session?.secret })
           redact.remember(sails.config.custom || {})
@@ -81,6 +83,7 @@ module.exports = function secretsHook(sails) {
             'project',
             'gitprovider'
           ]) {
+            section = `${name} records`
             const model = sails.models[name]
             if (!model) continue
             const fields = Object.keys(model.attributes).filter(
@@ -121,7 +124,7 @@ module.exports = function secretsHook(sails) {
         } catch {
           done(
             new Error(
-              'Could not initialize secret-safe diagnostics. Check database access.'
+              `Could not initialize secret-safe diagnostics from ${section}. Check database access and the data encryption key.`
             )
           )
         }

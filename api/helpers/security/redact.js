@@ -8,6 +8,21 @@ const configurationMaps = new Map([
   ['appEnvVars', 'appEnvVarMetadata'],
   ['globalEnvVars', 'globalEnvVarMetadata']
 ])
+function isPublicUploadOrigin(name, value) {
+  if (!/^(R2|S3|SPACES)_PUBLIC_URL$/.test(name)) return false
+  try {
+    const url = new URL(value)
+    return (
+      ['http:', 'https:'].includes(url.protocol) &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash
+    )
+  } catch {
+    return false
+  }
+}
 const identifiers = new Set([
   'id',
   'slug',
@@ -162,7 +177,13 @@ function createRedactor() {
           const metadata = value[configurationMaps.get(key)] || {}
           if (entry && typeof entry === 'object')
             for (const [name, configured] of Object.entries(entry)) {
-              if (metadata[name]?.kind !== 'plain') collect(configured, true)
+              // Public upload origins are intentionally sent to browsers in image
+              // URLs. The environment map itself remains masked by publicValues.
+              if (
+                metadata[name]?.kind !== 'plain' &&
+                !isPublicUploadOrigin(name, configured)
+              )
+                collect(configured, true)
             }
         } else if (key === 'env') collect(entry, true)
         else
@@ -178,7 +199,13 @@ function createRedactor() {
         }
       } else if (value.encryptedValue) {
         try {
-          collect(JSON.parse(value.encryptedValue), true)
+          const configured = JSON.parse(value.encryptedValue)
+          if (value.key === 'backupStorageConfig') {
+            collect(configured)
+            // These adapter credential names do not match the generic key test.
+            collect(configured.key, true)
+            collect(configured.accountKey, true)
+          } else collect(configured, true)
         } catch {
           add(value.encryptedValue)
         }
@@ -251,7 +278,11 @@ function createRedactor() {
                 : protect(message, seen, depth + 1)
             ])
           )
-        } else if (typeof entry === 'boolean' && /^has[A-Z]/.test(key))
+        } else if (key === 'deployTokens' && Array.isArray(entry))
+          // This collection contains public token administration metadata, not
+          // token values. Its credential-bearing children still get masked.
+          result[key] = entry.map((token) => protect(token, seen, depth + 1))
+        else if (typeof entry === 'boolean' && /^has[A-Z]/.test(key))
           result[key] = entry
         else if (configurationMaps.has(key))
           result[key] = publicValues(

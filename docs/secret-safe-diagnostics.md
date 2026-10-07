@@ -49,9 +49,16 @@ sign-in, deploy-token creation, Helm write arming and Bridge/Bearing exchange
 remain available only on their successful credential-issuing responses. Bridge
 direct-upload signing preserves only the short-lived upload URLs (including
 multipart part URLs); Bearing page rendering preserves only its scoped realtime
-subscription token. These are intentional capability grants, not configuration
+subscription token. Bridge action context preserves its signed confirmation token,
+which is bound to the authorized actor, record, action and current state. These are intentional capability grants, not configuration
 inspection. Errors from those actions are still masked. Password-reset forms retain only their
 validated reset token. These exceptions do not expose configuration maps.
+
+Public upload origins (`R2_PUBLIC_URL`, `S3_PUBLIC_URL`, `SPACES_PUBLIC_URL`)
+without credentials or query parameters remain usable in browser image URLs.
+Their environment-map entries are still masked unless declared public. Backup
+storage coordinates do not become secrets merely because the configuration is
+encrypted; its credential fields remain protected.
 
 New deployment logs, container-log snapshots, telemetry diagnostic fields and
 Helm history source/context are redacted before persistence. Existing stored

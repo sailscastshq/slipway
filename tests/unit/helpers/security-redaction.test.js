@@ -9,6 +9,35 @@ test('diagnostics mask nested credentials, URLs and common reversible encodings 
   const secret = 'secret-canary-<&-12-characters'
   const redact = createRedactor()
   redact.remember({ envVars: { ODD_NAME: secret } })
+  redact.remember({
+    key: 'globalEnvVars',
+    encryptedValue: JSON.stringify({
+      R2_PUBLIC_URL: 'https://assets.example.test',
+      R2_SECRET_KEY: secret,
+      S3_PUBLIC_URL: 'https://unsafe.example.test/?token=credential-718'
+    })
+  })
+  redact.remember({
+    key: 'backupStorageConfig',
+    encryptedValue: JSON.stringify({
+      endpoint: 'https://storage.example.test',
+      secretKey: secret,
+      key: 'backup-access-canary-718',
+      accountKey: 'azure-account-canary-718'
+    })
+  })
+  expect(redact.text('https://assets.example.test/bearing/tall.png')).toBe(
+    'https://assets.example.test/bearing/tall.png'
+  )
+  expect(redact.text('https://storage.example.test')).toBe(
+    'https://storage.example.test'
+  )
+  expect(redact.text('backup-access-canary-718 azure-account-canary-718')).toBe(
+    '[REDACTED] [REDACTED]'
+  )
+  expect(redact.text('https://unsafe.example.test/?token=credential-718')).toBe(
+    '[REDACTED]'
+  )
   for (const variant of [
     secret,
     encodeURIComponent(secret),
@@ -29,6 +58,10 @@ test('diagnostics mask nested credentials, URLs and common reversible encodings 
     at: new Date('2026-10-07T00:00:00Z'),
     envVars: { SHORT: 'x', MODE: 'production' },
     envVarMetadata: { MODE: { kind: 'plain' } },
+    deployTokens: [{ id: 2, name: 'Release automation', tokenHash: secret }],
+    hasCredentials: true,
+    token: '',
+    errors: { password: 'Password is required.', email: secret },
     nested: {
       password: 'x',
       authorization: 'Bearer abc',
@@ -42,6 +75,15 @@ test('diagnostics mask nested credentials, URLs and common reversible encodings 
   expect(result.at).toBe('2026-10-07T00:00:00.000Z')
   expect(result.id).toBe(22)
   expect(result.count).toBe(8)
+  expect(JSON.parse(JSON.stringify(result.deployTokens))).toEqual([
+    { id: 2, name: 'Release automation', tokenHash: '[REDACTED]' }
+  ])
+  expect(result.hasCredentials).toBe(true)
+  expect(result.token).toBe('')
+  expect(result.errors).toEqual({
+    password: 'Password is required.',
+    email: '[REDACTED]'
+  })
   expect(JSON.stringify(result).includes(secret)).toBe(false)
   expect(
     redact.text('https://s3.test/file?X-Amz-Credential=abc&X-Amz-Signature=def')
