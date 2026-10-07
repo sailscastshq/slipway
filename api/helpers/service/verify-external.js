@@ -4,6 +4,7 @@ module.exports = {
   inputs: { serviceId: { type: 'string', required: true } },
   fn: async function ({ serviceId }) {
     const service = await Service.findOne({ id: serviceId }).decrypt()
+    sails.hooks.secrets?.remember(service)
     if (service?.managementMode !== 'external')
       throw contract.normalize({ code: 'EXTERNAL_CONFIGURATION' })
     let verification

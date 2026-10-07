@@ -9,6 +9,7 @@
  */
 
 module.exports.routes = {
+  'POST /api/v1/configuration/reveal': 'api/v1/configuration/reveal',
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/services/custom/review':
     'api/v1/service/review-custom',
   'POST /api/v1/services/:serviceId/custom-update':

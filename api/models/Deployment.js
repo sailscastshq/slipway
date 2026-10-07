@@ -10,6 +10,9 @@ const logAppendQueues = new Map()
  */
 
 module.exports = {
+  beforeCreate: redactDiagnostics,
+  beforeUpdate: redactDiagnostics,
+
   tableName: 'deployments',
 
   attributes: {
@@ -200,4 +203,17 @@ async function appendLog(deploymentId, field, log) {
   } finally {
     if (logAppendQueues.get(key) === pending) logAppendQueues.delete(key)
   }
+}
+
+function redactDiagnostics(values, proceed) {
+  const redact = sails.hooks.secrets
+  if (redact) {
+    if (values.buildLogs != null)
+      values.buildLogs = redact.protect(values.buildLogs)
+    if (values.deployLogs != null)
+      values.deployLogs = redact.protect(values.deployLogs)
+    if (values.errorMessage != null)
+      values.errorMessage = redact.protect(values.errorMessage)
+  }
+  return proceed()
 }

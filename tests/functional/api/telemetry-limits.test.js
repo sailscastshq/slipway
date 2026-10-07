@@ -99,3 +99,57 @@ test(
     expect(budget.rejectedRequests).toBe(1)
   }
 )
+
+test(
+  'telemetry stores safe diagnostic content without stripping metrics or trace identities',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: { deploymentTarget: { slug: 'telemetry-redaction' } }
+    }
+  },
+  async ({ sails, world, request, expect }) => {
+    const environment = world.current.environments.production
+    const secret = 'telemetry-secret-canary-718'
+    await sails.helpers.setting.set('smtpPassword', secret)
+    const api = await sender(request, sails, environment)
+    expect(
+      await api.post('/api/v1/telemetry/ingest', {
+        spans: [
+          {
+            name: 'GET /customers',
+            traceId: 'trace-718',
+            attributes: {
+              nested: {
+                token: secret,
+                note: Buffer.from(secret).toString('base64')
+              }
+            }
+          }
+        ],
+        exceptions: [
+          { message: `failed with ${secret}`, stackTrace: `at ${secret}` }
+        ],
+        metrics: [
+          { name: 'requests', value: 12, attributes: { password: secret } }
+        ]
+      })
+    ).toHaveStatus(200)
+    const span = await sails.models.telemetryspan.findOne({
+      traceId: 'trace-718'
+    })
+    const exception = await sails.models.telemetryexception.findOne({
+      environment: String(environment.id)
+    })
+    const metric = await sails.models.telemetrymetric.findOne({
+      name: 'requests'
+    })
+    const serialized = JSON.stringify({ span, exception, metric })
+    expect(serialized.includes(secret)).toBe(false)
+    expect(serialized.includes(Buffer.from(secret).toString('base64'))).toBe(
+      false
+    )
+    expect(span.traceId).toBe('trace-718')
+    expect(metric.value).toBe(12)
+  }
+)

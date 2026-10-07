@@ -36,6 +36,10 @@ module.exports = {
 
     const apps = await App.find({ environment: environment.id })
 
-    return { apps }
+    return {
+      apps: apps.map((record) =>
+        sails.helpers.security.publicRecord.with({ kind: 'app', record })
+      )
+    }
   }
 }

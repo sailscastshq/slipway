@@ -169,7 +169,7 @@ module.exports = {
           const connectionUrl =
             service.managementMode === 'external'
               ? null
-              : await Service.getConnectionUrl(service.id)
+              : Service.getPublicConnectionUrl(service)
           let lastBackup = null
           if (Service.isBackupSupported(service.type)) {
             const backups = await Backup.find({ service: service.id })
@@ -256,7 +256,10 @@ module.exports = {
         },
         appEnvVars: async () => {
           const decryptedApp = await loadDecryptedApp()
-          return decryptedApp.secureEnvVars || decryptedApp.envVars || {}
+          return require('../../helpers/security/redact')._private.publicValues(
+            decryptedApp.secureEnvVars || decryptedApp.envVars || {},
+            decryptedApp.envVarMetadata || {}
+          )
         },
         appEnvVarMetadata: async () => {
           const decryptedApp = await loadDecryptedApp()
@@ -271,9 +274,12 @@ module.exports = {
         },
         inheritedVars: async () => {
           const { globalEnvVars } = await loadBackupSettings()
-          return require('../../lib/external-postgresql').redactEnv(
+          const globalMetadata = JSON.parse(
+            await sails.helpers.setting.get('globalEnvVarMetadata', '{}')
+          )
+          return require('../../helpers/security/redact')._private.publicValues(
             { ...globalEnvVars, ...(environment.envVars || {}) },
-            environment.services
+            { ...globalMetadata, ...(environment.envVarMetadata || {}) }
           )
         },
         deploymentHistory: loadDeploymentHistory,
@@ -306,24 +312,12 @@ module.exports = {
 }
 
 function omitPrivateEnvironmentFields(environment) {
-  const {
-    envVars,
-    envVarMetadata,
-    telemetryToken,
-    telemetryTokenHash,
-    ...publicEnvironment
-  } = environment
-  return publicEnvironment
+  return sails.helpers.security.publicRecord.with({
+    kind: 'environment',
+    record: environment
+  })
 }
 
 function omitPrivateAppFields(app) {
-  const {
-    envVars,
-    secureEnvVars,
-    envVarMetadata,
-    bridgeSecret,
-    bearingSecret,
-    ...publicApp
-  } = app
-  return publicApp
+  return sails.helpers.security.publicRecord.with({ kind: 'app', record: app })
 }

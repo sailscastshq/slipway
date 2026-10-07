@@ -22,7 +22,7 @@ export default async function envSet(options, positionals) {
   for (const pair of positionals) {
     const eqIndex = pair.indexOf('=')
     if (eqIndex === -1) {
-      error(`Invalid format: "${pair}". Use KEY=value format.`)
+      error('Invalid variable format. Use KEY=value format.')
     }
     const key = pair.substring(0, eqIndex)
     const value = pair.substring(eqIndex + 1)

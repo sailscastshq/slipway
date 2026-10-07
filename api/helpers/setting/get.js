@@ -57,6 +57,7 @@ module.exports = {
     try {
       const setting = await Setting.findOne({ key }).decrypt()
       if (setting) {
+        sails.hooks.secrets?.remember(setting)
         let result
         if (
           SENSITIVE_KEYS.includes(key) &&

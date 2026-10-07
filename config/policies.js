@@ -77,6 +77,7 @@ module.exports.policies = {
 
   // API v1 routes require authentication
   'api/v1/*': 'is-authenticated',
+  'api/v1/configuration/reveal': ['is-authenticated', 'is-team-administrator'],
   'api/v1/bosun/*': ['is-authenticated', 'is-instance-admin'],
   'api/v1/backup/test-restore': ['is-authenticated', 'is-team-administrator'],
   'api/v1/backup/restore-test-action': [

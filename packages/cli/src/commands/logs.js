@@ -1,3 +1,4 @@
+import { safeDiagnostic } from '../lib/diagnostic-output.js'
 import { api } from '../lib/api.js'
 import { streamRequest } from '../lib/stream.js'
 import {
@@ -20,12 +21,17 @@ export default async function logs(options) {
         encodeURIComponent(options.deployment),
         'all'
       )
-      if (options.json) console.log(JSON.stringify(result))
+      if (options.json) console.log(JSON.stringify(safeDiagnostic(result)))
       else if (options.ndjson)
-        console.log(JSON.stringify({ type: 'deployment-logs', ...result }))
+        console.log(
+          JSON.stringify(safeDiagnostic({ type: 'deployment-logs', ...result }))
+        )
       else
         process.stdout.write(
-          `${[result.buildLogs, result.deployLogs]
+          `${[
+            safeDiagnostic(result.buildLogs),
+            safeDiagnostic(result.deployLogs)
+          ]
             .filter(Boolean)
             .join('\n')}\n`
         )

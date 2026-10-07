@@ -32,3 +32,26 @@ test('CLI rejects runtimes older than the documented minimum', async ({
   expect(error.code).toBe('UNSUPPORTED_NODE_VERSION')
   expect(error.message).toContain('Slipway CLI requires Node.js 22 or newer')
 })
+
+test('CLI diagnostic output masks nested credentials and signed URLs while preserving execution metadata', async ({
+  expect
+}) => {
+  const { safeDiagnostic } = await import(
+    '../../../packages/cli/src/lib/diagnostic-output.js'
+  )
+  const safe = safeDiagnostic({
+    executionId: 'execution-718',
+    success: true,
+    count: 22,
+    error: {
+      message: 'postgres://user:pass@db/main',
+      nested: { accessToken: 'canary-718' }
+    },
+    log: 'Bearer canary-718',
+    url: 'https://s3.test/file?X-Amz-Signature=canary-718'
+  })
+  expect(JSON.stringify(safe).includes('canary-718')).toBe(false)
+  expect(safe.executionId).toBe('execution-718')
+  expect(safe.count).toBe(22)
+  expect(safe.error.message).toBe('postgres://[REDACTED]@db/main')
+})

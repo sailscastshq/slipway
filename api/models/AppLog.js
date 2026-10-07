@@ -7,6 +7,9 @@
  */
 
 module.exports = {
+  beforeCreate: redactDiagnostics,
+  beforeUpdate: redactDiagnostics,
+
   datastore: 'observability',
   tableName: 'app_logs',
 
@@ -59,4 +62,12 @@ module.exports = {
         'Environment ID (references Environment model in default datastore)'
     }
   }
+}
+
+function redactDiagnostics(values, proceed) {
+  const redact = sails.hooks.secrets
+  if (redact) {
+    if (values.logs != null) values.logs = redact.protect(values.logs)
+  }
+  return proceed()
 }

@@ -9,6 +9,7 @@ module.exports = {
       required: true,
       description: 'Global environment variables as key-value object'
     },
+    envVarRenames: { type: 'json' },
     envSource: {
       type: 'string',
       description: 'Optional raw KEY=value input used to detect duplicate keys'
@@ -35,9 +36,30 @@ module.exports = {
     }
   },
 
-  fn: async function ({ envVars, envSource, envVarMetadata }) {
+  fn: async function ({ envVars, envSource, envVarMetadata, envVarRenames }) {
     const user = await User.forRequest(this.req)
 
+    const previousValues = parseObject(
+      await sails.helpers.setting.get('globalEnvVars', '{}')
+    )
+    try {
+      envVars =
+        require('../../helpers/security/redact')._private.preserveValues(
+          envVars,
+          previousValues,
+          envVarRenames || {}
+        )
+    } catch {
+      throw {
+        invalid: {
+          problems: [
+            {
+              envVars: 'Hidden values must be preserved or explicitly renamed.'
+            }
+          ]
+        }
+      }
+    }
     const problems = sails.helpers.setting.validate(
       { envVars, envSource },
       [],
@@ -56,15 +78,10 @@ module.exports = {
       throw 'precognitionSuccess'
     }
 
-    const previousValuesJson = await sails.helpers.setting.get(
-      'globalEnvVars',
-      '{}'
-    )
     const previousMetadataJson = await sails.helpers.setting.get(
       'globalEnvVarMetadata',
       '{}'
     )
-    const previousValues = parseObject(previousValuesJson)
     const previousMetadata = parseObject(previousMetadataJson)
     const normalizedMetadata =
       sails.helpers.configuration.normalizeEnvVarMetadata.with({

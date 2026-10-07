@@ -47,7 +47,6 @@ module.exports = {
       .populate('app')
       .populate('services')
       .populate('deployments')
-      .decrypt()
 
     if (!environment) {
       throw 'notFound'
@@ -70,7 +69,10 @@ module.exports = {
           )
         : defaultApp
       return {
-        ...deployment,
+        ...sails.helpers.security.publicRecord.with({
+          kind: 'deployment',
+          record: deployment
+        }),
         ...sails.helpers.deployment.describeOutcome.with({
           deployment,
           currentDeploymentIds
@@ -91,26 +93,30 @@ module.exports = {
           // Container not found or inspect failed
         }
       }
-      const {
-        envVars,
-        secureEnvVars,
-        bridgeSecret,
-        bearingSecret,
-        ...publicApp
-      } = a
-      appsWithHealth.push({ ...publicApp, containerHealth })
+      appsWithHealth.push({
+        ...sails.helpers.security.publicRecord.with({ kind: 'app', record: a }),
+        containerHealth
+      })
     }
 
-    const { telemetryToken, telemetryTokenHash, ...publicEnvironment } =
-      environment
+    const publicEnvironment = sails.helpers.security.publicRecord.with({
+      kind: 'environment',
+      record: environment
+    })
+    // Decrypt only this environment internally. Waterline requires every encrypted
+    // attribute when decrypting; nested app/service credentials are never loaded.
+    const configuration = await Environment.findOne({
+      id: environment.id
+    }).decrypt()
 
     return {
       environment: {
         ...publicEnvironment,
-        envVars: require('../../../../lib/external-postgresql').redactEnv(
-          environment.envVars || {},
-          environment.services
-        ),
+        envVars:
+          require('../../../../helpers/security/redact')._private.publicValues(
+            configuration.envVars || {},
+            configuration.envVarMetadata || {}
+          ),
         services: environment.services.map(Service.toPublic),
         fullDomain,
         generatedDomain,

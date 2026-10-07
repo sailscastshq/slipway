@@ -1,4 +1,5 @@
 <script setup>
+import { useSecretReveal } from '@/composables/secret-reveal'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
@@ -34,6 +35,8 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const toast = useToast()
+const revealSecret = useSecretReveal()
+const revealingKeys = new Set()
 
 const localVars = reactive({ ...props.globalEnvVars })
 const localMetadata = reactive({ ...props.globalEnvVarMetadata })
@@ -93,11 +96,23 @@ function timeAgo(timestamp) {
   return 'just now'
 }
 
-function toggleReveal(key) {
+async function toggleReveal(key) {
+  if (revealingKeys.has(key)) return
   if (revealedKeys.value.has(key)) {
     revealedKeys.value.delete(key)
-  } else {
+    localVars[key] = props.globalEnvVars[key]
+    return
+  }
+  revealingKeys.add(key)
+  try {
+    const value = await revealSecret('global', 'global', key)
+    if (!Object.hasOwn(localVars, key)) return
+    localVars[key] = value
     revealedKeys.value.add(key)
+  } catch (error) {
+    toast({ message: error.message, type: 'error' })
+  } finally {
+    revealingKeys.delete(key)
   }
 }
 
@@ -117,7 +132,8 @@ function generateSecret() {
 const envForm = useForm({
   envVars: { ...props.globalEnvVars },
   envVarMetadata: { ...props.globalEnvVarMetadata },
-  envSource: ''
+  envSource: '',
+  envVarRenames: {}
 })
   .withPrecognition('patch', '/settings/global-env')
   .setValidationTimeout(350)
@@ -147,11 +163,12 @@ function submitVars(onSuccess) {
 
 function saveVars(
   vars,
-  { metadata = localMetadata, envSource = '', onSuccess } = {}
+  { metadata = localMetadata, envSource = '', renames = {}, onSuccess } = {}
 ) {
   envForm.envVars = { ...vars }
   envForm.envVarMetadata = { ...metadata }
   envForm.envSource = envSource
+  envForm.envVarRenames = renames
   envForm.validate('envVars', {
     onPrecognitionSuccess: () => submitVars(onSuccess)
   })
@@ -213,6 +230,7 @@ function renameVar(oldKey, el) {
   nextMetadata[trimmed] = metadata || metadataFor(oldKey)
   saveVars(nextVars, {
     metadata: nextMetadata,
+    renames: { [oldKey]: trimmed },
     onSuccess: () => {
       replaceLocalVars(nextVars)
       replaceLocalMetadata(nextMetadata)
@@ -516,6 +534,7 @@ onMounted(() => {
                 <div class="flex items-center justify-between">
                   <Input
                     :value="key"
+                    :aria-label="`${key} name`"
                     :readonly="metadataFor(key).managed"
                     @blur="renameVar(key, $event.target)"
                     @keydown.enter="$event.target.blur()"
@@ -527,6 +546,9 @@ onMounted(() => {
                     <button
                       v-if="isSensitive(key)"
                       @click="toggleReveal(key)"
+                      :aria-label="`${
+                        revealedKeys.has(key) ? 'Hide' : 'Reveal'
+                      } ${key}`"
                       class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                     >
                       <EyeOff
@@ -546,6 +568,7 @@ onMounted(() => {
                 </div>
                 <Input
                   :value="localVars[key]"
+                  :aria-label="`${key} value`"
                   :readonly="metadataFor(key).managed"
                   :type="
                     isSensitive(key) && !revealedKeys.has(key)

@@ -33,6 +33,10 @@ module.exports = {
       type: 'json',
       description: 'Environment variables (key-value object)'
     },
+    envVarRenames: {
+      type: 'json',
+      description: 'Explicit old-to-new key mapping for hidden values'
+    },
     envVarMetadata: {
       type: 'json',
       description: 'Non-secret type and preview metadata keyed by variable name'
@@ -70,6 +74,7 @@ module.exports = {
     domain,
     envVars,
     envVarMetadata,
+    envVarRenames,
     resourceLimits
   }) {
     const user = await User.forRequest(this.req)
@@ -112,13 +117,46 @@ module.exports = {
           envVars[service.envVarKey] = environment.envVars[service.envVarKey]
       }
     }
+    if (
+      (envVars !== undefined ||
+        envVarMetadata !== undefined ||
+        envVarRenames !== undefined) &&
+      !['owner', 'admin'].includes(user.teamRole)
+    )
+      throw 'forbidden'
+    if (envVars && typeof envVars === 'object' && !Array.isArray(envVars)) {
+      try {
+        envVars =
+          require('../../../../helpers/security/redact')._private.preserveValues(
+            envVars,
+            environment.envVars || {},
+            envVarRenames || {}
+          )
+      } catch {
+        throw {
+          badRequest: {
+            problems: [
+              {
+                envVars:
+                  'Hidden values must be preserved under their existing key or explicitly renamed.'
+              }
+            ]
+          }
+        }
+      }
+    }
     const nextEnvVars =
       envVars === undefined ? environment.envVars || {} : envVars
     if (envVars !== undefined || envVarMetadata !== undefined) {
       problems.push(
         ...sails.helpers.configuration.validateEnvVarMetadata(
           nextEnvVars,
-          envVarMetadata || environment.envVarMetadata || {}
+          envVarMetadata ||
+            Object.fromEntries(
+              Object.entries(environment.envVarMetadata || {}).filter(([key]) =>
+                Object.hasOwn(nextEnvVars || {}, key)
+              )
+            )
         )
       )
     }
@@ -147,7 +185,13 @@ module.exports = {
     const requestedEnvVarMetadata =
       sails.helpers.configuration.normalizeEnvVarMetadata.with({
         values: nextEnvVars,
-        metadata: envVarMetadata || currentEnvVarMetadata,
+        metadata:
+          envVarMetadata ||
+          Object.fromEntries(
+            Object.entries(currentEnvVarMetadata).filter(([key]) =>
+              Object.hasOwn(nextEnvVars || {}, key)
+            )
+          ),
         currentValues: environment.envVars || {},
         currentMetadata: currentEnvVarMetadata,
         managedKeys,
@@ -187,6 +231,7 @@ module.exports = {
     }
 
     // Build update object
+    sails.hooks.secrets?.remember({ envVars: nextEnvVars, envVarMetadata })
     const updates = {}
     if (name !== undefined) updates.name = name
     if (isProduction !== undefined) updates.isProduction = isProduction
@@ -287,11 +332,10 @@ module.exports = {
       .populate('app')
       .populate('services')
 
-    const {
-      envVars: privateEnvVars,
-      telemetryToken,
-      ...publicEnvironment
-    } = updatedEnv
+    const publicEnvironment = sails.helpers.security.publicRecord.with({
+      kind: 'environment',
+      record: updatedEnv
+    })
     if (domain !== undefined && this.req.header?.('X-Inertia'))
       sails.inertia.flash('domainRoute', {
         environmentId: String(environment.id),
