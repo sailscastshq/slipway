@@ -2,6 +2,7 @@ name: Tests
 
 on:
   workflow_call:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
@@ -10,7 +11,7 @@ on:
 # Superseded PR/branch runs add no signal. Reusable release verification keeps
 # its own run ID so a later push cannot cancel a release's checks.
 concurrency:
-  group: tests-${{ github.workflow }}-${{ github.event.pull_request.number || (github.event_name == 'push' && github.ref) || github.run_id }}
+  group: tests-${{ github.workflow }}-${{ (github.event_name == 'workflow_dispatch' && github.run_id) || github.event.pull_request.number || (github.event_name == 'push' && github.ref) || github.run_id }}
   cancel-in-progress: true
 
 jobs:
