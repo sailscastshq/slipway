@@ -89,14 +89,14 @@ All **76 UI state captures** were reviewed across desktop/mobile and light/dark 
 
 Measured tradeoffs are retained:
 
-| Measurement | Earlier path | Current path | Scope |
-| --- | ---: | ---: | --- |
-| Initial history JSON | 32,865,408 bytes | 4,451 bytes | Synthetic 500-event, log-heavy fixture; logs fetched separately |
-| History read median | 62.583 ms | 17.647 ms | Seven alternating warmed in-memory SQLite samples; excludes JSON serialization |
-| Cold page ready, desktop light | 110.20 ms | 112.60 ms | Production-built assets, ten samples per phase/viewport |
-| Cold page ready, desktop dark | 107.20 ms | 113.85 ms | Same bounded fixture |
-| Cold page ready, mobile light | 108.65 ms | 117.40 ms | Same bounded fixture |
-| Cold page ready, mobile dark | 108.35 ms | 113.05 ms | Same bounded fixture |
+| Measurement                    |     Earlier path | Current path | Scope                                                                          |
+| ------------------------------ | ---------------: | -----------: | ------------------------------------------------------------------------------ |
+| Initial history JSON           | 32,865,408 bytes |  4,451 bytes | Synthetic 500-event, log-heavy fixture; logs fetched separately                |
+| History read median            |        62.583 ms |    17.647 ms | Seven alternating warmed in-memory SQLite samples; excludes JSON serialization |
+| Cold page ready, desktop light |        110.20 ms |    112.60 ms | Production-built assets, ten samples per phase/viewport                        |
+| Cold page ready, desktop dark  |        107.20 ms |    113.85 ms | Same bounded fixture                                                           |
+| Cold page ready, mobile light  |        108.65 ms |    117.40 ms | Same bounded fixture                                                           |
+| Cold page ready, mobile dark   |        108.35 ms |    113.05 ms | Same bounded fixture                                                           |
 
 The fuller workspace adds **57,908 bytes** of JS/CSS in this comparison. Same-source preload on/off observations improve ready medians by approximately **4.8–11.6 ms** without changing requested asset bytes, but do not eliminate the original-page byte or latency increase. This release makes no universal speedup or original-page non-regression claim.
 
