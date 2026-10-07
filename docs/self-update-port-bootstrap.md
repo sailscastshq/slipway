@@ -35,3 +35,7 @@ The management interface briefly disconnects during this restart. Customer apps 
 - The Docker contract reproduces the container/host namespace mismatch, successfully publishes the allocator's alternative port, and runs the production health probe against a candidate with no published ports while the occupied app remains running. Its fixtures are labeled and ownership-checked before cleanup.
 
 Do not remove or stop the application that owns the conflicting port. Once the host-aware allocator release is installed, retry failed app deployments separately. Their success still needs verification on the affected installation.
+
+## Sails helper discovery
+
+Bootstrap backups belong in `/app/.slipway-updater-backups`, outside `api/helpers`. Sails accepts non-Markdown/text extensions and can discover an adjacent `.js.before-port-bootstrap-UUID` backup under the same helper identity, replacing the repaired definition with its original. The corrected bootstrap preserves and relocates only its known legacy backup filenames before the management restart, including when the main files were already patched. Verification uses the actual Sails helper loader and a complete released-87 update with an occupied validation host port, not only inspection of file contents.
