@@ -18,7 +18,10 @@ const expectedReceipt = {
     require('../../api/lib/releases/0.0.88.json')
   )
 }
-const artifact = path.resolve('.tmp/bosun-release-proof')
+const bootstrapProof = process.env.SLIPWAY_BOOTSTRAP_PROOF === '1'
+const artifact = path.resolve(
+  bootstrapProof ? '.tmp/bosun-bootstrap-proof' : '.tmp/bosun-release-proof'
+)
 const volume = `bosun-proof-${process.pid}`
 const freshVolume = `${volume}-fresh`
 const containers = [
@@ -27,7 +30,8 @@ const containers = [
   'slipway-bosun',
   'slipway-previous',
   'bosun-proof-seed',
-  'bosun-proof-fresh'
+  'bosun-proof-fresh',
+  ...(bootstrapProof ? ['bosun-proof-port-owner'] : [])
 ]
 const docker = (args) =>
   cp.execFileSync('docker', args, {
@@ -56,6 +60,11 @@ const proof = {
     .trim(),
   released,
   substitutions: [
+    ...(bootstrapProof
+      ? [
+          'Published updater helpers are repaired with the actual bootstrap and rediscovered with the actual Sails loader after restarting the original container.'
+        ]
+      : []),
     'Unreleased candidate image acquisition uses the already built local image instead of a registry pull.',
     'Release discovery, optional remote backup, progress cache and port allocation use fixture adapters. Published update/swap/mount/health source control flow is unchanged.'
   ],
@@ -217,6 +226,7 @@ async function main() {
     '-d',
     '--name',
     'slipway',
+    ...(bootstrapProof ? ['-p', '127.0.0.1:19996:1337'] : []),
     '-v',
     '/var/run/docker.sock:/var/run/docker.sock',
     '-v',
@@ -230,6 +240,66 @@ async function main() {
   proof.stages.push(
     'Published 87 production server is healthy with the original database volume and founder.'
   )
+  if (bootstrapProof) {
+    // Reproduce the previous repair: patched files plus adjacent original backups.
+    docker([
+      'exec',
+      'slipway',
+      'node',
+      '-e',
+      `const fs=require('fs');for(const name of ['apply-update','build-update-swap-script']){const file='/app/api/helpers/system/'+name+'.js',code=fs.readFileSync(file,'utf8');fs.writeFileSync(file+'.before-port-bootstrap-00000000-0000-0000-0000-000000000001',code);fs.writeFileSync(file,name==='apply-update'?code.replace("tempArgs.push('-p', formatPortBinding(portHost, tempPort, 1337))",'// Bootstrap: validation uses container-local health, without host publication.').replace('timeout: 60000,','timeout: 360000,'):code.replace('attempt < 30;','attempt < 180;'))}`
+    ])
+    const loaded = () =>
+      JSON.parse(
+        docker([
+          'exec',
+          'slipway',
+          'node',
+          '-e',
+          `const defs={};require('sails/lib/hooks/helpers/private/load-helpers')({config:{paths:{helpers:'/app/api/helpers'},helpers:{}},hooks:{helpers:{furnishHelper:(name,def)=>{defs[name]=def}}},log:{warn:()=>{}}},err=>{if(err)throw err;const a=defs['system.applyUpdate'].fn.toString(),b=defs['system.buildUpdateSwapScript'].fn.toString();console.log(JSON.stringify({legacyPort:a.includes("tempArgs.push("+String.fromCharCode(39)+"-p"),candidateSixMinutes:a.includes('timeout: 360000,'),swapSixMinutes:b.includes('attempt < 180;')}))})`
+        ])
+      )
+    assert.equal(loaded().legacyPort, true)
+    docker([
+      'cp',
+      path.resolve('scripts/bootstrap-unpublished-update.cjs'),
+      'slipway:/tmp/update-bootstrap.cjs'
+    ])
+    proof.bootstrap = JSON.parse(
+      docker(['exec', 'slipway', 'node', '/tmp/update-bootstrap.cjs']).split(
+        '\n'
+      )[0]
+    )
+    assert.equal(proof.bootstrap.relocatedLegacyBackups, 2)
+    docker(['restart', 'slipway'])
+    await health('slipway')
+    proof.loadedHelpers = loaded()
+    assert.deepEqual(proof.loadedHelpers, {
+      legacyPort: false,
+      candidateSixMinutes: true,
+      swapSixMinutes: true
+    })
+    for (const relative of [
+      'api/helpers/system/apply-update.js',
+      'api/helpers/system/build-update-swap-script.js'
+    ])
+      docker(['cp', `slipway:/app/${relative}`, path.join(artifact, relative)])
+    docker([
+      'run',
+      '-d',
+      '--name',
+      'bosun-proof-port-owner',
+      '-p',
+      '127.0.0.1:19997:1337',
+      released,
+      'node',
+      '-e',
+      'setInterval(()=>{},1000)'
+    ])
+    proof.stages.push(
+      'Actual Sails loader reproduced backup shadowing; corrected repair and management restart load both repaired helpers while the selected validation host port remains occupied.'
+    )
+  }
   const wrap = (relative) => ({
     with: (input) => {
       const helper = loadPublished(relative)
@@ -283,6 +353,21 @@ async function main() {
           interval: 1000,
           ...input
         })
+        if (bootstrapProof) {
+          const candidateInfo = JSON.parse(
+            docker(['inspect', 'slipway-next'])
+          )[0]
+          assert.equal(
+            Object.keys(candidateInfo.HostConfig.PortBindings || {}).length,
+            0
+          )
+          assert.equal(
+            JSON.parse(docker(['inspect', 'bosun-proof-port-owner']))[0].State
+              .Running,
+            true
+          )
+          proof.unpublishedValidation = true
+        }
         proof.validation = JSON.parse(
           docker([
             'exec',
@@ -335,6 +420,13 @@ async function main() {
     JSON.parse(docker(['inspect', 'slipway']))[0].Image,
     proof.candidateImage
   )
+  if (bootstrapProof)
+    assert.equal(
+      JSON.parse(docker(['inspect', 'slipway']))[0].HostConfig.PortBindings[
+        '1337/tcp'
+      ][0].HostPort,
+      '19996'
+    )
   proof.health = await health('slipway')
   assert.deepEqual(proof.health.releaseMigrations, expectedReceipt)
   proof.swapToHealthyMilliseconds = Date.now() - swapStartedAt
@@ -353,7 +445,9 @@ async function main() {
   assert.ok(verified.backups > 0)
   proof.verified = verified
   proof.stages.push(
-    'Unmodified published 87 validation and Bosun swap reached actual candidate normal startup; founder/custom data and durable migration receipt verified.'
+    `${
+      bootstrapProof ? 'Bootstrapped' : 'Unmodified'
+    } published 87 validation and Bosun swap reached actual candidate normal startup; founder/custom data and durable migration receipt verified.`
   )
   docker([
     'run',
@@ -395,7 +489,7 @@ main()
         )
       } catch {}
       try {
-        docker(['rm', '-f', name])
+        docker(['rm', '-fv', name])
       } catch {}
     }
     for (const name of scopeOwned ? [volume, freshVolume] : [])

@@ -497,11 +497,11 @@ test('legacy updater bootstrap refuses unknown sources and is idempotent without
     })
     expect(result.includes('already patched')).toBe(true)
     expect(await fs.readFile(helper, 'utf8')).toBe(patched)
-    const backups = (await fs.readdir(path.dirname(helper))).filter((name) =>
-      name.includes('before-port-bootstrap')
-    )
+    const backups = (
+      await fs.readdir(path.join(root, '.slipway-updater-backups'))
+    ).filter((name) => name.includes('before-port-bootstrap'))
     expect(backups.length).toBe(1)
-    const backup = path.join(path.dirname(helper), backups[0])
+    const backup = path.join(root, '.slipway-updater-backups', backups[0])
     expect(await fs.readFile(backup, 'utf8')).toBe(source)
     expect((await fs.stat(backup)).mode & 0o777).toBe(0o600)
   } finally {
@@ -535,7 +535,7 @@ test('0.0.87 bootstrap validates both helpers before changing files and allows m
     await fs.writeFile(helper, source)
     await fs.writeFile(
       path.join(docker, 'health-check-container.js'),
-      "const probe = ['exec', `http://localhost:${port}${healthPath}`]"
+      "module.exports = { fn: function(port, healthPath) { return ['exec', `http://localhost:${port}${healthPath}`] } }"
     )
     await fs.writeFile(swap, 'module.exports = {}')
     let failure
@@ -567,12 +567,66 @@ test('0.0.87 bootstrap validates both helpers before changing files and allows m
         stdio: 'pipe'
       }).includes('already patched')
     ).toBe(true)
-    const backups = (await fs.readdir(system)).filter((name) =>
-      name.includes('before-port-bootstrap')
-    )
+    const backups = (
+      await fs.readdir(path.join(root, '.slipway-updater-backups'))
+    ).filter((name) => name.includes('before-port-bootstrap'))
     expect(backups.length).toBe(2)
+    // Reproduce the earlier repair's backups on an already patched installation.
+    const legacy = path.join(
+      system,
+      'apply-update.js.before-port-bootstrap-00000000-0000-0000-0000-000000000001'
+    )
+    await fs.writeFile(legacy, source)
+    const loaded = {}
+    const loader = require('sails/lib/hooks/helpers/private/load-helpers')
+    async function load() {
+      await new Promise((resolve, reject) =>
+        loader(
+          {
+            config: {
+              paths: { helpers: path.join(root, 'api/helpers') },
+              helpers: {}
+            },
+            hooks: {
+              helpers: {
+                furnishHelper: (identity, definition) => {
+                  loaded[identity] = definition
+                }
+              }
+            },
+            log: { warn: () => {} }
+          },
+          (error) => (error ? reject(error) : resolve())
+        )
+      )
+    }
+    await load()
+    expect(
+      loaded['system.applyUpdate'].fn.toString().includes("tempArgs.push('-p'")
+    ).toBe(true)
+    execFileSync(process.execPath, [script, root], { stdio: 'pipe' })
+    await load()
+    expect(
+      loaded['system.applyUpdate'].fn.toString().includes("tempArgs.push('-p'")
+    ).toBe(false)
+    expect(
+      await fs.readFile(
+        path.join(
+          root,
+          '.slipway-updater-backups',
+          (
+            await fs.readdir(path.join(root, '.slipway-updater-backups'))
+          ).find((name) => name.startsWith(path.basename(legacy)))
+        ),
+        'utf8'
+      )
+    ).toBe(source)
+    expect((await fs.readdir(system)).length).toBe(2)
     for (const name of backups)
-      expect((await fs.stat(path.join(system, name))).mode & 0o777).toBe(0o600)
+      expect(
+        (await fs.stat(path.join(root, '.slipway-updater-backups', name)))
+          .mode & 0o777
+      ).toBe(0o600)
   } finally {
     await fs.rm(root, { recursive: true, force: true })
   }

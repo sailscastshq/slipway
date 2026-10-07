@@ -57,10 +57,6 @@ if (version === '0.0.87') {
     ['attempt < 30;', 'attempt < 180;']
   ])
 }
-if (!plans.length) {
-  console.log(JSON.stringify({ version, status: 'already patched' }))
-  process.exit(0)
-}
 function replaceFile(file, contents) {
   const stat = fs.statSync(file)
   const temporary = `${file}.bootstrap-${randomUUID()}`
@@ -78,9 +74,28 @@ function replaceFile(file, contents) {
     if (fs.existsSync(temporary)) fs.unlinkSync(temporary)
   }
 }
+// Sails discovers any non-md/txt extension in api/helpers. Backups must be
+// outside that tree, including those written by the earlier bootstrap.
+const backupDirectory = path.join(root, '.slipway-updater-backups')
+const legacyBackups = fs
+  .readdirSync(path.dirname(file))
+  .filter((name) =>
+    /^(apply-update|build-update-swap-script)\.js\.before-port-bootstrap-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+      name
+    )
+  )
+for (const name of legacyBackups) {
+  if (!fs.lstatSync(path.join(path.dirname(file), name)).isFile())
+    throw new Error('Unexpected bootstrap backup type; no files changed.')
+}
+if (plans.length || legacyBackups.length)
+  fs.mkdirSync(backupDirectory, { recursive: true, mode: 0o700 })
 // Validate every helper before saving backups or changing either file.
 for (const entry of plans) {
-  entry.backup = `${entry.file}.before-port-bootstrap-${randomUUID()}`
+  entry.backup = path.join(
+    backupDirectory,
+    `${path.basename(entry.file)}.before-port-bootstrap-${randomUUID()}`
+  )
   fs.writeFileSync(entry.backup, entry.source, { flag: 'wx', mode: 0o600 })
 }
 const applied = []
@@ -93,11 +108,18 @@ try {
   for (const entry of applied.reverse()) replaceFile(entry.file, entry.source)
   throw error
 }
+// Preserve previous originals without allowing them to shadow active helpers.
+for (const name of legacyBackups) {
+  const target = path.join(backupDirectory, `${name}-${randomUUID()}`)
+  fs.renameSync(path.join(path.dirname(file), name), target)
+}
 console.log(
   JSON.stringify({
     version,
-    status: 'patched',
-    backups: plans.map(({ backup }) => backup)
+    status:
+      plans.length || legacyBackups.length ? 'patched' : 'already patched',
+    backups: plans.map(({ backup }) => backup),
+    relocatedLegacyBackups: legacyBackups.length
   })
 )
 console.log(

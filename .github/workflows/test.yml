@@ -334,6 +334,8 @@ jobs:
           node-version: '22'
       - run: docker build -t ghcr.io/fixture/slipway:candidate .
       - run: node tests/prelift/released-update-image.cjs
+      - name: Verify repaired 87 Sails loader, restart and update with an occupied validation port
+        run: SLIPWAY_BOOTSTRAP_PROOF=1 node tests/prelift/released-update-image.cjs
       - name: Verify sanitized production catalog upgrade, restart and rollback
         run: node tests/prelift/legacy-update-image.cjs
       - name: Verify actual system recovery and original-file rollback
@@ -349,6 +351,7 @@ jobs:
           name: bosun-released-update-proof
           path: |
             .tmp/bosun-release-proof
+            .tmp/bosun-bootstrap-proof
             .tmp/legacy-update-proof
           if-no-files-found: error
           retention-days: 30
