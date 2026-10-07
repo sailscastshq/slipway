@@ -68,7 +68,8 @@
     "sharp": "0.35.5",
     "tailwind-merge": "^3.6.0",
     "tar-stream": "^3.2.1",
-    "vue": "^3.5.8"
+    "vue": "^3.5.8",
+    "better-sqlite3": "12.11.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
@@ -116,6 +117,7 @@
     "body-parser@1.20.5": "^1.20.6",
     "sails": {
       "compression": "1.8.2"
-    }
+    },
+    "better-sqlite3": "$better-sqlite3"
   }
 }

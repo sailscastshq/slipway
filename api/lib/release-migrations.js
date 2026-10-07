@@ -271,7 +271,7 @@ async function run({
   directory,
   preflightOnly = false,
   beforeCommit,
-  maxDurationMs = 45000,
+  maxDurationMs = 300000,
   availableBytes
 } = {}) {
   const started = performance.now()

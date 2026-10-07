@@ -60,7 +60,7 @@ module.exports = {
   }
 
   function waitForHealth() {
-    const deadline = Date.now() + 300000
+    const deadline = Date.now() + 360000
     while (Date.now() < deadline) {
       try {
         const body = dockerQuiet([

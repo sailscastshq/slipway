@@ -128,12 +128,14 @@ async function applyUpdate() {
   }
 }
 
-async function waitForHealthy(expectedVersion, maxAttempts = 30) {
-  for (let i = 0; i < maxAttempts; i++) {
+async function waitForHealthy(expectedVersion) {
+  const deadline = Date.now() + 360000
+  while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 2000))
+    if (Date.now() >= deadline) break
     let res
     try {
-      res = await fetch('/health')
+      res = await fetch('/health', { signal: AbortSignal.timeout(5000) })
     } catch {
       // Still down — keep polling.
       continue
@@ -142,6 +144,7 @@ async function waitForHealthy(expectedVersion, maxAttempts = 30) {
     if (!res.ok) continue
 
     const health = await res.json().catch(() => ({}))
+    if (health.status !== 'ok' || health.mode === 'preflight') continue
     if (!expectedVersion || health.version === expectedVersion) return
 
     if (health.version) {
@@ -154,7 +157,9 @@ async function waitForHealthy(expectedVersion, maxAttempts = 30) {
       `Slipway came back without version metadata, so v${expectedVersion} could not be confirmed.`
     )
   }
-  throw new Error('timeout')
+  throw new Error(
+    'Slipway did not become ready within six minutes. Check the server logs before retrying.'
+  )
 }
 
 const phaseLabels = {

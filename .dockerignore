@@ -49,3 +49,7 @@ assets/js/videos/
 
 # Claude
 .claude/
+
+# Local operator evidence and generated artifacts
+output/
+.commandcode/

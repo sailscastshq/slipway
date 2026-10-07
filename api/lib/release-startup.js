@@ -86,6 +86,10 @@ async function beforeLift({
   role = inspectRole(directory),
   listen = true
 } = {}) {
+  if (fs.existsSync(path.join(directory, '.slipway-recovery-in-progress')))
+    throw new Error(
+      'An operator database recovery was interrupted. Keep the instance stopped and restore the retained originals using docs/sqlite-recovery.md before starting Slipway.'
+    )
   const result = await migrations.run({
     directory,
     preflightOnly: role === 'preflight'
