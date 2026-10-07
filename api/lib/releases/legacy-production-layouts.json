@@ -1,0 +1,135 @@
+{
+  "format": 1,
+  "source": "Released production helper layouts, verified by schema-only inspection; no customer values.",
+  "datastores": {
+    "default": {
+      "apps": [
+        "CREATE TABLE `apps` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT, `slug` TEXT, `status` TEXT, `dockerfile_path` TEXT, `route_path` TEXT, `app_env_vars` TEXT, `is_default` TEXT, `container_id` TEXT, `container_name` TEXT, `image_id` TEXT, `image_name` TEXT, `port` INTEGER, `host_port` INTEGER, `last_deployed_at` INTEGER, `resource_limits` TEXT, `environment` INTEGER, `current_deployment_id` INTEGER, `health_path` TEXT DEFAULT '/health', secure_env_vars TEXT, env_var_metadata TEXT NOT NULL DEFAULT '{}', bridge_enabled BOOLEAN NOT NULL DEFAULT 0, bridge_secret TEXT, `bearing_enabled` BOOLEAN NOT NULL DEFAULT 0, `bearing_secret` TEXT, wake_enabled BOOLEAN NOT NULL DEFAULT 0, wake_secret TEXT, wake_settings TEXT NOT NULL DEFAULT '{}')"
+      ],
+      "backups": [
+        "CREATE TABLE `backups` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `status` TEXT, `type` TEXT, `s3_key` TEXT, `size_bytes` INTEGER, `duration_ms` INTEGER, `error_message` TEXT, `started_at` INTEGER, `completed_at` INTEGER, `service` INTEGER, `triggered_by` INTEGER, object_key TEXT, storage TEXT NOT NULL DEFAULT '{}', storage_credentials TEXT)"
+      ],
+      "bearing_feedback": [
+        "CREATE TABLE bearing_feedback (\n        id INTEGER PRIMARY KEY AUTOINCREMENT,\n        public_id TEXT NOT NULL UNIQUE,\n        title TEXT NOT NULL,\n        details TEXT,\n        images TEXT NOT NULL DEFAULT '[]',\n        category TEXT NOT NULL DEFAULT 'feature',\n        status TEXT NOT NULL DEFAULT 'reviewing',\n        vote_count INTEGER NOT NULL DEFAULT 0,\n        submitted_anonymously BOOLEAN NOT NULL DEFAULT 0,\n        author INTEGER,\n        space INTEGER NOT NULL,\n        app INTEGER NOT NULL,\n        created_at INTEGER,\n        updated_at INTEGER\n      )"
+      ],
+      "bearing_launch_codes": [
+        "CREATE TABLE bearing_launch_codes (\n        id INTEGER PRIMARY KEY AUTOINCREMENT,\n        token_hash TEXT NOT NULL UNIQUE,\n        expires_at INTEGER NOT NULL,\n        used_at INTEGER,\n        participant INTEGER NOT NULL,\n        app INTEGER NOT NULL,\n        created_at INTEGER,\n        updated_at INTEGER\n      )"
+      ],
+      "bearing_participants": [
+        "CREATE TABLE bearing_participants (\n        id INTEGER PRIMARY KEY AUTOINCREMENT,\n        participant_key TEXT NOT NULL UNIQUE,\n        host_user_id TEXT NOT NULL,\n        display_name TEXT,\n        email TEXT NOT NULL,\n        email_verified_at INTEGER NOT NULL,\n        first_seen_at INTEGER NOT NULL,\n        last_seen_at INTEGER NOT NULL,\n        disabled_at INTEGER,\n        space INTEGER NOT NULL,\n        created_at INTEGER,\n        updated_at INTEGER\n      )"
+      ],
+      "bearing_spaces": [
+        "CREATE TABLE bearing_spaces (\n        id INTEGER PRIMARY KEY AUTOINCREMENT,\n        public_slug TEXT NOT NULL UNIQUE,\n        accept_feedback BOOLEAN NOT NULL DEFAULT 1,\n        allow_anonymous_participation BOOLEAN NOT NULL DEFAULT 0,\n        feedback_categories TEXT NOT NULL DEFAULT '[]',\n        show_public_roadmap BOOLEAN NOT NULL DEFAULT 1,\n        show_public_updates BOOLEAN NOT NULL DEFAULT 1,\n        widget_enabled BOOLEAN NOT NULL DEFAULT 0,\n        widget_side TEXT NOT NULL DEFAULT 'right',\n        widget_opening_view TEXT NOT NULL DEFAULT 'updates',\n        show_unread BOOLEAN NOT NULL DEFAULT 1,\n        app INTEGER NOT NULL UNIQUE,\n        created_by INTEGER NOT NULL,\n        created_at INTEGER,\n        updated_at INTEGER\n      )"
+      ],
+      "bearing_update_links": [
+        "CREATE TABLE bearing_update_links (\n        id INTEGER PRIMARY KEY AUTOINCREMENT,\n        link_key TEXT NOT NULL UNIQUE,\n        bearing_update INTEGER NOT NULL,\n        feedback INTEGER NOT NULL,\n        space INTEGER NOT NULL,\n        created_at INTEGER,\n        updated_at INTEGER\n      )"
+      ],
+      "bearing_updates": [
+        "CREATE TABLE bearing_updates (\n        id INTEGER PRIMARY KEY AUTOINCREMENT,\n        public_id TEXT NOT NULL UNIQUE,\n        title TEXT NOT NULL,\n        slug TEXT NOT NULL,\n        excerpt TEXT NOT NULL,\n        body TEXT NOT NULL,\n        status TEXT NOT NULL DEFAULT 'draft',\n        published_at INTEGER,\n        author INTEGER NOT NULL,\n        space INTEGER NOT NULL,\n        app INTEGER NOT NULL,\n        created_at INTEGER,\n        updated_at INTEGER\n      )"
+      ],
+      "bearing_votes": [
+        "CREATE TABLE bearing_votes (\n        id INTEGER PRIMARY KEY AUTOINCREMENT,\n        voter_key TEXT NOT NULL UNIQUE,\n        participant INTEGER,\n        feedback INTEGER NOT NULL,\n        space INTEGER NOT NULL,\n        created_at INTEGER,\n        updated_at INTEGER\n      )"
+      ],
+      "bridge_access": [
+        "CREATE TABLE bridge_access (\n        id INTEGER PRIMARY KEY AUTOINCREMENT,\n        email TEXT NOT NULL,\n        role TEXT NOT NULL DEFAULT 'viewer',\n        status TEXT NOT NULL DEFAULT 'pending',\n        host_user_id TEXT,\n        host_user_name TEXT,\n        activated_at INTEGER,\n        last_used_at INTEGER,\n        revoked_at INTEGER,\n        invite_token_hash TEXT,\n        invite_expires_at INTEGER,\n        app INTEGER NOT NULL,\n        environment INTEGER NOT NULL,\n        project INTEGER NOT NULL,\n        team INTEGER NOT NULL,\n        invited_by INTEGER NOT NULL,\n        revoked_by INTEGER,\n        created_at INTEGER,\n        updated_at INTEGER\n      )"
+      ],
+      "bridge_launch_codes": [
+        "CREATE TABLE bridge_launch_codes (\n        id INTEGER PRIMARY KEY AUTOINCREMENT,\n        token_hash TEXT NOT NULL UNIQUE,\n        expires_at INTEGER NOT NULL,\n        used_at INTEGER,\n        access_id INTEGER NOT NULL,\n        app INTEGER NOT NULL,\n        created_at INTEGER,\n        updated_at INTEGER\n      )"
+      ],
+      "bridge_support_events": [
+        "CREATE TABLE bridge_support_events (id INTEGER PRIMARY KEY AUTOINCREMENT, event_id TEXT UNIQUE NOT NULL, grant INTEGER NOT NULL, action TEXT NOT NULL, created_at INTEGER, updated_at INTEGER)"
+      ],
+      "bridge_support_grants": [
+        "CREATE TABLE bridge_support_grants (id INTEGER PRIMARY KEY AUTOINCREMENT, token_hash TEXT UNIQUE NOT NULL, credential_hash TEXT NOT NULL, app INTEGER NOT NULL, actor INTEGER NOT NULL, scope TEXT NOT NULL, expires_at INTEGER NOT NULL, consumed_at INTEGER, ends_at INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'issued', created_at INTEGER, updated_at INTEGER)"
+      ],
+      "cleanup_operations": [
+        "CREATE TABLE cleanup_operations (\n        id INTEGER PRIMARY KEY AUTOINCREMENT,\n        target_key TEXT NOT NULL UNIQUE,\n        request_key TEXT NOT NULL,\n        scope_type TEXT NOT NULL,\n        resource_id INTEGER NOT NULL,\n        project_id INTEGER,\n        environment_id INTEGER,\n        app_id INTEGER,\n        service_id INTEGER,\n        retention_policy TEXT NOT NULL DEFAULT 'retain',\n        status TEXT NOT NULL DEFAULT 'pending',\n        stage TEXT NOT NULL DEFAULT 'pending',\n        snapshot TEXT NOT NULL DEFAULT '{}',\n        stages TEXT NOT NULL DEFAULT '{}',\n        warnings TEXT NOT NULL DEFAULT '[]',\n        error_message TEXT,\n        completed_at INTEGER,\n        requested_by INTEGER,\n        team INTEGER NOT NULL,\n        ip_address TEXT,\n        created_at INTEGER,\n        updated_at INTEGER\n      )"
+      ],
+      "cli_tokens": [
+        "CREATE TABLE `cli_tokens` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `token` TEXT UNIQUE, `name` TEXT, `last_used_at` TEXT, `expires_at` TEXT, `user` INTEGER, auth_version TEXT NOT NULL DEFAULT '', team_id INTEGER)"
+      ],
+      "custom_service_reviews": [
+        "CREATE TABLE custom_service_reviews (id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE NOT NULL, actor INTEGER NOT NULL, environment INTEGER NOT NULL, definition TEXT, image_reference TEXT NOT NULL, image_metadata TEXT, expires_at INTEGER NOT NULL, service_id INTEGER, created_at INTEGER, updated_at INTEGER)"
+      ],
+      "deploy_tokens": [
+        "CREATE TABLE `deploy_tokens` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT, \"token_prefix\" TEXT, \"token_hash\" TEXT, `scopes` TEXT, \"last_used_at\" INTEGER, \"last_used_ip\" TEXT, \"usage_count\" INTEGER, \"expires_at\" INTEGER, \"is_active\" TEXT, \"revoked_at\" INTEGER, \"revoked_by\" INTEGER, `project` INTEGER, `environment` INTEGER, \"created_by\" INTEGER, `team` INTEGER)"
+      ],
+      "deployment_jobs": [
+        "CREATE TABLE deployment_jobs (\n        id INTEGER PRIMARY KEY AUTOINCREMENT,\n        deployment_id INTEGER NOT NULL UNIQUE,\n        target_key TEXT NOT NULL,\n        app_slug TEXT NOT NULL DEFAULT 'app',\n        kind TEXT NOT NULL DEFAULT 'deploy',\n        target_deployment_id INTEGER,\n        stage TEXT NOT NULL DEFAULT 'queued',\n        attempt INTEGER NOT NULL DEFAULT 0,\n        candidate_container_name TEXT,\n        previous_container_name TEXT,\n        image_name TEXT,\n        host_port INTEGER,\n        build_context_path TEXT,\n        created_at INTEGER,\n        updated_at INTEGER\n      )"
+      ],
+      "deployment_leases": [
+        "CREATE TABLE deployment_leases (\n        id INTEGER PRIMARY KEY AUTOINCREMENT,\n        target_key TEXT NOT NULL UNIQUE,\n        deployment_id INTEGER NOT NULL UNIQUE,\n        token TEXT NOT NULL UNIQUE,\n        owner TEXT NOT NULL,\n        stage TEXT NOT NULL DEFAULT 'claimed',\n        heartbeat_at INTEGER NOT NULL,\n        expires_at INTEGER NOT NULL,\n        created_at INTEGER,\n        updated_at INTEGER\n      )"
+      ],
+      "deployments": [
+        "CREATE TABLE `deployments` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `status` TEXT, `git_commit` TEXT, `git_branch` TEXT, `git_message` TEXT, `image_id` TEXT, `image_name` TEXT, `build_logs` TEXT, `deploy_logs` TEXT, `error_message` TEXT, `started_at` INTEGER, `finished_at` INTEGER, `trigger_type` TEXT, `triggered_by` INTEGER, `environment` INTEGER, `app` INTEGER, config_hash TEXT, config_manifest TEXT NOT NULL DEFAULT '[]', source_revision TEXT)"
+      ],
+      "domain_claims": [
+        "CREATE TABLE domain_claims (id INTEGER PRIMARY KEY AUTOINCREMENT, domain TEXT NOT NULL UNIQUE, owner TEXT NOT NULL, created_at INTEGER, updated_at INTEGER)"
+      ],
+      "environments": [
+        "CREATE TABLE `environments` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT, `slug` TEXT, `is_production` TEXT, `is_preview` TEXT, `pr_number` INTEGER, `domain` TEXT, `env_vars` TEXT, `features` TEXT, `telemetry_token` TEXT, `telemetry_token_hash` TEXT, `project` INTEGER, env_var_metadata TEXT NOT NULL DEFAULT '{}')"
+      ],
+      "feature_flags": [
+        "CREATE TABLE feature_flags (\n        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,\n        created_at INTEGER,\n        updated_at INTEGER,\n        key TEXT NOT NULL,\n        description TEXT,\n        enabled INTEGER NOT NULL DEFAULT 0,\n        rollout_percentage INTEGER NOT NULL DEFAULT 0,\n        targets TEXT NOT NULL DEFAULT '[]',\n        version INTEGER NOT NULL DEFAULT 1,\n        changed_by_name TEXT,\n        changed_by INTEGER,\n        environment INTEGER NOT NULL,\n        app INTEGER NOT NULL\n      )"
+      ],
+      "git_providers": [
+        "CREATE TABLE `git_providers` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `type` TEXT, `name` TEXT, \"client_id\" TEXT, \"client_secret\" TEXT, \"app_id\" TEXT, \"private_key\" TEXT, \"installation_id\" TEXT, \"api_url\" TEXT, \"base_url\" TEXT, \"is_active\" TEXT, `team` INTEGER)"
+      ],
+      "git_repositories": [
+        "CREATE TABLE `git_repositories` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, \"external_id\" TEXT, \"full_name\" TEXT, `name` TEXT, `owner` TEXT, \"clone_url\" TEXT, \"html_url\" TEXT, \"default_branch\" TEXT, \"is_private\" TEXT, \"deploy_key_id\" TEXT, \"deploy_key_public\" TEXT, \"deploy_key_private\" TEXT, \"webhook_id\" TEXT, \"webhook_secret\" TEXT, \"webhook_url\" TEXT, \"branch_mappings\" TEXT, \"auto_deploy\" TEXT, \"auto_deploy_previews\" TEXT, `provider` INTEGER, `app` INTEGER, `environment` INTEGER)"
+      ],
+      "helm_history_entries": [
+        "CREATE TABLE helm_history_entries (\n        id INTEGER PRIMARY KEY AUTOINCREMENT,\n        source TEXT NOT NULL,\n        status TEXT NOT NULL DEFAULT 'error',\n        duration_ms INTEGER NOT NULL DEFAULT 0,\n        executed_at INTEGER NOT NULL,\n        target TEXT NOT NULL,\n        target_context TEXT,\n        pinned BOOLEAN NOT NULL DEFAULT 0,\n        user INTEGER NOT NULL,\n        team INTEGER NOT NULL,\n        project INTEGER NOT NULL,\n        environment INTEGER NOT NULL,\n        app INTEGER NOT NULL,\n        created_at INTEGER,\n        updated_at INTEGER\n      , mode TEXT NOT NULL DEFAULT 'javascript')"
+      ],
+      "helm_snippets": [
+        "CREATE TABLE helm_snippets (\n        id INTEGER PRIMARY KEY AUTOINCREMENT,\n        name TEXT NOT NULL,\n        source TEXT NOT NULL,\n        scope TEXT NOT NULL DEFAULT 'personal',\n        owner INTEGER NOT NULL,\n        team INTEGER NOT NULL,\n        project INTEGER NOT NULL,\n        created_at INTEGER,\n        updated_at INTEGER\n      )"
+      ],
+      "helm_write_arms": [
+        "CREATE TABLE helm_write_arms (\n        id INTEGER PRIMARY KEY AUTOINCREMENT,\n        token_hash TEXT NOT NULL UNIQUE,\n        source_hash TEXT NOT NULL,\n        target_fingerprint TEXT NOT NULL,\n        expires_at INTEGER NOT NULL,\n        used_at INTEGER,\n        user INTEGER NOT NULL,\n        team INTEGER NOT NULL,\n        project INTEGER NOT NULL,\n        environment INTEGER NOT NULL,\n        app INTEGER NOT NULL,\n        created_at INTEGER,\n        updated_at INTEGER\n      )"
+      ],
+      "port_reservations": [
+        "CREATE TABLE `port_reservations` (\n  `created_at` INTEGER,\n  `updated_at` INTEGER,\n  `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,\n  `reservation_key` TEXT NOT NULL,\n  `host` TEXT NOT NULL,\n  `port` INTEGER NOT NULL,\n  `owner_type` TEXT,\n  `owner_id` TEXT,\n  `expires_at` INTEGER\n)"
+      ],
+      "restore_operations": [
+        "CREATE TABLE restore_operations (\n      id INTEGER PRIMARY KEY AUTOINCREMENT, backup_id INTEGER NOT NULL, service_id INTEGER NOT NULL,\n      team_id INTEGER NOT NULL, requested_by INTEGER, status TEXT NOT NULL DEFAULT 'queued',\n      stage TEXT NOT NULL DEFAULT 'queued', snapshot_id INTEGER, error TEXT NOT NULL DEFAULT '',\n      started_at INTEGER, completed_at INTEGER, created_at INTEGER, updated_at INTEGER\n    )"
+      ],
+      "services": [
+        "CREATE TABLE `services` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT, `type` TEXT, `version` TEXT, `status` TEXT, `container_id` TEXT, `container_name` TEXT, `internal_host` TEXT, `internal_port` INTEGER, `database` TEXT, `username` TEXT, `password` TEXT, `env_var_key` TEXT, `resource_limits` TEXT, `environment` INTEGER, image_reference TEXT, image_metadata TEXT, upgrade_state TEXT, custom_recovery TEXT, public_route TEXT NOT NULL DEFAULT '{}', custom_definition TEXT, custom_state TEXT NOT NULL DEFAULT '{}', management_mode TEXT NOT NULL DEFAULT 'managed', external_connection TEXT, external_verification TEXT NOT NULL DEFAULT '{}')"
+      ],
+      "source_operations": [
+        "CREATE TABLE source_operations (\n      id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL,\n      requested_by INTEGER, status TEXT NOT NULL DEFAULT 'queued',\n      archive_path TEXT NOT NULL, source_revision TEXT, error TEXT NOT NULL DEFAULT '',\n      cancel_requested INTEGER NOT NULL DEFAULT 0, created_at INTEGER, updated_at INTEGER\n    )"
+      ],
+      "team_memberships": [
+        "CREATE TABLE team_memberships (\n      id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL UNIQUE,\n      user_id INTEGER NOT NULL, team_id INTEGER NOT NULL, role TEXT NOT NULL DEFAULT 'member',\n      status TEXT NOT NULL DEFAULT 'active', created_at INTEGER, updated_at INTEGER\n    )"
+      ],
+      "teams": [
+        "CREATE TABLE `teams` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT, `slug` TEXT UNIQUE, \"logo_url\" TEXT, `owner` INTEGER)"
+      ],
+      "users": [
+        "CREATE TABLE `users` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `full_name` TEXT, `initials` TEXT, `email` TEXT UNIQUE, `email_status` TEXT, `email_change_candidate` TEXT, `password` TEXT, `password_reset_token` TEXT, `password_reset_token_expires_at` INTEGER, `email_proof_token` TEXT, `email_proof_token_expires_at` INTEGER, `team_role` TEXT, `is_genesis_user` TEXT, `team` INTEGER, auth_version TEXT NOT NULL DEFAULT '')"
+      ],
+      "webhook_deliveries": [
+        "CREATE TABLE webhook_deliveries (\n      id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL UNIQUE,\n      status TEXT NOT NULL DEFAULT 'processing', result TEXT,\n      created_at INTEGER, updated_at INTEGER\n    )"
+      ]
+    },
+    "observability": {
+      "container_metrics": [
+        "CREATE TABLE container_metrics (\n        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,\n        created_at INTEGER,\n        updated_at INTEGER,\n        container_name TEXT,\n        container_type TEXT,\n        cpu_percent INTEGER,\n        memory_usage INTEGER,\n        memory_limit INTEGER,\n        memory_percent INTEGER,\n        net_io TEXT,\n        block_io TEXT,\n        pids INTEGER,\n        recorded_at INTEGER,\n        environment INTEGER,\n        app INTEGER,\n        service INTEGER,\n        legacy_source_id INTEGER\n      )"
+      ],
+      "observability_job_health": [
+        "CREATE TABLE observability_job_health (\n        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,\n        created_at INTEGER,\n        updated_at INTEGER,\n        job_name TEXT NOT NULL UNIQUE,\n        last_attempt_at INTEGER,\n        last_success_at INTEGER,\n        last_failure_at INTEGER,\n        last_error TEXT,\n        last_duration_ms INTEGER,\n        row_count INTEGER NOT NULL DEFAULT 0,\n        details TEXT\n      )"
+      ],
+      "resource_alert_states": [
+        "CREATE TABLE resource_alert_states (\n        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,\n        created_at INTEGER,\n        updated_at INTEGER,\n        container_name TEXT NOT NULL UNIQUE,\n        cpu_active INTEGER NOT NULL DEFAULT 0,\n        memory_active INTEGER NOT NULL DEFAULT 0,\n        cpu_high_samples INTEGER NOT NULL DEFAULT 0,\n        memory_high_samples INTEGER NOT NULL DEFAULT 0,\n        cpu_recovery_samples INTEGER NOT NULL DEFAULT 0,\n        memory_recovery_samples INTEGER NOT NULL DEFAULT 0,\n        last_sample_at INTEGER NOT NULL\n      )"
+      ],
+      "telemetry_connections": [
+        "CREATE TABLE telemetry_connections (\n        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,\n        created_at INTEGER,\n        updated_at INTEGER,\n        app_id TEXT NOT NULL UNIQUE,\n        environment TEXT NOT NULL,\n        deployment_id TEXT,\n        hook_version TEXT NOT NULL,\n        protocol_version INTEGER NOT NULL,\n        capabilities TEXT NOT NULL DEFAULT '{}',\n        enabled TEXT NOT NULL DEFAULT 1,\n        started_at INTEGER NOT NULL,\n        last_seen_at INTEGER NOT NULL\n      )"
+      ],
+      "telemetry_ingestion_budgets": [
+        "CREATE TABLE telemetry_ingestion_budgets (\n      id INTEGER PRIMARY KEY AUTOINCREMENT, environment TEXT NOT NULL UNIQUE,\n      window_start INTEGER NOT NULL DEFAULT 0, events INTEGER NOT NULL DEFAULT 0,\n      bytes INTEGER NOT NULL DEFAULT 0, requests INTEGER NOT NULL DEFAULT 0,\n      rejected_events INTEGER NOT NULL DEFAULT 0, rejected_requests INTEGER NOT NULL DEFAULT 0,\n      created_at INTEGER, updated_at INTEGER\n    )"
+      ]
+    },
+    "analytics": {},
+    "cache": {}
+  }
+}

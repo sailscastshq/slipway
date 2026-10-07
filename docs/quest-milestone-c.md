@@ -6,14 +6,13 @@ run a script, catch up missed schedules, or promise exactly-once side effects.
 
 ## Compatibility
 
-Released Quest **0.0.7** has terminal logs and no cancellation API. Released
-Slipway hook **0.0.12** has no durable spool/live replay. A server update alone
-cannot grant these capabilities. The candidate upstream source is pinned in CI
-and must pass real process/combined consumer verification before coordinated
-package publication. Proposed next minimum releases are Quest **0.0.8** and
-Slipway hook **0.0.13**, subject to the separate publication decision; neither is
-claimed to exist. Owners must install the compatible hooks and deploy their app.
-Actual contract capabilities are authoritative, including for newer versions.
+Quest **0.0.8** and Slipway hook **0.0.13** were published on 6 October 2026.
+Install the compatible hooks with committed lockfiles and rebuild/redeploy the
+app. Older Quest **0.0.7** has terminal logs without cancellation; Slipway hook
+**0.0.12** has no durable spool/live replay. A dashboard update alone cannot grant
+these capabilities. Actual advertised capabilities remain authoritative,
+including for newer package versions; installing a version does not enable the
+app-owned opt-ins below.
 
 Existing apps keep default behavior. Opt in to upstream controls in app source:
 

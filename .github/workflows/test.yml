@@ -291,7 +291,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p .tmp/bosun-verification
-          node --test tests/prelift/migration-executor.test.cjs tests/prelift/sqlite-schema.test.cjs tests/prelift/release-migrations.test.cjs tests/prelift/release-swap.test.cjs tests/prelift/release-verification.test.cjs | tee .tmp/bosun-verification/native-tests.log
+          node --test tests/prelift/migration-executor.test.cjs tests/prelift/sqlite-schema.test.cjs tests/prelift/release-migrations.test.cjs tests/prelift/legacy-production-upgrade.test.cjs tests/prelift/release-swap.test.cjs tests/prelift/release-verification.test.cjs | tee .tmp/bosun-verification/native-tests.log
       - uses: actions/upload-artifact@v6
         if: always()
         with:
@@ -312,11 +312,15 @@ jobs:
           node-version: '22'
       - run: docker build -t ghcr.io/fixture/slipway:candidate .
       - run: node tests/prelift/released-update-image.cjs
+      - name: Verify sanitized production catalog upgrade, restart and rollback
+        run: node tests/prelift/legacy-update-image.cjs
       - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: bosun-released-update-proof
-          path: .tmp/bosun-release-proof
+          path: |
+            .tmp/bosun-release-proof
+            .tmp/legacy-update-proof
           if-no-files-found: error
           retention-days: 30
 

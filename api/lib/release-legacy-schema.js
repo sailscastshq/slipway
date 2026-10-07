@@ -1,4 +1,6 @@
 const historical = require('./releases/legacy-helper-ddl.json').entries
+const production = require('./releases/legacy-production-layouts.json')
+const matchesLayout = require('./release-schema-layout')
 
 // Definitions from pre-release helpers and the reported production apps schema.
 // These are compatibility alternatives, never instructions to rewrite a table.
@@ -130,6 +132,10 @@ function historicalDefinition(entry, table, definition) {
 }
 
 function compatible(datastore, table, sql, definition) {
+  // Whole reviewed production layouts may retain known historical columns.
+  // Only those exact declarations are admitted; arbitrary extras still reject.
+  if (matchesLayout(sql, production.datastores[datastore]?.[table] || []))
+    return true
   if (definition.accepted.includes(sql)) return true
   const actual = declarations(sql, table)
   if (!actual) return false
