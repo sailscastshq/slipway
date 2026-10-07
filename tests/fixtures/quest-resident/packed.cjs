@@ -161,6 +161,24 @@ async function archiveFiles(filename) {
   return files.sort((a, b) => comparePath(a.path, b.path))
 }
 
+function verifyRegistrySource(archive, files, directory, published, name) {
+  assert.equal(new URL(published.tarball).origin, 'https://registry.npmjs.org')
+  assert.equal(
+    published.integrity,
+    `sha512-${crypto
+      .createHash('sha512')
+      .update(fs.readFileSync(archive))
+      .digest('base64')}`
+  )
+  for (const file of files) {
+    assert.equal(
+      hash(fs.readFileSync(path.join(directory, file.path))),
+      file.sha256,
+      `Published ${name}/${file.path} differs from verified source`
+    )
+  }
+}
+
 function verifyInstalled(root, record) {
   const manifest = json(path.join(root, 'package.json'))
   assert.equal(manifest.name, record.name)
@@ -203,7 +221,11 @@ function loadPacked(root, expected = {}) {
   root = fs.realpathSync(root)
   const provenance = json(path.join(root, 'provenance.json'))
   assert.equal(provenance.version, 1)
-  assert.equal(provenance.mode, 'npm-packed-consumer')
+  assert.ok(
+    ['npm-packed-consumer', 'npm-registry-consumer'].includes(provenance.mode),
+    'Consumer must identify its verified package source'
+  )
+  if (expected.mode) assert.equal(provenance.mode, expected.mode)
   assert.equal(provenance.npm, PACK_NPM_VERSION)
   assert.equal(provenance.npmTool.version, PACK_NPM_VERSION)
   assert.equal(
@@ -311,13 +333,20 @@ async function packedSource(env, source) {
   )
   return loadPacked(env.SLIPWAY_QUEST_PACKED_ROOT, {
     questSha: source.sha,
-    slipwaySha
+    slipwaySha,
+    mode:
+      env.SLIPWAY_QUEST_PACKAGE_SOURCE === 'registry'
+        ? 'npm-registry-consumer'
+        : 'npm-packed-consumer'
   })
 }
 
 async function preparePacked(env = process.env) {
   assert.equal(env.CI, 'true', 'Package consumer preparation is CI-only')
   const tool = npmTool(env)
+  const packageSource = env.SLIPWAY_QUEST_PACKAGE_SOURCE || 'packed'
+  assert.ok(['packed', 'registry'].includes(packageSource))
+  const registry = packageSource === 'registry'
   const npm = (args, options) =>
     execute(process.execPath, [tool.cli, ...args], options)
   const { upstreamSource } = require('./docker.cjs')
@@ -364,6 +393,12 @@ async function preparePacked(env = process.env) {
             '--ignore-scripts',
             '--json',
             '--workspaces=false',
+            ...(registry
+              ? [
+                  `${name}@${manifest.version}`,
+                  '--registry=https://registry.npmjs.org/'
+                ]
+              : []),
             '--pack-destination',
             path.join(root, 'tarballs')
           ],
@@ -378,6 +413,24 @@ async function preparePacked(env = process.env) {
     assert.equal(path.basename(tarball), tarball)
     const archive = path.join(root, 'tarballs', tarball)
     const files = await archiveFiles(archive)
+    let published
+    if (registry) {
+      published = JSON.parse(
+        (
+          await npm(
+            [
+              'view',
+              `${name}@${manifest.version}`,
+              'dist',
+              '--json',
+              '--registry=https://registry.npmjs.org/'
+            ],
+            { cwd: root, timeout: 60000, maxBuffer: 1024 * 1024 }
+          )
+        ).stdout
+      )
+      verifyRegistrySource(archive, files, directory, published, name)
+    }
     assert.deepEqual(
       files.map((file) => file.path),
       packed[0].files.map((file) => file.path).sort(comparePath)
@@ -389,7 +442,8 @@ async function preparePacked(env = process.env) {
       tarballSha256: hash(fs.readFileSync(archive)),
       files,
       filesSha256: hash(JSON.stringify(files)),
-      lifecycle
+      lifecycle,
+      ...(published ? { registry: published } : {})
     }
   }
   fs.writeFileSync(
@@ -408,13 +462,22 @@ async function preparePacked(env = process.env) {
       '--install-strategy=nested',
       '--no-audit',
       '--no-fund',
+      ...(registry ? ['--registry=https://registry.npmjs.org/'] : []),
       ...names.map((name) =>
-        path.join(root, 'tarballs', packages[name].tarball)
+        registry
+          ? `${name}@${packages[name].version}`
+          : path.join(root, 'tarballs', packages[name].tarball)
       )
     ],
     { cwd: root, timeout: 120000, maxBuffer: 2 * 1024 * 1024 }
   )
   for (const name of names) {
+    if (registry) {
+      const lock = json(path.join(root, 'consumer/package-lock.json'))
+      const selected = lock.packages[`node_modules/${name}`]
+      assert.equal(selected.resolved, packages[name].registry.tarball)
+      assert.equal(selected.integrity, packages[name].registry.integrity)
+    }
     const directory = path.join(root, 'consumer/node_modules', name)
     verifyInstalled(directory, packages[name])
     packages[name].installedFiles = fileTree(directory, true)
@@ -443,7 +506,7 @@ async function preparePacked(env = process.env) {
   )
   const provenance = {
     version: 1,
-    mode: 'npm-packed-consumer',
+    mode: registry ? 'npm-registry-consumer' : 'npm-packed-consumer',
     slipwaySha,
     questSha: source.sha,
     npm: tool.provenance.version,
@@ -506,6 +569,7 @@ module.exports = {
   fileTree,
   archiveFiles,
   verifyInstalled,
+  verifyRegistrySource,
   dependencyIdentities,
   loadPacked,
   proofFor,

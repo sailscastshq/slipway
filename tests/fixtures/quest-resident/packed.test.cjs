@@ -2,6 +2,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
+const crypto = require('node:crypto')
 const { test } = require('node:test')
 const { pipeline } = require('node:stream/promises')
 const {
@@ -11,6 +12,7 @@ const {
   fileTree,
   archiveFiles,
   verifyInstalled,
+  verifyRegistrySource,
   dependencyIdentities,
   loadPacked
 } = require('./packed.cjs')
@@ -44,8 +46,8 @@ test('packing requires the isolated exact npm version with supported prepare sup
       '// synthetic implementation bytes; never executed\n'
     )
     const tool = npmTool({ SLIPWAY_QUEST_NPM_CLI: cli })
-    assert.equal(tool.cli, cli)
-    assert.equal(tool.provenance.cliPath, cli)
+    assert.equal(tool.cli, fs.realpathSync(cli))
+    assert.equal(tool.provenance.cliPath, fs.realpathSync(cli))
     assert.equal(tool.provenance.version, '11.9.0')
     assert.equal(tool.provenance.pacoteVersion, '21.1.0')
     assert.match(tool.provenance.cliSha256, /^[a-f0-9]{64}$/)
@@ -137,9 +139,30 @@ test('tarball manifest hashes raw packed bytes and detects installed changes, ex
     )
     const files = await archiveFiles(archive)
     const record = { name: 'sails-hook-quest', files }
+    const published = {
+      tarball:
+        'https://registry.npmjs.org/sails-hook-quest/-/sails-hook-quest-0.0.5.tgz',
+      integrity: `sha512-${crypto
+        .createHash('sha512')
+        .update(fs.readFileSync(archive))
+        .digest('base64')}`
+    }
+    const verifyPublished = (metadata = published) =>
+      verifyRegistrySource(archive, files, installed, metadata, record.name)
+    assert.doesNotThrow(() => verifyPublished())
+    assert.throws(() =>
+      verifyPublished({ ...published, integrity: 'sha512-forged' })
+    )
+    assert.throws(() =>
+      verifyPublished({
+        ...published,
+        tarball: 'https://example.com/fixture.tgz'
+      })
+    )
     assert.deepEqual(fileTree(installed), files)
     assert.doesNotThrow(() => verifyInstalled(installed, record))
     fs.writeFileSync(path.join(installed, 'index.js'), 'changed bytes')
+    assert.throws(() => verifyPublished(), /differs from verified source/)
     assert.throws(() => verifyInstalled(installed, record), /exactly match/)
     fs.writeFileSync(path.join(installed, 'index.js'), contents['index.js'])
     fs.writeFileSync(path.join(installed, 'extra.js'), 'unexpected')
