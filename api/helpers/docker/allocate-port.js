@@ -30,7 +30,8 @@ module.exports = {
     checkHost: {
       type: 'boolean',
       defaultsTo: true,
-      description: 'Whether to verify the port is available on the host.'
+      description:
+        'Whether to inspect Docker host bindings and probe the local socket.'
     }
   },
 
@@ -50,11 +51,17 @@ module.exports = {
       host || sails.config.custom.slipwayPortHost || '127.0.0.1'
     )
 
+    // A socket probe inside Slipway cannot see Docker-host bindings. Discover
+    // these before changing reservations; failed discovery must not look free.
+    const publishedPorts = checkHost
+      ? await sails.helpers.docker.listPublishedPorts()
+      : []
+
     await releaseExpiredReservations()
 
     // Get ALL apps and filter in JS to avoid Waterline NULL query issues
     const allApps = await App.find().select(['hostPort'])
-    const usedPorts = new Set()
+    const usedPorts = new Set(publishedPorts)
 
     for (const app of allApps) {
       if (app.hostPort != null) {
@@ -83,7 +90,7 @@ module.exports = {
 
       if (checkHost && !(await isHostPortAvailable(bindHost, port))) {
         sails.log.debug(
-          `Port allocator (${bindHost}): ${port} is already bound on host`
+          `Port allocator (${bindHost}): ${port} is already bound locally`
         )
         continue
       }
