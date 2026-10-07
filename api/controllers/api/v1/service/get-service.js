@@ -49,7 +49,7 @@ module.exports = {
     const connectionUrl =
       service.managementMode === 'external'
         ? null
-        : await Service.getConnectionUrl(service.id)
+        : Service.getPublicConnectionUrl(service)
     let versionSupport = 'unresolved'
     try {
       versionSupport = inspectVersion(service.type, service.version, {

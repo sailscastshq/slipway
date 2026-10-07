@@ -43,6 +43,10 @@ module.exports = {
     const effective = {}
 
     for (const scope of scopes) {
+      sails.hooks.secrets?.remember({
+        envVars: scope.values,
+        envVarMetadata: scope.metadata
+      })
       for (const [key, value] of Object.entries(scope.values)) {
         values[key] = value
         effective[key] = {

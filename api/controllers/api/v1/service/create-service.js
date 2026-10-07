@@ -105,6 +105,7 @@ module.exports = {
 
     // Generate credentials
     const password = await sails.helpers.strings.random('url-friendly')
+    sails.hooks.secrets?.remember({ password })
     const username = `slipway_${name.replace(/-/g, '_')}`
     const database = name.replace(/-/g, '_')
 

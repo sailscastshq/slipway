@@ -178,14 +178,10 @@ module.exports = {
   },
 
   toPublic: function (service) {
-    const {
-      password,
-      externalConnection,
-      customDefinition,
-      customRecovery,
-      ...publicService
-    } = service
-    return publicService
+    return require('../helpers/security/public-record')._private.present(
+      'service',
+      service
+    )
   },
 
   /**
@@ -239,9 +235,27 @@ module.exports = {
   /**
    * Generate connection URL for the service
    */
+  getPublicConnectionUrl: function (service) {
+    if (service.managementMode === 'external') return null
+    const protocols = {
+      postgresql: 'postgres',
+      mysql: 'mysql',
+      mongodb: 'mongodb',
+      redis: 'redis'
+    }
+    const protocol = protocols[service.type]
+    if (!protocol) return null
+    const auth =
+      service.type === 'redis' && !service.password ? '' : '[REDACTED]@'
+    const database =
+      service.type === 'redis' ? '' : `/${service.database || ''}`
+    return `${protocol}://${auth}${service.internalHost}:${service.internalPort}${database}`
+  },
+
   getConnectionUrl: async function (serviceId) {
     const service = await Service.findOne({ id: serviceId }).decrypt()
     if (!service) return null
+    sails.hooks.secrets?.remember(service)
 
     if (service.managementMode === 'external')
       return require('../lib/external-postgresql').connectionUrl(

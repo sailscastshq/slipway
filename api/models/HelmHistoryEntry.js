@@ -6,6 +6,9 @@
  */
 
 module.exports = {
+  beforeCreate: redactDiagnostics,
+  beforeUpdate: redactDiagnostics,
+
   tableName: 'helm_history_entries',
 
   attributes: {
@@ -80,4 +83,14 @@ module.exports = {
       required: true
     }
   }
+}
+
+function redactDiagnostics(values, proceed) {
+  const redact = sails.hooks.secrets
+  if (redact) {
+    if (values.source != null) values.source = redact.protect(values.source)
+    if (values.targetContext != null)
+      values.targetContext = redact.protect(values.targetContext)
+  }
+  return proceed()
 }

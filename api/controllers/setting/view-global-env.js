@@ -46,7 +46,11 @@ module.exports = {
     return {
       page: 'settings/global-env',
       props: {
-        globalEnvVars,
+        globalEnvVars:
+          require('../../helpers/security/redact')._private.publicValues(
+            globalEnvVars,
+            globalEnvVarMetadata
+          ),
         globalEnvVarMetadata,
         backupConfigured
       }

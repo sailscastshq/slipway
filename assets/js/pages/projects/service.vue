@@ -1,4 +1,5 @@
 <script setup>
+import { useSecretReveal } from '@/composables/secret-reveal'
 import { inertiaMutation } from '@/lib/inertia-mutation'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import CustomServiceUpdate from '@/components/CustomServiceUpdate.vue'
@@ -71,6 +72,9 @@ watch(
 )
 const copiedUrl = ref(false)
 const revealedUrl = ref(false)
+const revealedConnectionUrl = ref(null)
+const revealSecret = useSecretReveal()
+const revealingUrl = ref(false)
 const serviceName = ref(props.service.name)
 const editingName = ref(false)
 const editedName = ref('')
@@ -329,13 +333,42 @@ function clearLogs() {
   logLines.value = []
 }
 
-function copyUrl() {
-  if (!props.service.connectionUrl) return
-  navigator.clipboard.writeText(props.service.connectionUrl)
-  copiedUrl.value = true
-  setTimeout(() => {
-    copiedUrl.value = false
-  }, 2000)
+async function toggleUrlReveal() {
+  if (revealingUrl.value) return
+  if (revealedUrl.value) {
+    revealedUrl.value = false
+    revealedConnectionUrl.value = null
+    return
+  }
+  revealingUrl.value = true
+  try {
+    revealedConnectionUrl.value = await revealSecret(
+      'service',
+      props.service.id,
+      'connectionUrl'
+    )
+    revealedUrl.value = true
+  } catch (error) {
+    toast({ message: error.message, type: 'error' })
+  } finally {
+    revealingUrl.value = false
+  }
+}
+async function copyUrl() {
+  try {
+    const value = await revealSecret(
+      'service',
+      props.service.id,
+      'connectionUrl'
+    )
+    await navigator.clipboard.writeText(value)
+    copiedUrl.value = true
+    setTimeout(() => {
+      copiedUrl.value = false
+    }, 2000)
+  } catch (error) {
+    toast({ message: error.message, type: 'error' })
+  }
 }
 
 function startEditingName() {
@@ -593,10 +626,10 @@ onUnmounted(() => {
                 <span
                   class="font-mono text-sm text-gray-500 dark:text-gray-400"
                 >
-                  {{ revealedUrl ? service.connectionUrl : maskedUrl }}
+                  {{ revealedUrl ? revealedConnectionUrl : maskedUrl }}
                 </span>
                 <button
-                  @click="revealedUrl = !revealedUrl"
+                  @click="toggleUrlReveal"
                   class="rounded p-0.5 text-gray-300 opacity-0 transition-opacity hover:text-gray-500 group-hover:opacity-100 dark:text-gray-600 dark:hover:text-gray-400"
                 >
                   <EyeOff

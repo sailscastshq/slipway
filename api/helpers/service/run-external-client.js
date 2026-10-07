@@ -21,6 +21,7 @@ module.exports = {
     signal
   }) {
     const service = await Service.findOne({ id: serviceId }).decrypt()
+    sails.hooks.secrets?.remember(service)
     if (
       service?.managementMode !== 'external' ||
       service.type !== 'postgresql' ||

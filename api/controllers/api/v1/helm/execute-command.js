@@ -127,12 +127,19 @@ module.exports = {
     }
     const startedAt = Date.now()
     let result
+    const redaction =
+      sails.hooks?.secrets ||
+      require('../../../../helpers/security/redact')._private.createRedactor()
+    const diagnosticStreams = {
+      stdout: redaction.stream(),
+      stderr: redaction.stream()
+    }
     let emittedBytes = 0
     let started = false
     const response = this.res
     const send = (event) => {
       if (response.destroyed || response.writableEnded) return
-      response.write(`${JSON.stringify(event)}\n`)
+      response.write(`${JSON.stringify(redaction.protect(event))}\n`)
     }
     response.set('Content-Type', 'application/x-ndjson; charset=utf-8')
     response.set('Cache-Control', 'private, no-store')
@@ -173,7 +180,8 @@ module.exports = {
           )
           if (!bounded) return
           emittedBytes += Buffer.byteLength(bounded)
-          send({ type: event.type, text: bounded })
+          const safeText = diagnosticStreams[event.type].write(bounded)
+          if (safeText) send({ type: event.type, text: safeText })
         }
       })
     } catch {
@@ -211,6 +219,10 @@ module.exports = {
       sails.log.warn(`Could not record Helm command metadata: ${error.message}`)
     } finally {
       try {
+        for (const [type, stream] of Object.entries(diagnosticStreams)) {
+          const text = stream.end()
+          if (text) send({ type, text })
+        }
         const { stdout, stderr, output, ...terminalMetadata } = result
         send({ type: 'result', executionId, result: terminalMetadata })
         if (!response.destroyed && !response.writableEnded) response.end()

@@ -148,6 +148,11 @@ export const api = {
   upload: apiUpload
 }
 
+api.configuration = {
+  reveal: (scope, id, key) =>
+    api.post('/configuration/reveal', { scope, id: String(id), key })
+}
+
 // Project endpoints
 api.projects = {
   list: () => api.get('/projects'),

@@ -21,6 +21,7 @@ module.exports = {
 
   fn: async function ({ serviceId }) {
     const service = await Service.findOne({ id: serviceId }).decrypt()
+    sails.hooks.secrets?.remember(service)
     if (service?.managementMode === 'external')
       throw new Error('External databases have no Slipway-managed container.')
     if (!service) throw new Error('Service not found')

@@ -160,3 +160,48 @@ test(
     expect(page).toHaveNoJavascriptErrors()
   }
 )
+
+test(
+  'configuration secrets are absent from page props and only revealed by an audited request',
+  {
+    browser: true,
+    world: {
+      name: 'configured-slipway',
+      context: { deploymentTarget: { slug: 'explicit-secret-reveal' } }
+    }
+  },
+  async ({ sails, world, login, page, expect }) => {
+    const secret = 'browser-canary-718-secret'
+    await sails.models.environment
+      .updateOne({ id: world.current.environments.production.id })
+      .set({ envVars: { UNUSUAL: secret }, envVarMetadata: {} })
+    await login.withPassword('genesisUser', page, {
+      password: world.current.auth.genesisUserPassword
+    })
+    await page.goto(
+      '/projects/explicit-secret-reveal/environments/production?env'
+    )
+    const variables = page.raw
+      .getByRole('button', { name: 'Environment variables', exact: false })
+      .first()
+    const input = page.raw.getByRole('textbox', { name: 'UNUSUAL value' })
+    if (!(await page.raw.locator('[aria-label="UNUSUAL value"]').isVisible()))
+      await variables.click()
+    const hidden = page.raw.locator('[aria-label="UNUSUAL value"]')
+    await expect(hidden).toHaveValue('[REDACTED]')
+    const response = page.raw.waitForResponse((response) =>
+      response.url().endsWith('/api/v1/configuration/reveal')
+    )
+    await page.raw
+      .getByRole('button', { name: 'Reveal UNUSUAL', exact: true })
+      .click()
+    expect((await response).status()).toBe(200)
+    await expect(input).toHaveValue(secret)
+    await page.raw
+      .getByRole('button', { name: 'Hide UNUSUAL', exact: true })
+      .click()
+    await expect(hidden).toHaveValue('[REDACTED]')
+    await expect(hidden).toHaveAttribute('type', 'password')
+    expect(page).toHaveNoJavascriptErrors()
+  }
+)

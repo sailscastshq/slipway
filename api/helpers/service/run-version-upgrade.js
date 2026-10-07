@@ -40,6 +40,7 @@ module.exports = {
 
   fn: async function ({ serviceId, targetVersion, userId, teamId, ipAddress }) {
     const service = await Service.findOne({ id: serviceId }).decrypt()
+    sails.hooks.secrets?.remember(service)
     if (!service) throw new Error('Service not found')
 
     const plan = getUpgradePlan(service.type, service.version, targetVersion)

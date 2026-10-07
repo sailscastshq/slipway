@@ -39,6 +39,12 @@ module.exports = function seed(directory, layouts = ddl) {
         keys: { default: key },
         keyId: 'default'
       }).encryptAttribute(undefined, JSON.stringify(value))
+    // Environment variables were already encrypted in the released app. Even
+    // an empty map must use that storage contract so ordinary decrypting reads
+    // exercise valid legacy data rather than a fabricated plaintext envelope.
+    db.prepare('UPDATE environments SET env_vars = ? WHERE id = 1').run(
+      encrypt({})
+    )
     db.prepare(
       `INSERT INTO apps
       (id,name,slug,status,environment,is_default,app_env_vars,bridge_secret,secure_env_vars)

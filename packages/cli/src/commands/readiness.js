@@ -1,3 +1,4 @@
+import { safeDiagnostic } from '../lib/diagnostic-output.js'
 import { api } from '../lib/api.js'
 import { requireProject, error } from '../lib/utils.js'
 export function renderReadiness(report) {
@@ -28,7 +29,8 @@ export default async function readiness(options = {}) {
       options.env || 'production',
       options.app
     )
-    if (options.json) console.log(JSON.stringify(report, null, 2))
+    if (options.json)
+      console.log(JSON.stringify(safeDiagnostic(report), null, 2))
     else renderReadiness(report)
     if (!report.canDeploy) process.exitCode = 1
   } catch (err) {

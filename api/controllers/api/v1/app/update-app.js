@@ -37,6 +37,10 @@ module.exports = {
     envVars: {
       type: 'json'
     },
+    envVarRenames: {
+      type: 'json',
+      description: 'Explicit old-to-new key mapping for hidden values'
+    },
     envVarMetadata: {
       type: 'json'
     },
@@ -63,6 +67,7 @@ module.exports = {
     healthPath,
     envVars,
     envVarMetadata,
+    envVarRenames,
     resourceLimits
   }) {
     const user = await User.forRequest(this.req)
@@ -92,6 +97,34 @@ module.exports = {
       resourceLimits
     })
     const currentEnvVars = app.secureEnvVars || app.envVars || {}
+    if (
+      (envVars !== undefined ||
+        envVarMetadata !== undefined ||
+        envVarRenames !== undefined) &&
+      !['owner', 'admin'].includes(user.teamRole)
+    )
+      throw 'forbidden'
+    if (envVars && typeof envVars === 'object' && !Array.isArray(envVars)) {
+      try {
+        envVars =
+          require('../../../../helpers/security/redact')._private.preserveValues(
+            envVars,
+            currentEnvVars,
+            envVarRenames || {}
+          )
+      } catch {
+        throw {
+          badRequest: {
+            problems: [
+              {
+                envVars:
+                  'Hidden values must be preserved under their existing key or explicitly renamed.'
+              }
+            ]
+          }
+        }
+      }
+    }
     const nextEnvVars = envVars === undefined ? currentEnvVars : envVars
     if (envVars !== undefined || envVarMetadata !== undefined) {
       const managedKeys = (await Service.find({ environment: environment.id }))
@@ -120,7 +153,12 @@ module.exports = {
       problems.push(
         ...sails.helpers.configuration.validateEnvVarMetadata(
           nextEnvVars,
-          envVarMetadata || app.envVarMetadata || {}
+          envVarMetadata ||
+            Object.fromEntries(
+              Object.entries(app.envVarMetadata || {}).filter(([key]) =>
+                Object.hasOwn(nextEnvVars, key)
+              )
+            )
         )
       )
     }
@@ -131,6 +169,7 @@ module.exports = {
       throw 'precognitionSuccess'
     }
 
+    sails.hooks.secrets?.remember({ envVars: nextEnvVars, envVarMetadata })
     const updates = {}
     if (name !== undefined) updates.name = name
     if (dockerfilePath !== undefined) updates.dockerfilePath = dockerfilePath
@@ -141,7 +180,13 @@ module.exports = {
       normalizedMetadata =
         sails.helpers.configuration.normalizeEnvVarMetadata.with({
           values: nextEnvVars,
-          metadata: envVarMetadata || app.envVarMetadata || {},
+          metadata:
+            envVarMetadata ||
+            Object.fromEntries(
+              Object.entries(app.envVarMetadata || {}).filter(([key]) =>
+                Object.hasOwn(nextEnvVars, key)
+              )
+            ),
           currentValues: currentEnvVars,
           currentMetadata: app.envVarMetadata || {},
           changedBy: String(user.id),
@@ -197,13 +242,11 @@ module.exports = {
       })
     }
 
-    const {
-      envVars: legacyEnvVars,
-      secureEnvVars,
-      bridgeSecret,
-      bearingSecret,
-      ...publicApp
-    } = updated
-    return { app: publicApp }
+    return {
+      app: sails.helpers.security.publicRecord.with({
+        kind: 'app',
+        record: updated
+      })
+    }
   }
 }

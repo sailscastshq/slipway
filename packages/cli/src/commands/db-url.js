@@ -28,11 +28,16 @@ export default async function dbUrl(options, positionals) {
       error(`No database named "${name}" found in ${environment} environment.`)
     }
 
+    const { value } = await api.configuration.reveal(
+      'service',
+      database.id,
+      'connectionUrl'
+    )
     spin.stop()
 
     console.log()
-    if (database.connectionUrl) {
-      console.log(database.connectionUrl)
+    if (value) {
+      console.log(value)
     } else {
       console.log(
         `  ${c.dim('No connection URL available for this database.')}`

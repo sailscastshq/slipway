@@ -42,8 +42,14 @@ module.exports = {
       .populate('app')
       .populate('services')
       .sort('createdAt ASC')
-      .decrypt()
 
-    return { environments }
+    return {
+      environments: environments.map((record) =>
+        sails.helpers.security.publicRecord.with({
+          kind: 'environment',
+          record
+        })
+      )
+    }
   }
 }

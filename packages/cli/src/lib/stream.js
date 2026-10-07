@@ -1,3 +1,4 @@
+import { safeDiagnostic } from './diagnostic-output.js'
 import { getCredentials, isLoggedIn } from './config.js'
 import { APIError } from './api.js'
 
@@ -50,7 +51,7 @@ export async function streamRequest(
         } catch {
           throw new Error('Slipway sent an invalid stream event.')
         }
-        await onEvent(event)
+        await onEvent(safeDiagnostic(event))
       }
       return
     }
@@ -62,7 +63,7 @@ export async function streamRequest(
         } catch {
           throw new Error('Slipway sent an invalid stream event.')
         }
-        await onEvent({ event, data: parsed })
+        await onEvent({ event, data: safeDiagnostic(parsed) })
       }
       data = []
       event = 'message'

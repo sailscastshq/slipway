@@ -91,3 +91,80 @@ async function waitFor(predicate, timeout = 5000) {
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
 }
+
+test(
+  'Docker build buffers split credentials before logger and database writes',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: { deploymentTarget: { slug: 'build-secret-stream' } }
+    }
+  },
+  async ({ sails, world, expect }) => {
+    const secret = 'build-split-credential-718'
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'slipway-build-secret-'))
+    const executable = path.join(root, 'docker')
+    const ready = path.join(root, 'ready')
+    const continuePath = path.join(root, 'continue')
+    const originalPath = sails.config.docker?.binaryPath
+    const originalLogger = sails.log.verbose
+    const messages = []
+    const deployment = await world.create('deployment').with({
+      environment: world.current.environments.production.id,
+      app: world.current.apps.web.id
+    })
+    fs.writeFileSync(
+      executable,
+      [
+        '#!/usr/bin/env node',
+        "const fs = require('node:fs')",
+        `process.stdout.write(${JSON.stringify(secret.slice(0, 12))})`,
+        `fs.writeFileSync(${JSON.stringify(ready)}, 'ready')`,
+        'const timer = setInterval(() => {',
+        `  if (!fs.existsSync(${JSON.stringify(continuePath)})) return`,
+        '  clearInterval(timer)',
+        `  process.stdout.write(${JSON.stringify(
+          secret.slice(12) + '\nfinished\n'
+        )})`,
+        `  process.stderr.write(${JSON.stringify(secret)})`,
+        '}, 10)',
+        ''
+      ].join('\n')
+    )
+    fs.chmodSync(executable, 0o755)
+    sails.config.docker = sails.config.docker || {}
+    sails.config.docker.binaryPath = executable
+    sails.log.verbose = (text) => messages.push(text)
+    let build
+    try {
+      build = sails.helpers.docker.buildImage.with({
+        contextPath: root,
+        imageName: 'slipway/secret-proof:latest',
+        deploymentId: deployment.id,
+        buildArgs: { UNUSUAL_NAME: secret },
+        timeout: 5000
+      })
+      // Start the deferred helper before waiting on its process marker.
+      const completion = Promise.resolve(build)
+      await waitFor(() => fs.existsSync(ready))
+      const interim = await sails.models.deployment.findOne(deployment.id)
+      expect((interim.buildLogs || '').includes(secret.slice(0, 12))).toBe(
+        false
+      )
+      expect(messages.join('').includes(secret.slice(0, 12))).toBe(false)
+      fs.writeFileSync(continuePath, 'continue')
+      const result = await completion
+      const saved = await sails.models.deployment.findOne(deployment.id)
+      expect(result.output).toBe('[REDACTED]\nfinished\n')
+      expect(saved.buildLogs.includes('[REDACTED]')).toBe(true)
+      expect(saved.buildLogs.includes(secret)).toBe(false)
+      expect(messages.join('').includes(secret)).toBe(false)
+    } finally {
+      fs.writeFileSync(continuePath, 'continue')
+      if (build) await build.catch(() => {})
+      sails.config.docker.binaryPath = originalPath
+      sails.log.verbose = originalLogger
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  }
+)

@@ -1,4 +1,5 @@
 <script setup>
+import { useSecretReveal } from '@/composables/secret-reveal'
 import { inertiaMutation } from '@/lib/inertia-mutation'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import { useGithubRepositories } from '@/composables/useGithubRepositories'
@@ -90,6 +91,8 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const toast = useToast()
+const revealSecret = useSecretReveal()
+const revealingKeys = new Set()
 const { startAction, completeAction } = useServiceActions()
 
 // --- Multi-app ---
@@ -487,11 +490,23 @@ function variableSummary(key) {
   return configVariableSummary(metadataFor(key), changeSummary(key))
 }
 
-function toggleReveal(key) {
+async function toggleReveal(key) {
+  if (revealingKeys.has(key)) return
   if (revealedKeys.value.has(key)) {
     revealedKeys.value.delete(key)
-  } else {
+    localVars[key] = props.envVars[key]
+    return
+  }
+  revealingKeys.add(key)
+  try {
+    const value = await revealSecret('environment', props.environment.id, key)
+    if (!Object.hasOwn(localVars, key)) return
+    localVars[key] = value
     revealedKeys.value.add(key)
+  } catch (error) {
+    toast({ message: error.message, type: 'error' })
+  } finally {
+    revealingKeys.delete(key)
   }
 }
 
@@ -508,7 +523,7 @@ function generateSecret() {
   ).join('')
 }
 
-async function saveEnvVars(vars, metadata = localMetadata) {
+async function saveEnvVars(vars, metadata = localMetadata, renames = {}) {
   if (saving.value) return false
   saving.value = true
   try {
@@ -516,8 +531,16 @@ async function saveEnvVars(vars, metadata = localMetadata) {
       'patch',
       `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}`,
       {
-        envVars: { ...vars },
-        envVarMetadata: { ...metadata }
+        envVars: Object.fromEntries(
+          Object.entries(vars).map(([key, value]) => [
+            key,
+            revealedKeys.value.has(key) && value === localVars[key]
+              ? props.envVars[key]
+              : value
+          ])
+        ),
+        envVarMetadata: { ...metadata },
+        envVarRenames: renames
       },
       { only: ['envVars', 'envVarMetadata', 'environment', 'readiness'] }
     )
@@ -585,7 +608,8 @@ async function renameVar(oldKey, el) {
   delete nextMetadata[oldKey]
   nextVars[trimmed] = value
   nextMetadata[trimmed] = metadata
-  if (!(await saveEnvVars(nextVars, nextMetadata))) return
+  if (!(await saveEnvVars(nextVars, nextMetadata, { [oldKey]: trimmed })))
+    return
   delete localVars[oldKey]
   delete localMetadata[oldKey]
   localVars[trimmed] = value
@@ -598,7 +622,8 @@ async function updateVarValue(key, value) {
   if (localVars[key] === value) return
   const nextVars = { ...localVars, [key]: value }
   if (!(await saveEnvVars(nextVars, localMetadata))) return
-  localVars[key] = value
+  localVars[key] = isSensitive(key) ? '[REDACTED]' : value
+  revealedKeys.value.delete(key)
   toast({ message: `Updated "${key}"`, type: 'success' })
 }
 
@@ -667,6 +692,8 @@ const purgeServiceData = ref(false)
 const stoppingServiceId = ref(null)
 const startingServiceId = ref(null)
 const revealedServiceUrls = ref(new Set())
+const serviceSecretUrls = ref({})
+const revealingServices = new Set()
 
 const serviceTypes = [
   { value: 'postgresql', label: 'PostgreSQL' },
@@ -708,11 +735,34 @@ function serviceIcon(type) {
   return icons[type] || '?'
 }
 
-function toggleServiceUrlReveal(id) {
+async function toggleServiceUrlReveal(id) {
+  if (revealingServices.has(id)) return
   if (revealedServiceUrls.value.has(id)) {
     revealedServiceUrls.value.delete(id)
-  } else {
+    delete serviceSecretUrls.value[id]
+    return
+  }
+  revealingServices.add(id)
+  try {
+    serviceSecretUrls.value[id] = await revealSecret(
+      'service',
+      id,
+      'connectionUrl'
+    )
     revealedServiceUrls.value.add(id)
+  } catch (error) {
+    toast({ message: error.message, type: 'error' })
+  } finally {
+    revealingServices.delete(id)
+  }
+}
+async function copyServiceUrl(service) {
+  try {
+    const value = await revealSecret('service', service.id, 'connectionUrl')
+    await navigator.clipboard.writeText(value)
+    toast({ message: 'Connection URL copied', type: 'success' })
+  } catch (error) {
+    toast({ message: error.message, type: 'error' })
   }
 }
 
@@ -1938,7 +1988,7 @@ onBeforeUnmount(() => {
                     >
                       {{
                         revealedServiceUrls.has(service.id)
-                          ? service.connectionUrl
+                          ? serviceSecretUrls[service.id]
                           : service.connectionUrl.replace(
                               /\/\/.*@/,
                               '//***:***@'
@@ -1957,7 +2007,7 @@ onBeforeUnmount(() => {
                       <Eye v-else class="h-3.5 w-3.5" stroke-width="2" />
                     </button>
                     <button
-                      @click="copyToClipboard(service.connectionUrl)"
+                      @click="copyServiceUrl(service)"
                       class="shrink-0 rounded p-0.5 text-gray-400 opacity-0 transition-opacity hover:text-gray-600 group-hover:opacity-100 dark:hover:text-gray-300"
                     >
                       <Check
@@ -2279,6 +2329,7 @@ onBeforeUnmount(() => {
                     <div class="flex items-center justify-between">
                       <Input
                         :value="key"
+                        :aria-label="`${key} name`"
                         :readonly="metadataFor(key).managed"
                         @blur="renameVar(key, $event.target)"
                         @keydown.enter="$event.target.blur()"
@@ -2292,6 +2343,9 @@ onBeforeUnmount(() => {
                         <button
                           v-if="isSensitive(key)"
                           @click="toggleReveal(key)"
+                          :aria-label="`${
+                            revealedKeys.has(key) ? 'Hide' : 'Reveal'
+                          } ${key}`"
                           class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                         >
                           <EyeOff
@@ -2311,6 +2365,7 @@ onBeforeUnmount(() => {
                     </div>
                     <Input
                       :value="localVars[key]"
+                      :aria-label="`${key} value`"
                       :readonly="metadataFor(key).managed"
                       :type="
                         isSensitive(key) && !revealedKeys.has(key)

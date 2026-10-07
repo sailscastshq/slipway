@@ -56,6 +56,7 @@ module.exports = {
       ...(description && { description })
     }
 
+    sails.hooks.secrets?.remember({ key, ...updates })
     if (existing) {
       await Setting.updateOne({ key }).set(updates)
     } else {

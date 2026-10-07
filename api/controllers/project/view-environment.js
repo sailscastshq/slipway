@@ -83,7 +83,7 @@ module.exports = {
           const connectionUrl =
             service.managementMode === 'external'
               ? null
-              : await Service.getConnectionUrl(service.id)
+              : Service.getPublicConnectionUrl(service)
           let lastBackup = null
           if (Service.isBackupSupported(service.type)) {
             const backups = await Backup.find({ service: service.id })
@@ -157,9 +157,9 @@ module.exports = {
         },
         apps: async () =>
           (await loadAppsWithHealth()).map(omitPrivateAppFields),
-        envVars: require('../../lib/external-postgresql').redactEnv(
+        envVars: require('../../helpers/security/redact')._private.publicValues(
           environment.envVars || {},
-          environment.services
+          environment.envVarMetadata || {}
         ),
         envVarMetadata: () => {
           const managedEnvVarKeys = (environment.services || [])
@@ -243,24 +243,12 @@ module.exports = {
 }
 
 function omitPrivateEnvironmentFields(environment) {
-  const {
-    envVars,
-    envVarMetadata,
-    telemetryToken,
-    telemetryTokenHash,
-    ...publicEnvironment
-  } = environment
-  return publicEnvironment
+  return sails.helpers.security.publicRecord.with({
+    kind: 'environment',
+    record: environment
+  })
 }
 
 function omitPrivateAppFields(app) {
-  const {
-    envVars,
-    secureEnvVars,
-    envVarMetadata,
-    bridgeSecret,
-    bearingSecret,
-    ...publicApp
-  } = app
-  return publicApp
+  return sails.helpers.security.publicRecord.with({ kind: 'app', record: app })
 }

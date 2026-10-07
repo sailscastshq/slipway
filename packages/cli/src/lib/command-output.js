@@ -1,3 +1,4 @@
+import { safeDiagnostic } from './diagnostic-output.js'
 import { getProjectConfig } from './config.js'
 
 export function targetProject(options) {
@@ -24,18 +25,19 @@ export function reportCommandError(error, options) {
         type: 'error',
         error: {
           code: error.body?.code || error.code || 'CLI_ERROR',
-          message: error.message,
+          message: safeDiagnostic(error.message),
           ...(error.statusCode ? { status: error.statusCode } : {})
         }
       })
     )
-  else console.error(`Error: ${error.message}`)
+  else console.error(`Error: ${safeDiagnostic(error.message)}`)
   process.exitCode = 1
 }
 
 export function commandOutput(options, result, lines = []) {
-  if (options.json || options.ndjson) console.log(JSON.stringify(result))
-  else for (const line of lines) console.log(line)
+  if (options.json || options.ndjson)
+    console.log(JSON.stringify(safeDiagnostic(result)))
+  else for (const line of lines) console.log(safeDiagnostic(line))
 }
 
 export function selectedTarget(options, { requireApp = false } = {}) {

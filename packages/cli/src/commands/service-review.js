@@ -1,3 +1,4 @@
+import { safeDiagnostic } from '../lib/diagnostic-output.js'
 import fs from 'node:fs/promises'
 import { api } from '../lib/api.js'
 import { requireProject, error } from '../lib/utils.js'
@@ -18,7 +19,7 @@ export default async function review(options, positionals) {
       { definition },
       { timeoutMs: 150000 }
     )
-    console.log(JSON.stringify(data.review, null, 2))
+    console.log(JSON.stringify(safeDiagnostic(data.review), null, 2))
     if (!options.json)
       console.log(
         `\nCreate this exact review with: slipway service:create ${data.review.id}`

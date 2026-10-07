@@ -61,7 +61,7 @@ module.exports = {
     const connectionUrl =
       service.managementMode === 'external'
         ? null
-        : await Service.getConnectionUrl(service.id)
+        : Service.getPublicConnectionUrl(service)
 
     // Get last backup if supported
     let lastBackup = null
