@@ -276,7 +276,7 @@ jobs:
 
   migration-prelift:
     name: Migration engine before ORM lift
-    timeout-minutes: 5
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -287,11 +287,18 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --no-audit
+      - name: Build verified test-only SQLite recovery CLI
+        run: |
+          mkdir -p .tmp/sqlite-recovery
+          curl -fsSL https://www.sqlite.org/2025/sqlite-amalgamation-3490200.zip -o .tmp/sqlite-recovery/sqlite.zip
+          echo '921fc725517a694df7df38a2a3dfede6684024b5788d9de464187c612afb5918  .tmp/sqlite-recovery/sqlite.zip' | sha256sum -c -
+          unzip -q .tmp/sqlite-recovery/sqlite.zip -d .tmp/sqlite-recovery
+          cc -O1 -DSQLITE_ENABLE_DBPAGE_VTAB -DSQLITE_ENABLE_STAT4 .tmp/sqlite-recovery/sqlite-amalgamation-3490200/shell.c .tmp/sqlite-recovery/sqlite-amalgamation-3490200/sqlite3.c -ldl -lm -lpthread -o .tmp/sqlite-recovery/sqlite3-recovery
       - name: Verify native migrations and bounded failure fixtures
         shell: bash
         run: |
           mkdir -p .tmp/bosun-verification
-          node --test tests/prelift/migration-executor.test.cjs tests/prelift/sqlite-schema.test.cjs tests/prelift/release-migrations.test.cjs tests/prelift/legacy-production-upgrade.test.cjs tests/prelift/release-swap.test.cjs tests/prelift/release-verification.test.cjs | tee .tmp/bosun-verification/native-tests.log
+          SLIPWAY_LARGE_DATABASE_PROOF=1 SQLITE_RECOVERY_TOOL="$PWD/.tmp/sqlite-recovery/sqlite3-recovery" node --test tests/prelift/migration-executor.test.cjs tests/prelift/sqlite-schema.test.cjs tests/prelift/release-migrations.test.cjs tests/prelift/legacy-production-upgrade.test.cjs tests/prelift/release-swap.test.cjs tests/prelift/release-verification.test.cjs tests/prelift/system-databases.test.cjs | tee .tmp/bosun-verification/native-tests.log
       - uses: actions/upload-artifact@v6
         if: always()
         with:
@@ -314,6 +321,13 @@ jobs:
       - run: node tests/prelift/released-update-image.cjs
       - name: Verify sanitized production catalog upgrade, restart and rollback
         run: node tests/prelift/legacy-update-image.cjs
+      - name: Verify actual system recovery and original-file rollback
+        run: |
+          mkdir -p .tmp/sqlite-recovery
+          curl -fsSL https://www.sqlite.org/2025/sqlite-amalgamation-3490200.zip -o .tmp/sqlite-recovery/sqlite.zip
+          echo '921fc725517a694df7df38a2a3dfede6684024b5788d9de464187c612afb5918  .tmp/sqlite-recovery/sqlite.zip' | sha256sum -c -
+          unzip -q .tmp/sqlite-recovery/sqlite.zip -d .tmp/sqlite-recovery
+          SLIPWAY_RECOVERY_IMAGE=ghcr.io/fixture/slipway:candidate SQLITE_RECOVERY_SOURCE="$PWD/.tmp/sqlite-recovery/sqlite-amalgamation-3490200" node tests/prelift/system-recovery-image.cjs | tee .tmp/bosun-release-proof/system-recovery.log
       - uses: actions/upload-artifact@v6
         if: always()
         with:

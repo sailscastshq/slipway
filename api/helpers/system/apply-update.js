@@ -40,7 +40,7 @@ module.exports = {
       await sails.cache.set(
         CACHE_KEY,
         { phase, detail, updatedAt: Date.now() },
-        300000
+        900000
       )
       sails.log.info(
         `[slipway] Update progress: ${phase}${detail ? ' — ' + detail : ''}`
@@ -77,7 +77,12 @@ module.exports = {
 
       // 3. Back up the SQLite database
       await setProgress('backing-up', 'Creating pre-update database snapshot')
-      await sails.helpers.system.backupDatabase()
+      const backup = await sails.helpers.system.backupDatabase()
+      if (!backup?.localVerified)
+        throw new Error(
+          'Update stopped: no verified system backup is available.'
+        )
+      if (backup.skipped) await setProgress('backing-up', backup.reason)
 
       // 4. Inspect current container to reconstruct its config
       await setProgress('inspecting', 'Reading current container configuration')
@@ -175,7 +180,7 @@ module.exports = {
           containerName: 'slipway-next',
           port: 1337,
           path: '/health',
-          timeout: 60000,
+          timeout: 360000,
           interval: 2000
         })
       } catch (err) {
