@@ -420,6 +420,14 @@ jobs:
           path: .tmp/screenshots/issue-398-bearing/widget-*.png
           if-no-files-found: ignore
           retention-days: 7
+      - name: Upload Bearing redaction regression evidence
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: bearing-redaction-review-${{ matrix.shard }}
+          path: .tmp/screenshots/issue-746-redaction
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload Bearing save regression evidence
         uses: actions/upload-artifact@v6
         if: always()

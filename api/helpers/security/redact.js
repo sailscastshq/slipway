@@ -8,6 +8,15 @@ const configurationMaps = new Map([
   ['appEnvVars', 'appEnvVarMetadata'],
   ['globalEnvVars', 'globalEnvVarMetadata']
 ])
+const configurationMetadata = new Set(configurationMaps.values())
+function isCredentialName(name) {
+  return (
+    sensitive.test(name.replace(/[^a-z]/gi, '')) ||
+    /(?:^|_)(?:KEY|PASS|DSN)(?:_|$)/i.test(name) ||
+    /^(?:DATABASE|REDIS|MONGO(?:DB)?|AMQP|CONNECTION)_URL$/i.test(name) ||
+    /^(?:discordWebhookUrl|slackWebhookUrl|webhookUrl|accountKey)$/i.test(name)
+  )
+}
 function isPublicRuntimeValue(name, value) {
   if (typeof value !== 'string') return false
   if (['NODE_ENV', 'SAILS_ENV', 'ENVIRONMENT'].includes(name))
@@ -150,7 +159,10 @@ function preserveValues(values, current, renames = {}) {
   }
   return result
 }
-function createRedactor() {
+function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
+  const presentation = context === 'response'
+  if (!['diagnostic', 'response'].includes(context))
+    throw new Error('Unknown redaction context.')
   const variants = new Set()
   let bytes = 0
   let overflow = false
@@ -206,8 +218,33 @@ function createRedactor() {
         value.forEach((entry) => collect(entry, force))
         return
       }
+      // Encryption is a storage property, not a classification of every word
+      // in a setting. Diagnostics remain conservative; responses use provenance.
+      if (
+        presentation &&
+        typeof value.key === 'string' &&
+        Object.hasOwn(value, 'encryptedValue')
+      ) {
+        const configured = value.encryptedValue ?? value.value
+        if (value.key === 'globalEnvVars') {
+          try {
+            collect({ globalEnvVars: JSON.parse(configured || '{}') })
+          } catch {}
+        } else if (value.key === 'backupStorageConfig') {
+          try {
+            const storage = JSON.parse(configured || '{}')
+            collect(storage)
+            collect(storage.key, true)
+            collect(storage.accountKey, true)
+          } catch {}
+        } else if (isCredentialName(value.key)) collect(configured, true)
+        return
+      }
       for (const [key, entry] of Object.entries(value)) {
-        if (configurationMaps.has(key)) {
+        // Variable names in this map label public annotations, not values.
+        if (configurationMetadata.has(key)) continue
+        if (key === 'env' && !presentation) collect(entry, true)
+        else if (configurationMaps.has(key) || key === 'env') {
           const metadata = value[configurationMaps.get(key)] || {}
           if (entry && typeof entry === 'object')
             for (const [name, configured] of Object.entries(entry)) {
@@ -215,16 +252,21 @@ function createRedactor() {
               // URLs. The environment map itself remains masked by publicValues.
               if (
                 metadata[name]?.kind !== 'plain' &&
+                (!presentation ||
+                  metadata[name]?.kind === 'secret' ||
+                  isCredentialName(name)) &&
                 !(
                   metadata[name]?.kind !== 'secret' &&
                   isPublicRuntimeValue(name, configured)
                 ) &&
-                !isPublicUploadOrigin(name, configured)
+                !(
+                  isPublicUploadOrigin(name, configured) &&
+                  (!presentation || metadata[name]?.kind !== 'secret')
+                )
               )
                 collect(configured, true)
             }
-        } else if (key === 'env') collect(entry, true)
-        else
+        } else
           collect(entry, force || sensitive.test(key.replace(/[^a-z]/gi, '')))
       }
       if (value.key === 'globalEnvVars') {
@@ -282,7 +324,7 @@ function createRedactor() {
       : /https?:\/\/slipway-[a-z0-9_.-]+:\d+(?=[/\s?#]|$)/gi
     let result = ''
     let offset = 0
-    for (const host of value.matchAll(hosts)) {
+    for (const host of presentation ? [] : value.matchAll(hosts)) {
       if (host.index < offset) continue
       const preceding = value.slice(offset, host.index)
       result += matcher ? preceding.replace(matcher, HIDDEN) : preceding
@@ -303,6 +345,11 @@ function createRedactor() {
     }
     const remaining = value.slice(offset)
     result += matcher ? remaining.replace(matcher, HIDDEN) : remaining
+    // Public prose and code examples are not diagnostics. A literal
+    // `token=example` is not evidence of a credential. Registered credentials
+    // are already masked above; only complete URLs receive syntax masking here.
+    if (presentation && !/^[a-z][a-z0-9+.-]*:\/\/\S+$/i.test(value))
+      return result
     return (
       result
         // Start only at a scheme boundary: restarting inside a long ordinary
@@ -355,7 +402,9 @@ function createRedactor() {
     if (depth > 30 || seen.has(value)) return '[Unavailable nested diagnostic]'
     seen.add(value)
     let result
-    if (value instanceof Error)
+    if (presentation && value instanceof Error && diagnostics)
+      result = protect(diagnostics.protect(value), seen, depth + 1)
+    else if (value instanceof Error)
       result = protect(
         {
           name: value.name,
@@ -373,6 +422,22 @@ function createRedactor() {
       const repositoryIdentity = isGithubRepository(value)
       for (const [key, entry] of Object.entries(value)) {
         if (
+          presentation &&
+          diagnostics &&
+          [
+            'error',
+            'errors',
+            'stack',
+            'buildLogs',
+            'stdout',
+            'stderr'
+          ].includes(key)
+        )
+          result[key] =
+            key === 'errors'
+              ? diagnostics.protect({ errors: entry }).errors
+              : protect(diagnostics.protect(entry), seen, depth + 1)
+        else if (
           key === 'errors' &&
           entry &&
           typeof entry === 'object' &&
@@ -393,7 +458,19 @@ function createRedactor() {
           result[key] = entry.map((token) => protect(token, seen, depth + 1))
         else if (typeof entry === 'boolean' && /^has[A-Z]/.test(key))
           result[key] = entry
-        else if (configurationMaps.has(key))
+        else if (
+          presentation &&
+          configurationMetadata.has(key) &&
+          entry &&
+          typeof entry === 'object'
+        )
+          result[key] = Object.fromEntries(
+            Object.entries(entry).map(([name, metadata]) => [
+              name,
+              protect(metadata, seen, depth + 1)
+            ])
+          )
+        else if (configurationMaps.has(key) || (presentation && key === 'env'))
           result[key] = publicValues(
             entry && typeof entry === 'object' ? entry : {},
             value[configurationMaps.get(key)]
@@ -405,21 +482,30 @@ function createRedactor() {
           sensitive.test(key.replace(/[^a-z]/gi, ''))
         )
           result[key] = entry == null || entry === '' ? entry : HIDDEN
-        else if (identifiers.has(key) && typeof entry === 'string')
+        else if (
+          !presentation &&
+          identifiers.has(key) &&
+          typeof entry === 'string'
+        )
           result[key] = entry
         else if (
+          !presentation &&
           repositoryIdentity &&
           ['owner', 'fullName', 'htmlUrl'].includes(key)
         )
           result[key] =
             key === 'htmlUrl' && variants.has(entry) ? HIDDEN : entry
-        else if (['domain', 'fullDomain', 'generatedDomain'].includes(key))
+        else if (
+          !presentation &&
+          ['domain', 'fullDomain', 'generatedDomain'].includes(key)
+        )
           result[key] = routingDomain(entry, seen, depth)
-        else if (key === 'domains' && Array.isArray(entry))
+        else if (!presentation && key === 'domains' && Array.isArray(entry))
           result[key] = entry.map((domain) =>
             routingDomain(domain, seen, depth)
           )
         else if (
+          !presentation &&
           [
             'primaryUrl',
             'appUrl',
@@ -430,7 +516,7 @@ function createRedactor() {
           ].includes(key)
         )
           result[key] = routingUrl(entry, seen, depth)
-        else if (key === 'accessUrls' && Array.isArray(entry))
+        else if (!presentation && key === 'accessUrls' && Array.isArray(entry))
           result[key] = entry.map((address) => {
             const safe = protect(address, seen, depth + 1)
             if (

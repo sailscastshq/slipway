@@ -392,3 +392,238 @@ test('command streams mask secrets split across chunks and withhold overlong lin
   expect(utf8.write(bytes.subarray(0, boundary))).toBe('')
   expect(utf8.write(bytes.subarray(boundary))).toBe('[REDACTED]\n')
 })
+
+test('presentation uses credential provenance, not legacy configuration substring guesses', ({
+  expect
+}) => {
+  const hook = require('../../../api/hooks/secrets')({})
+  hook.remember({
+    envVars: {
+      BRAND: 'flossafrica',
+      OWNER: 'kelvin@example.test',
+      HOST: 'files.example.test'
+    }
+  })
+  hook.remember({ key: 'smtpUsername', encryptedValue: 'kelvin@example.test' })
+  hook.remember({
+    key: 'legacyPreferences',
+    encryptedValue: JSON.stringify({ label: 'flossafrica' })
+  })
+  hook.remember({
+    envVars: {
+      SIGNING: 'confirmed-canary-746',
+      LEGACY_API_TOKEN: 'legacy-token-canary-746'
+    },
+    envVarMetadata: { SIGNING: { kind: 'secret' } }
+  })
+  const req = { options: { action: 'bearing/view-feedback' } }
+  const res = {
+    statusCode: 200,
+    json: (value) => value,
+    view: (name, locals) => locals,
+    set() {},
+    sse: () => ({ send: (value) => value })
+  }
+  hook.routes.before['/*'](req, res, () => {})
+  const content = {
+    title: 'Support flossafrica',
+    arbitraryNewField: 'Help flossafrica grow. Contact kelvin@example.test.',
+    body: '![flossafrica](https://files.example.test/flossafrica.webp)',
+    link: 'https://flossafrica.com/bearing/updates',
+    email: 'kelvin@example.test',
+    example:
+      'Use token=example and password=placeholder in the tutorial. Authorization: Bearer sample-token'
+  }
+  for (const safe of [
+    res.json(content),
+    res.view('app', { page: { props: content } }).page.props,
+    res.sse().send(content)
+  ])
+    expect(JSON.parse(JSON.stringify(safe))).toEqual(content)
+  const credentials = res.json({
+    title: 'confirmed-canary-746 legacy-token-canary-746',
+    name: 'confirmed-canary-746',
+    domain: 'confirmed-canary-746.test',
+    url: 'https://user:confirmed-canary-746@example.test/?token=legacy-token-canary-746',
+    nested: { password: 'tiny', authorization: 'tiny' },
+    envVars: { BRAND: 'flossafrica' },
+    error: 'failed flossafrica kelvin@example.test',
+    buildLogs: 'failed flossafrica confirmed-canary-746'
+  })
+  expect(credentials.title).toBe('[REDACTED] [REDACTED]')
+  expect(credentials.name).toBe('[REDACTED]')
+  expect(credentials.domain).toBe('[REDACTED].test')
+  expect(credentials.url.includes('confirmed-canary-746')).toBe(false)
+  expect(credentials.url.includes('legacy-token-canary-746')).toBe(false)
+  expect(credentials.nested.password).toBe('[REDACTED]')
+  expect(credentials.nested.authorization).toBe('[REDACTED]')
+  expect(credentials.envVars.BRAND).toBe('[REDACTED]')
+  expect(credentials.error).toBe('failed [REDACTED] [REDACTED]')
+  expect(credentials.buildLogs).toBe('failed [REDACTED] [REDACTED]')
+  res.statusCode = 500
+  expect(res.json({ message: 'failed flossafrica' }).message).toBe(
+    'failed [REDACTED]'
+  )
+  expect(hook.text('flossafrica kelvin@example.test')).toBe(
+    '[REDACTED] [REDACTED]'
+  )
+})
+
+test('SSR is preserved exactly for public props and discarded when credential props were sanitized', ({
+  expect
+}) => {
+  const hook = require('../../../api/hooks/secrets')({})
+  hook.remember({
+    envVars: { BRAND: 'flossafrica' },
+    password: 'ssr-canary-746'
+  })
+  const res = {
+    statusCode: 200,
+    json: (v) => v,
+    view: (name, locals) => locals,
+    set() {}
+  }
+  hook.routes.before['/*'](
+    { options: { action: 'bearing/view-surface' } },
+    res,
+    () => {}
+  )
+  const ssr = {
+    head: ['<title>Support flossafrica</title>'],
+    body: '<h1>Support flossafrica</h1>'
+  }
+  expect(
+    res.view('app', { page: { props: { title: 'Support flossafrica' } }, ssr })
+      .ssr
+  ).toBe(ssr)
+  const sanitized = res.view('app', {
+    page: { props: { password: 'ssr-canary-746' } },
+    ssr: { body: '<b>ssr-canary-746</b>' }
+  })
+  expect(sanitized.page.props.password).toBe('[REDACTED]')
+  expect(sanitized.ssr).toBe(null)
+})
+
+test('response credential sources retain encoding protection and scoped grants without treating encrypted public settings as credentials', ({
+  expect
+}) => {
+  const hook = require('../../../api/hooks/secrets')({})
+  const canary = 'source-canary-746-<>&'
+  hook.remember({ key: 'smtpPassword', encryptedValue: canary })
+  hook.remember({
+    key: 'backupStorageConfig',
+    encryptedValue: JSON.stringify({
+      key: 'storage-access-746',
+      secret: 'storage-secret-746',
+      bucket: 'flossafrica',
+      endpoint: 'https://files.example.test'
+    })
+  })
+  hook.remember({
+    key: 'webhookUrl',
+    value: 'https://hooks.example.test/private-capability-746'
+  })
+  hook.remember({
+    secureEnvVars: {
+      BRAND: 'flossafrica',
+      R2_PUBLIC_URL: 'https://files.example.test',
+      LEGACY_API_TOKEN: 'legacy-credential-746'
+    }
+  })
+  hook.remember({
+    envVars: { R2_PUBLIC_URL: 'https://explicit-secret.test' },
+    envVarMetadata: { R2_PUBLIC_URL: { kind: 'secret' } }
+  })
+  const req = { options: { action: 'dashboard/view-dashboard' } }
+  const res = { statusCode: 200, json: (v) => v, set() {} }
+  hook.routes.before['/*'](req, res, () => {})
+  for (const text of [
+    canary,
+    encodeURIComponent(canary),
+    Buffer.from(canary).toString('base64'),
+    Buffer.from(canary).toString('base64url'),
+    Buffer.from(canary).toString('hex'),
+    JSON.stringify(canary).slice(1, -1),
+    canary.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+  ])
+    expect(res.json({ arbitraryNewField: text }).arbitraryNewField).toBe(
+      '[REDACTED]'
+    )
+  const result = res.json({
+    title: 'Support flossafrica',
+    url: 'https://files.example.test/flossafrica.webp',
+    privateLink: 'https://hooks.example.test/private-capability-746',
+    storage: 'storage-access-746 storage-secret-746',
+    token: 'tiny',
+    nested: { error: new Error('flossafrica ' + canary) },
+    env: { BRAND: 'flossafrica' },
+    explicitUrl: 'https://explicit-secret.test',
+    legacy: 'legacy-credential-746',
+    errors: { password: 'flossafrica is not allowed' }
+  })
+  expect(result.title).toBe('Support flossafrica')
+  expect(result.url).toBe('https://files.example.test/flossafrica.webp')
+  expect(result.privateLink).toBe('[REDACTED]')
+  expect(result.storage).toBe('[REDACTED] [REDACTED]')
+  expect(result.token).toBe('[REDACTED]')
+  expect(result.nested.error.message).toBe('[REDACTED] [REDACTED]')
+  expect(result.env.BRAND).toBe('[REDACTED]')
+  expect(result.explicitUrl).toBe('[REDACTED]')
+  expect(result.legacy).toBe('[REDACTED]')
+  expect(result.errors.password).toBe('[REDACTED] is not allowed')
+  const failure = res.json({
+    error: 'failed',
+    message: 'flossafrica ' + canary,
+    name: canary
+  })
+  expect(failure.message).toBe('[REDACTED] [REDACTED]')
+  expect(failure.name).toBe('[REDACTED]')
+  req.options.action = 'api/v1/configuration/reveal'
+  expect(res.json({ value: canary }).value).toBe(canary)
+  res.statusCode = 503
+  expect(res.json({ value: canary, message: canary }).value).toBe('[REDACTED]')
+  res.statusCode = 200
+  expect(res.json({ value: canary, error: 'failed' }).value).toBe('[REDACTED]')
+})
+
+test('secret-variable annotations stay public and never seed response credential patterns', ({
+  expect
+}) => {
+  const hook = require('../../../api/hooks/secrets')({})
+  const metadata = {
+    APP_SECRET: {
+      kind: 'secret',
+      previewPolicy: 'omit',
+      description: 'Signing configuration for flossafrica',
+      changedByName: 'Kelvin Omereshone'
+    }
+  }
+  hook.remember({
+    secureEnvVars: { APP_SECRET: 'metadata-credential-canary-746' },
+    envVarMetadata: metadata
+  })
+  const res = { statusCode: 200, json: (v) => v, set() {} }
+  hook.routes.before['/*'](
+    { options: { action: 'project/view-app' } },
+    res,
+    () => {}
+  )
+  const safe = res.json({
+    envVars: { APP_SECRET: 'metadata-credential-canary-746' },
+    envVarMetadata: metadata,
+    user: { fullName: 'Kelvin Omereshone' },
+    description: metadata.APP_SECRET.description,
+    actualCredential: 'metadata-credential-canary-746'
+  })
+  expect(JSON.parse(JSON.stringify(safe.envVarMetadata))).toEqual(metadata)
+  expect(safe.user.fullName).toBe('Kelvin Omereshone')
+  expect(safe.description).toBe(metadata.APP_SECRET.description)
+  expect(hook.text(metadata.APP_SECRET.description)).toBe(
+    metadata.APP_SECRET.description
+  )
+  expect(hook.text('Kelvin Omereshone metadata-credential-canary-746')).toBe(
+    'Kelvin Omereshone [REDACTED]'
+  )
+  expect(safe.actualCredential).toBe('[REDACTED]')
+  expect(safe.envVars.APP_SECRET).toBe('[REDACTED]')
+})
