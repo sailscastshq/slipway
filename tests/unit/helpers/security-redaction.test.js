@@ -4,6 +4,46 @@ const { test } = require('sounding')
 const { createRedactor, preserveValues, publicValues } =
   require('../../../api/helpers/security/redact')._private
 
+test('response redaction preserves public project names while masking matching credential values', ({
+  expect
+}) => {
+  const hook = require('../../../api/hooks/secrets')({})
+  hook.remember({
+    appEnvVars: { APP_NAME: 'flossafrica', API_TOKEN: 'credential-canary-734' }
+  })
+  const request = { options: { action: 'dashboard/view-dashboard' } }
+  const response = {
+    statusCode: 200,
+    json: (value) => value,
+    view: (name, locals) => locals,
+    set() {}
+  }
+  hook.routes.before['/*'](request, response, () => {})
+  const page = {
+    component: 'dashboard/index',
+    props: {
+      projects: [
+        { id: 1, name: 'flossafrica', slug: 'flossafrica', status: 'running' }
+      ],
+      appName: 'flossafrica',
+      token: 'flossafrica',
+      envVars: { APP_NAME: 'flossafrica', API_TOKEN: 'credential-canary-734' },
+      message: 'flossafrica credential-canary-734'
+    }
+  }
+  for (const result of [
+    response.json(page),
+    response.view('app', { page }).page
+  ]) {
+    expect(result.props.projects[0].name).toBe('flossafrica')
+    expect(result.props.appName).toBe('flossafrica')
+    expect(result.props.token).toBe('[REDACTED]')
+    expect(result.props.envVars.APP_NAME).toBe('[REDACTED]')
+    expect(result.props.envVars.API_TOKEN).toBe('[REDACTED]')
+    expect(result.props.message).toBe('[REDACTED] [REDACTED]')
+  }
+})
+
 test('diagnostics mask nested credentials, URLs and common reversible encodings without changing control data', ({
   expect
 }) => {

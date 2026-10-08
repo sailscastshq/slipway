@@ -25,6 +25,13 @@ function isPublicUploadOrigin(name, value) {
 }
 const identifiers = new Set([
   'id',
+  // Display names are public control data, like slugs. A value registered from
+  // APP_NAME must not erase navigation labels that happen to contain it.
+  'name',
+  'appName',
+  'projectName',
+  'environmentName',
+  'serviceName',
   'slug',
   'status',
   'type',
