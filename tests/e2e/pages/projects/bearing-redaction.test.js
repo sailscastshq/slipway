@@ -19,6 +19,26 @@ test(
   async ({ sails, world, page, login, expect }) => {
     const { projects, environments, apps, users, auth } = world.current
     const app = apps.web
+    const environmentValues = {
+      BASE_URL: 'https://flossafrica.com',
+      R2_BUCKET: 'flossafrica',
+      sails_environment: 'production',
+      R2_PUBLIC_URL: 'https://files.example.test',
+      API_TOKEN: 'bearing-credential-canary-748'
+    }
+    const envVarMetadata =
+      await sails.helpers.configuration.normalizeEnvVarMetadata.with({
+        values: environmentValues,
+        recordChanges: false
+      })
+    await sails.models.environment
+      .updateOne({ id: environments.production.id })
+      .set({ envVars: environmentValues, envVarMetadata })
+    sails.hooks.secrets.remember(
+      await sails.models.environment
+        .findOne({ id: environments.production.id })
+        .decrypt()
+    )
     await sails.models.app.updateOne({ id: app.id }).set({
       bearingEnabled: true,
       secureEnvVars: { BRAND: 'flossafrica', OWNER: 'kelvin@example.test' }

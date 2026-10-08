@@ -55,8 +55,8 @@ header syntax: `token=example` alone is not a credential. Complete URLs still
 receive userinfo and credential-query protection, and registered credentials
 remain masked anywhere they appear.
 
-The response catalogue registers credentials from sensitive fields, explicit
-`kind: secret` metadata, recognizable legacy credential variable names
+The response catalogue registers credentials from sensitive fields, secret
+metadata on values that are not public runtime coordinates, recognizable legacy credential variable names
 (passwords, tokens, keys, DSNs and database connection URLs), and supported
 credential settings such as SMTP passwords, webhooks and backup storage keys.
 Variable metadata is annotation, not credential material: secret variable names
@@ -66,10 +66,23 @@ nor `secureEnvVars` makes all nested labels and coordinates credentials.
 Explicit `kind: plain` environment metadata remains an administrator decision.
 Unknown variables still cannot be read from a configuration map without reveal.
 
+`kind: secret` is the default configuration visibility policy, including when
+metadata is normalized without a user choosing a type. It cannot by itself
+establish that a bucket name, application name, environment label or public
+base URL is a credential. Response registration recognizes these runtime
+coordinates by their variable names and validates their shape. It handles
+case-insensitive names, Sails's custom-config prefix (including double underscores and camelCase), and Bridge's storage prefix; supported buckets
+include S3, R2, Spaces and Azure. Public HTTP(S) URLs must have no userinfo,
+query or fragment. These values remain reveal-only inside configuration maps;
+they simply do not seed global response substring replacement. Diagnostic
+protection remains conservative. A credential registered from another source
+still takes precedence even when it equals a public coordinate. This is not
+a blanket URL or variable-value exemption.
+
 Confirmed credential values and their supported encodings remain masked even
 inside display-name, domain and other presentation fields. These fields no
 longer bypass credential protection. If a public label really equals an
-explicitly classified credential, rotate that credential or correct its metadata;
+actual credential, rotate that credential or correct its classification;
 there is no global display-name exemption. Arbitrarily named, unclassified
 secrets copied into unrelated free-form content cannot reliably be identified
 without also guessing at public text: source DTOs and secret metadata remain

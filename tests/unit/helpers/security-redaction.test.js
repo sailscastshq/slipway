@@ -568,7 +568,7 @@ test('response credential sources retain encoding protection and scoped grants w
   expect(result.token).toBe('[REDACTED]')
   expect(result.nested.error.message).toBe('[REDACTED] [REDACTED]')
   expect(result.env.BRAND).toBe('[REDACTED]')
-  expect(result.explicitUrl).toBe('[REDACTED]')
+  expect(result.explicitUrl).toBe('https://explicit-secret.test')
   expect(result.legacy).toBe('[REDACTED]')
   expect(result.errors.password).toBe('[REDACTED] is not allowed')
   const failure = res.json({
@@ -626,4 +626,88 @@ test('secret-variable annotations stay public and never seed response credential
   )
   expect(safe.actualCredential).toBe('[REDACTED]')
   expect(safe.envVars.APP_SECRET).toBe('[REDACTED]')
+})
+
+test('reveal-only runtime coordinates never become presentation secrets, while credentials and diagnostics stay protected', ({
+  expect
+}) => {
+  const hook = require('../../../api/hooks/secrets')({})
+  const coordinates = {
+    BASE_URL: 'https://flossafrica.com',
+    sails_custom_base_url: 'https://sailsconf.com',
+    sails_custom__baseUrl: 'https://pairlore.com',
+    BRIDGE_S3_BUCKET: 'bridge-public-images',
+    BRIDGE_S3_PUBLIC_URL: 'https://bridge-files.example.test',
+    R2_BUCKET: 'flossafrica',
+    S3_BUCKET_NAME: 'sailscasts',
+    SPACES_BUCKET: 'chieflevite',
+    AZURE_CONTAINER: 'public-media',
+    sails_environment: 'production',
+    APP_NAME: 'flossafrica',
+    R2_PUBLIC_URL: 'https://files.example.test'
+  }
+  const values = {
+    ...coordinates,
+    SIGNING: 'arbitrary-signing-748',
+    API_TOKEN: 'coordinate-canary-748',
+    BASE_URL_PRIVATE: 'private-base-748'
+  }
+  const metadata = Object.fromEntries(
+    Object.keys(values).map((key) => [
+      key,
+      { kind: 'secret', previewPolicy: 'omit' }
+    ])
+  )
+  hook.remember({ envVars: values, envVarMetadata: metadata })
+  hook.remember({
+    envVars: {
+      SITE_URL: 'https://user:password@private.example.test',
+      APP_URL: 'https://private.example.test/?token=coordinate-canary-748'
+    },
+    envVarMetadata: {
+      SITE_URL: { kind: 'secret' },
+      APP_URL: { kind: 'secret' }
+    }
+  })
+  const req = { options: { action: 'bearing/view-feedback' } }
+  const res = {
+    statusCode: 200,
+    json: (v) => v,
+    view: (name, locals) => locals,
+    set() {}
+  }
+  hook.routes.before['/*'](req, res, () => {})
+  const page = {
+    component: 'bearing/feedback',
+    props: {
+      title: 'Support flossafrica',
+      url: 'https://flossafrica.com/bearing',
+      subscribePath: '/flossafrica/production/flossafrica-com/realtime',
+      values: Object.values(coordinates),
+      arbitrary: 'arbitrary-signing-748 coordinate-canary-748 private-base-748',
+      unsafeOrigin: 'https://user:password@private.example.test',
+      envVars: values,
+      envVarMetadata: metadata
+    }
+  }
+  for (const result of [res.json(page), res.view('app', { page }).page]) {
+    expect(result.props.title).toBe(page.props.title)
+    expect(result.props.url).toBe(page.props.url)
+    expect(result.props.subscribePath).toBe(page.props.subscribePath)
+    expect(result.props.values).toEqual(Object.values(coordinates))
+    expect(result.props.arbitrary).toBe('[REDACTED] [REDACTED] [REDACTED]')
+    expect(result.props.unsafeOrigin).toBe('[REDACTED]')
+    for (const value of Object.values(result.props.envVars))
+      expect(value).toBe('[REDACTED]')
+  }
+  expect(hook.text('flossafrica production coordinate-canary-748')).toBe(
+    '[REDACTED] [REDACTED] [REDACTED]'
+  )
+  // A genuine credential still wins if it happens to equal a public coordinate.
+  hook.remember({ password: 'flossafrica' })
+  expect(res.json({ title: 'Support flossafrica' }).title).toBe(
+    'Support [REDACTED]'
+  )
+  expect(values.BASE_URL).toBe('https://flossafrica.com')
+  expect(metadata.BASE_URL.kind).toBe('secret')
 })
