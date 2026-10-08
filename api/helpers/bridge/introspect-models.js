@@ -60,11 +60,32 @@ module.exports = {
     )
 
     if (!result.success) {
-      return { models: {}, error: result.error }
+      return {
+        models: {},
+        error: result.error,
+        errorCode: result.errorCode || 'BRIDGE_RUNTIME_FAILED'
+      }
+    }
+
+    let introspection
+    try {
+      introspection = JSON.parse(result.output)
+      if (
+        !introspection ||
+        !introspection.models ||
+        typeof introspection.models !== 'object' ||
+        Array.isArray(introspection.models)
+      )
+        throw new Error('Expected model metadata from the app runtime.')
+    } catch (err) {
+      return {
+        models: {},
+        error: 'Invalid Bridge runtime response: ' + err.message,
+        errorCode: 'BRIDGE_INVALID_RESPONSE'
+      }
     }
 
     try {
-      const introspection = JSON.parse(result.output)
       const contract =
         await sails.helpers.bridge.normalizeResourceContract.with({
           models: introspection.models,
@@ -86,7 +107,11 @@ module.exports = {
 
       return data
     } catch (err) {
-      return { models: {}, error: 'Failed to parse models: ' + err.message }
+      return {
+        models: {},
+        error: err.message,
+        errorCode: 'BRIDGE_INVALID_CONFIG'
+      }
     }
   },
 

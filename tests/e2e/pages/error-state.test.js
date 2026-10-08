@@ -142,10 +142,11 @@ test(
       await page.goto(bridgePath)
 
       const region = page.raw.getByRole('region', {
-        name: 'Failed to load models'
+        name: 'Bridge is unavailable'
       })
       await expect(region).toHaveAttribute('data-slot', 'error-state')
       await expect(region).not.toHaveAttribute('role', 'alert')
+      await region.getByText('Error details', { exact: true }).click()
       await expect(region).toContainText(
         'Bridge could not inspect this application.'
       )

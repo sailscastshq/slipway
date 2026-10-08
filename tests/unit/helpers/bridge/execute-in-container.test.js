@@ -158,6 +158,34 @@ test('Bridge keeps a worker alive while any operation is pending', async ({
   }
 })
 
+test('Bridge reports a killed worker without replaying work and replaces it on explicit retry', async ({
+  sails,
+  expect
+}) => {
+  const fixture = await createFakeDockerFixture()
+  const restore = useFakeDocker(sails, fixture)
+  try {
+    const stopped = await sails.helpers.bridge.executeInContainer.with({
+      containerName: 'bridge-killed',
+      code: '/* exit 137 */'
+    })
+    expect(stopped.success).toBe(false)
+    expect(stopped.exitCode).toBe(137)
+    expect(stopped.errorCode).toBe('BRIDGE_WORKER_KILLED')
+    expect(stopped.error).toContain('exit 137')
+    expect(await readBootCount(fixture.bootCountPath)).toBe(1)
+    const retried = await sails.helpers.bridge.executeInContainer.with({
+      containerName: 'bridge-killed',
+      code: 'return "explicit retry"'
+    })
+    expect(retried.success).toBe(true)
+    expect(await readBootCount(fixture.bootCountPath)).toBe(2)
+  } finally {
+    restore()
+    await cleanupFakeDocker(fixture)
+  }
+})
+
 async function createFakeDockerFixture() {
   const directory = await fs.mkdtemp(
     path.join(os.tmpdir(), 'slipway-bridge-worker-')
@@ -186,6 +214,7 @@ async function createFakeDockerFixture() {
       "const stopTimer = setInterval(() => { if (fs.existsSync(argumentsPath + '.stop')) process.exit(0) }, 10)",
       "input.on('line', (line) => {",
       '  const job = JSON.parse(line)',
+      "  if (job.code.includes('/* exit 137 */')) process.exit(137)",
       "  if (job.code.includes('never finishes')) return",
       '  setTimeout(() => {',
       '    handled += 1',

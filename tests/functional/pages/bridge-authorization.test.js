@@ -95,3 +95,71 @@ test(
     }
   }
 )
+
+test(
+  'Bridge rejects forged creates and updates when their form surfaces are disabled',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: { deploymentTarget: { slug: 'bridge-disabled-forms-742' } }
+    }
+  },
+  async ({ sails, world, request, expect }) => {
+    const current = world.current
+    const app = current.apps.web
+    const originalIntrospect = sails.helpers.bridge.introspectModels
+    const originalExecute = sails.helpers.bridge.executeInContainer
+    const contract = await sails.helpers.bridge.normalizeResourceContract.with({
+      models: {
+        course: {
+          identity: 'course',
+          primaryKey: 'id',
+          attributes: {
+            id: { type: 'number', autoIncrement: true },
+            title: { type: 'string' }
+          },
+          associations: []
+        }
+      },
+      config: {
+        resources: {
+          course: {
+            create: false,
+            edit: false,
+            actions: { create: true, update: true }
+          }
+        }
+      }
+    })
+    let executions = 0
+    sails.helpers.bridge.introspectModels = async () => ({
+      models: contract.resources
+    })
+    sails.helpers.bridge.executeInContainer = async () => {
+      executions += 1
+      throw new Error('A denied write must not reach the app runtime.')
+    }
+    try {
+      await sails.models.app
+        .updateOne({ id: app.id })
+        .set({ status: 'running', containerName: 'disabled-forms-742' })
+      const base = `/projects/${current.projects.deploymentTarget.slug}/environments/production/apps/${app.slug}/bridge`
+      const browser = await withCsrfFromPage(
+        request,
+        `${base}/access`,
+        'genesisUser'
+      )
+      for (const target of ['course/create', 'course/1/update']) {
+        const response = await browser.request.post(`${base}/${target}`, {
+          values: { title: 'Forged write' }
+        })
+        expect(response).toHaveStatus(400)
+        expect(response).toHaveHeader('x-exit', 'badRequest')
+      }
+      expect(executions).toBe(0)
+    } finally {
+      sails.helpers.bridge.introspectModels = originalIntrospect
+      sails.helpers.bridge.executeInContainer = originalExecute
+    }
+  }
+)
