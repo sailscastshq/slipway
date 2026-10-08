@@ -152,7 +152,21 @@ const disconnectForm = useForm({})
 
 function toggleAutoDeploy() {
   autoDeployForm.autoDeploy = !autoDeployForm.autoDeploy
-  autoDeployForm.patch(`${basePath.value}/repo`, { preserveScroll: true })
+  saveAutoDeploy()
+}
+
+function saveAutoDeploy() {
+  autoDeployForm.patch(`${basePath.value}/repo`, {
+    preserveScroll: true,
+    onFinish: () => {
+      autoDeployForm.autoDeploy = props.connectedRepo?.autoDeploy ?? false
+    }
+  })
+}
+
+function repairAutoDeploy() {
+  autoDeployForm.autoDeploy = true
+  saveAutoDeploy()
 }
 
 function disconnectRepo() {
@@ -623,7 +637,7 @@ async function deleteApp() {
                 <span
                   class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400"
                 >
-                  Connected
+                  Repository linked
                 </span>
               </div>
 
@@ -632,6 +646,9 @@ async function deleteApp() {
               >
                 <div class="flex items-center gap-3">
                   <button
+                    role="switch"
+                    aria-label="Auto-deploy on push"
+                    :aria-checked="autoDeployForm.autoDeploy"
                     @click="toggleAutoDeploy"
                     :disabled="autoDeployForm.processing"
                     :class="[
@@ -659,6 +676,37 @@ async function deleteApp() {
                   class="text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                 >
                   Disconnect
+                </button>
+              </div>
+              <div
+                v-if="connectedRepo.autoDeploy"
+                data-test="webhook-health"
+                class="border-t border-gray-200 px-4 py-3 text-xs dark:border-gray-700"
+              >
+                <p
+                  :class="
+                    connectedRepo.webhook?.status === 'ready'
+                      ? 'text-gray-500 dark:text-gray-400'
+                      : 'text-amber-700 dark:text-amber-400'
+                  "
+                >
+                  {{
+                    connectedRepo.webhook?.message ||
+                    'Webhook has not been verified.'
+                  }}
+                </p>
+                <button
+                  v-if="connectedRepo.webhook?.status !== 'ready'"
+                  type="button"
+                  :disabled="autoDeployForm.processing"
+                  @click="repairAutoDeploy"
+                  class="mt-2 cursor-pointer text-xs font-medium text-gray-900 underline underline-offset-4 disabled:opacity-50 dark:text-white"
+                >
+                  {{
+                    autoDeployForm.processing
+                      ? 'Checking…'
+                      : 'Repair auto-deploy'
+                  }}
                 </button>
               </div>
             </div>

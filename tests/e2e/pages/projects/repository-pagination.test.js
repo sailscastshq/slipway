@@ -192,3 +192,73 @@ for (const flow of ['create', 'connect']) {
     }
   )
 }
+
+test(
+  'app settings distinguishes linked repositories from inactive push hooks and repairs auto-deploy',
+  {
+    browser: true,
+    world: {
+      name: 'configured-slipway',
+      context: { deploymentTarget: { slug: 'webhook-repair-ui' } }
+    }
+  },
+  async ({ sails, world, login, page, expect }) => {
+    const current = world.current
+    const provider = await world
+      .create('gitprovider')
+      .with({ team: current.teams.genesisTeam.id })
+    const repository = await world.create('gitrepository').with({
+      provider: provider.id,
+      app: current.apps.web.id,
+      environment: current.environments.production.id,
+      webhookId: '738',
+      webhookUrl: 'https://slipway.test/webhook/github',
+      webhookSecret: 'fixture-webhook-secret',
+      autoDeploy: true
+    })
+    const originalFetch = global.fetch
+    let active = false
+    global.fetch = async (url, options = {}) => {
+      if (!String(url).startsWith('https://api.github.com/'))
+        return originalFetch(url, options)
+      if (options.method === 'PATCH') active = JSON.parse(options.body).active
+      return Response.json({
+        id: 738,
+        active,
+        events: ['push'],
+        config: { url: repository.webhookUrl, content_type: 'json' }
+      })
+    }
+    await page.raw.route('**/api/v1/system/check-update', (route) =>
+      route.fulfill({ json: { updateAvailable: false } })
+    )
+    try {
+      await login.withPassword('genesisUser', page, {
+        password: current.auth.genesisUserPassword
+      })
+      await page.raw.waitForURL('**/')
+      await page.goto(
+        `/projects/webhook-repair-ui/environments/production/apps/web/settings`
+      )
+      await expect(
+        page.raw.getByRole('switch', { name: 'Auto-deploy on push' })
+      ).toBeChecked()
+      await expect(
+        page.raw.locator('[data-test="webhook-health"]')
+      ).toContainText('GitHub has disabled')
+      await page.raw.getByRole('button', { name: 'Repair auto-deploy' }).click()
+      await expect(
+        page.raw.locator('[data-test="webhook-health"]')
+      ).toContainText('GitHub push webhook verified')
+      expect(active).toBe(true)
+      const output = path.resolve('.tmp/local-review/git-webhook')
+      fs.mkdirSync(output, { recursive: true })
+      await page.screenshot(path.join(output, 'repaired.png'), {
+        fullPage: true,
+        animations: 'disabled'
+      })
+    } finally {
+      global.fetch = originalFetch
+    }
+  }
+)
