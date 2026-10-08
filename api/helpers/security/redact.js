@@ -395,7 +395,14 @@ function createRedactor() {
             routingDomain(domain, seen, depth)
           )
         else if (
-          ['primaryUrl', 'appUrl', 'bridgeUrl', 'directUrl'].includes(key)
+          [
+            'primaryUrl',
+            'appUrl',
+            'bridgeUrl',
+            'directUrl',
+            'photoUrl',
+            'logoUrl'
+          ].includes(key)
         )
           result[key] = routingUrl(entry, seen, depth)
         else if (key === 'accessUrls' && Array.isArray(entry))

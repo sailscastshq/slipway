@@ -12,7 +12,9 @@ test('response redaction preserves public project names while masking matching c
     appEnvVars: { APP_NAME: 'flossafrica', API_TOKEN: 'credential-canary-734' }
   })
   hook.remember({ key: 'smtpUsername', encryptedValue: 'kelvin@example.test' })
-  hook.remember({ envVars: { LEGACY_LABEL: 'sailsconf' } })
+  hook.remember({
+    envVars: { LEGACY_LABEL: 'sailsconf', STORAGE_LABEL: 'files.example.test' }
+  })
   const request = { options: { action: 'dashboard/view-dashboard' } }
   const response = {
     statusCode: 200,
@@ -54,7 +56,13 @@ test('response redaction preserves public project names while masking matching c
           }
         ]
       },
-      user: { id: 2, name: 'Kelvin', email: 'kelvin@example.test' },
+      user: {
+        id: 2,
+        name: 'Kelvin',
+        email: 'kelvin@example.test',
+        photoUrl: 'https://files.example.test/users/2/photos/avatar.webp'
+      },
+      team: { logoUrl: 'https://files.example.test/teams/1/logo.webp' },
       smtpPassword: 'kelvin@example.test',
       token: 'flossafrica',
       envVars: { APP_NAME: 'flossafrica', API_TOKEN: 'credential-canary-734' },
@@ -68,6 +76,8 @@ test('response redaction preserves public project names while masking matching c
     expect(result.props.projects[0].name).toBe('flossafrica')
     expect(result.props.appName).toBe('flossafrica')
     expect(result.props.user.email).toBe('kelvin@example.test')
+    expect(result.props.user.photoUrl).toBe(page.props.user.photoUrl)
+    expect(result.props.team.logoUrl).toBe(page.props.team.logoUrl)
     expect(JSON.parse(JSON.stringify(result.props.app))).toEqual(page.props.app)
     expect(result.props.smtpPassword).toBe('[REDACTED]')
     expect(result.props.token).toBe('[REDACTED]')
