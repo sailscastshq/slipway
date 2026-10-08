@@ -123,6 +123,124 @@ test('snapshot verification reports corruption without treating the backup as he
     )
   }))
 
+for (const damaged of ['sqlite_stat4', 'custom_payload_index']) {
+  test(`logical app reconstruction preserves complete data despite damaged ${damaged}`, () =>
+    fixture(async (root, source) => {
+      const filename = path.join(source, 'app.db')
+      const db = new Database(filename)
+      db.exec(`
+        CREATE TABLE exact_values(id INTEGER PRIMARY KEY AUTOINCREMENT, payload BLOB, big INTEGER);
+        INSERT INTO exact_values VALUES(1, x'0001ff', 9007199254740993);
+        INSERT INTO exact_values VALUES(80, NULL, NULL);
+        DELETE FROM exact_values WHERE id=80;
+        CREATE TABLE implicit_ids(payload TEXT);
+        INSERT INTO implicit_ids(rowid, payload) VALUES(99, 'retained rowid');
+        CREATE TABLE strict_keys(key TEXT PRIMARY KEY, value TEXT) WITHOUT ROWID, STRICT;
+        INSERT INTO strict_keys VALUES('key', 'value');
+        CREATE INDEX custom_payload_index ON custom_data(payload);
+        CREATE TRIGGER copying_must_not_fire AFTER INSERT ON exact_values
+          BEGIN UPDATE custom_data SET payload='trigger fired'; END;
+        ANALYZE;
+      `)
+      const page = db
+        .prepare('SELECT rootpage FROM sqlite_schema WHERE name=?')
+        .get(damaged).rootpage
+      const pageSize = db.pragma('page_size', { simple: true })
+      db.close()
+      const fd = fs.openSync(filename, 'r+')
+      fs.writeSync(fd, Buffer.from([0]), 0, 1, (page - 1) * pageSize)
+      fs.closeSync(fd)
+      const bytes = fs.readFileSync(filename)
+      const output = path.join(root, 'logical')
+      const result = await doctor.prepare({
+        source,
+        output,
+        logicalApp: true,
+        resetObservability: true
+      })
+      assert.ok(
+        result.verifiedTables.some(
+          (item) => item.table === 'exact_values' && item.rows === 1
+        )
+      )
+      assert.deepEqual(fs.readFileSync(filename), bytes)
+      const rebuilt = new Database(path.join(output, 'app.db'))
+      rebuilt.defaultSafeIntegers(true)
+      assert.equal(
+        rebuilt.prepare('SELECT big FROM exact_values').get().big,
+        9007199254740993n
+      )
+      assert.deepEqual(
+        rebuilt.prepare('SELECT payload FROM exact_values').get().payload,
+        Buffer.from([0, 1, 255])
+      )
+      assert.equal(
+        rebuilt.prepare('SELECT rowid FROM implicit_ids').get().rowid,
+        99n
+      )
+      assert.equal(
+        rebuilt.prepare('SELECT payload FROM custom_data').get().payload,
+        'retained'
+      )
+      assert.equal(
+        rebuilt.prepare('INSERT INTO exact_values(payload) VALUES(NULL)').run()
+          .lastInsertRowid,
+        81n
+      )
+      assert.equal(
+        rebuilt.prepare('SELECT payload FROM custom_data').get().payload,
+        'trigger fired'
+      )
+      rebuilt.close()
+      const migrated = await migrations.run({ directory: output })
+      assert.equal(migrated.mode, 'applied')
+      assert.equal((await doctor.check(output)).ok, true)
+    }))
+}
+
+test('logical recovery rejects unreadable application data without modifying the source', () =>
+  fixture(async (root, source) => {
+    const filename = path.join(source, 'app.db')
+    const db = new Database(filename)
+    const page = db
+      .prepare("SELECT rootpage FROM sqlite_schema WHERE name='custom_data'")
+      .get().rootpage
+    const pageSize = db.pragma('page_size', { simple: true })
+    db.close()
+    const fd = fs.openSync(filename, 'r+')
+    fs.writeSync(fd, Buffer.from([0]), 0, 1, (page - 1) * pageSize)
+    fs.closeSync(fd)
+    const bytes = fs.readFileSync(filename)
+    await assert.rejects(
+      doctor.prepare({
+        source,
+        output: path.join(root, 'unreadable'),
+        logicalApp: true,
+        resetObservability: true
+      }),
+      /malformed|corrupt/i
+    )
+    assert.deepEqual(fs.readFileSync(filename), bytes)
+  }))
+
+test('logical recovery refuses generated columns and overwriting an existing candidate', () =>
+  fixture(async (root, source) => {
+    const filename = path.join(source, 'app.db')
+    const db = new Database(filename)
+    db.exec(
+      'CREATE TABLE generated_data(a INTEGER, b INTEGER GENERATED ALWAYS AS (a+1)); INSERT INTO generated_data(a) VALUES(1)'
+    )
+    db.close()
+    const destination = path.join(root, 'generated.db')
+    assert.throws(
+      () => doctor.rebuildApp(filename, destination),
+      /generated or hidden/
+    )
+    const bytes = fs.readFileSync(destination)
+    assert.throws(() => doctor.rebuildApp(filename, destination), /EEXIST/)
+    assert.deepEqual(fs.readFileSync(destination), bytes)
+  }))
+
 test(
   'offline recovery keeps custom data, resets only observability history, and migrates valid candidates',
   { skip: !process.env.SQLITE_RECOVERY_TOOL },
