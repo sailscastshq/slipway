@@ -71,7 +71,7 @@ without also guessing at public text: source DTOs and secret metadata remain
 part of the security boundary.
 
 JSON, Inertia initial pages, navigation responses and SSE use response
-protection. Error HTTP responses, Error instances and explicit diagnostic
+protection. Error HTTP responses, error envelopes, Error instances and explicit diagnostic
 fields (`error`, `errors`, `stack`, `buildLogs`, `stdout`, `stderr`) retain the
 conservative diagnostic policy. Existing persistence and streaming protections
 remain in place. Intentional capability grants below remain action- and

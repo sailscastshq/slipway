@@ -26,10 +26,11 @@ module.exports = function secretsHook(sails) {
     'project/bridge-resume-upload-field': ['uploadUrl']
   }
   function response(req, res, value) {
-    const result =
-      res.statusCode >= 400 || value instanceof Error
-        ? redact.protect(value)
-        : credentials.protect(value)
+    const diagnostic =
+      res.statusCode >= 400 || value instanceof Error || value?.error
+    const result = credentials.protect(
+      diagnostic ? redact.protect(value) : value
+    )
     if (
       req.options?.action === 'auth/view-reset-password' &&
       value?.props?.token &&

@@ -553,7 +553,7 @@ test('response credential sources retain encoding protection and scoped grants w
     privateLink: 'https://hooks.example.test/private-capability-746',
     storage: 'storage-access-746 storage-secret-746',
     token: 'tiny',
-    error: new Error('flossafrica ' + canary),
+    nested: { error: new Error('flossafrica ' + canary) },
     env: { BRAND: 'flossafrica' },
     explicitUrl: 'https://explicit-secret.test',
     legacy: 'legacy-credential-746',
@@ -564,11 +564,18 @@ test('response credential sources retain encoding protection and scoped grants w
   expect(result.privateLink).toBe('[REDACTED]')
   expect(result.storage).toBe('[REDACTED] [REDACTED]')
   expect(result.token).toBe('[REDACTED]')
-  expect(result.error.message).toBe('[REDACTED] [REDACTED]')
+  expect(result.nested.error.message).toBe('[REDACTED] [REDACTED]')
   expect(result.env.BRAND).toBe('[REDACTED]')
   expect(result.explicitUrl).toBe('[REDACTED]')
   expect(result.legacy).toBe('[REDACTED]')
   expect(result.errors.password).toBe('[REDACTED] is not allowed')
+  const failure = res.json({
+    error: 'failed',
+    message: 'flossafrica ' + canary,
+    name: canary
+  })
+  expect(failure.message).toBe('[REDACTED] [REDACTED]')
+  expect(failure.name).toBe('[REDACTED]')
   req.options.action = 'api/v1/configuration/reveal'
   expect(res.json({ value: canary }).value).toBe(canary)
   res.statusCode = 503

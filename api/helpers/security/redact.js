@@ -395,7 +395,7 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
     seen.add(value)
     let result
     if (presentation && value instanceof Error && diagnostics)
-      result = diagnostics.protect(value)
+      result = protect(diagnostics.protect(value), seen, depth + 1)
     else if (value instanceof Error)
       result = protect(
         {
@@ -428,7 +428,7 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
           result[key] =
             key === 'errors'
               ? diagnostics.protect({ errors: entry }).errors
-              : diagnostics.protect(entry)
+              : protect(diagnostics.protect(entry), seen, depth + 1)
         else if (
           key === 'errors' &&
           entry &&
