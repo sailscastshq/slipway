@@ -91,6 +91,11 @@ test('legacy public runtime values do not erase deployment URLs, but explicit se
   ).toBe(
     'http://[REDACTED]@slipway-chieflevite-[REDACTED]-chieflevite-com-733:1337/health'
   )
+  const webhook = 'http://slipway-private-webhook:1337/private-capability'
+  redact.remember({ key: 'webhookUrl', value: webhook })
+  expect(redact.text(`Failed request ${webhook}`)).toBe(
+    'Failed request [REDACTED]'
+  )
 })
 
 test('diagnostics mask nested credentials, URLs and common reversible encodings without changing control data', ({

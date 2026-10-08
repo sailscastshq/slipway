@@ -263,10 +263,23 @@ function createRedactor() {
     let result = ''
     let offset = 0
     for (const host of value.matchAll(hosts)) {
+      if (host.index < offset) continue
       const preceding = value.slice(offset, host.index)
-      result +=
-        (matcher ? preceding.replace(matcher, HIDDEN) : preceding) + host[0]
-      offset = host.index + host[0].length
+      result += matcher ? preceding.replace(matcher, HIDDEN) : preceding
+      if (matcher) matcher.lastIndex = host.index
+      const credential = matcher?.exec(value)
+      if (matcher) matcher.lastIndex = 0
+      // A whole URL registered as a credential is never a public-host grant.
+      if (
+        credential?.index === host.index &&
+        credential[0].length >= host[0].length
+      ) {
+        result += HIDDEN
+        offset = host.index + credential[0].length
+      } else {
+        result += host[0]
+        offset = host.index + host[0].length
+      }
     }
     const remaining = value.slice(offset)
     result += matcher ? remaining.replace(matcher, HIDDEN) : remaining
