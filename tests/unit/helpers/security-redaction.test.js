@@ -12,6 +12,9 @@ test('response redaction preserves public project names while masking matching c
     appEnvVars: { APP_NAME: 'flossafrica', API_TOKEN: 'credential-canary-734' }
   })
   hook.remember({ key: 'smtpUsername', encryptedValue: 'kelvin@example.test' })
+  hook.remember({
+    envVars: { LEGACY_LABEL: 'sailsconf', STORAGE_LABEL: 'files.example.test' }
+  })
   const request = { options: { action: 'dashboard/view-dashboard' } }
   const response = {
     statusCode: 200,
@@ -27,7 +30,39 @@ test('response redaction preserves public project names while masking matching c
         { id: 1, name: 'flossafrica', slug: 'flossafrica', status: 'running' }
       ],
       appName: 'flossafrica',
-      user: { id: 2, name: 'Kelvin', email: 'kelvin@example.test' },
+      app: {
+        fullDomain: 'sailsconf.com',
+        generatedDomain: 'sailsconf-production.slipway.test',
+        domains: ['sailsconf.com', 'sailsconf-production.slipway.test'],
+        primaryUrl: 'https://sailsconf.com',
+        accessUrls: [
+          {
+            kind: 'custom',
+            display: 'sailsconf.com',
+            value: 'https://sailsconf.com',
+            href: 'https://sailsconf.com'
+          },
+          {
+            kind: 'generated',
+            display: 'sailsconf-production.slipway.test',
+            value: 'https://sailsconf-production.slipway.test',
+            href: 'https://sailsconf-production.slipway.test'
+          },
+          {
+            kind: 'direct',
+            display: '127.0.0.1:1342',
+            value: 'http://127.0.0.1:1342',
+            href: 'http://127.0.0.1:1342'
+          }
+        ]
+      },
+      user: {
+        id: 2,
+        name: 'Kelvin',
+        email: 'kelvin@example.test',
+        photoUrl: 'https://files.example.test/users/2/photos/avatar.webp'
+      },
+      team: { logoUrl: 'https://files.example.test/teams/1/logo.webp' },
       smtpPassword: 'kelvin@example.test',
       token: 'flossafrica',
       envVars: { APP_NAME: 'flossafrica', API_TOKEN: 'credential-canary-734' },
@@ -41,12 +76,52 @@ test('response redaction preserves public project names while masking matching c
     expect(result.props.projects[0].name).toBe('flossafrica')
     expect(result.props.appName).toBe('flossafrica')
     expect(result.props.user.email).toBe('kelvin@example.test')
+    expect(result.props.user.photoUrl).toBe(page.props.user.photoUrl)
+    expect(result.props.team.logoUrl).toBe(page.props.team.logoUrl)
+    expect(JSON.parse(JSON.stringify(result.props.app))).toEqual(page.props.app)
     expect(result.props.smtpPassword).toBe('[REDACTED]')
     expect(result.props.token).toBe('[REDACTED]')
     expect(result.props.envVars.APP_NAME).toBe('[REDACTED]')
     expect(result.props.envVars.API_TOKEN).toBe('[REDACTED]')
     expect(result.props.message).toBe('flossafrica [REDACTED]')
   }
+})
+
+test('public routing URL fields still mask credentials and reject inconsistent access labels', ({
+  expect
+}) => {
+  const redact = createRedactor()
+  redact.remember({
+    envVars: { LABEL: 'sailsconf', TOKEN: 'private-canary-736' }
+  })
+  const capability = 'https://sailsconf.com/private-capability'
+  redact.remember({ key: 'webhookUrl', value: capability })
+  const result = redact.protect({
+    appUrl: 'https://sailsconf.com/private-canary-736',
+    bridgeUrl: 'https://sailsconf.com/bridge?token=private-canary-736',
+    primaryUrl: capability,
+    directUrl: 'https://user:private-canary-736@sailsconf.com',
+    domain: 'https://sailsconf.com/private-canary-736',
+    accessUrls: [
+      {
+        kind: 'custom',
+        display: 'private-canary-736',
+        value: 'https://sailsconf.com',
+        href: 'https://sailsconf.com'
+      }
+    ],
+    password: 'https://sailsconf.com'
+  })
+  expect(result.appUrl).toBe('https://sailsconf.com/[REDACTED]')
+  expect(result.bridgeUrl).toBe('https://sailsconf.com/bridge?token=[REDACTED]')
+  expect(result.primaryUrl).toBe('[REDACTED]')
+  expect(result.directUrl).toBe('https://[REDACTED]@[REDACTED].com')
+  expect(result.domain).toBe('https://[REDACTED].com/[REDACTED]')
+  expect(result.accessUrls[0].display).toBe('[REDACTED]')
+  expect(result.password).toBe('[REDACTED]')
+  expect(redact.text('sailsconf private-canary-736')).toBe(
+    '[REDACTED] [REDACTED]'
+  )
 })
 
 test('legacy public runtime values do not erase deployment URLs, but explicit secrets still do', ({

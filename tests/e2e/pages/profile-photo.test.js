@@ -12,6 +12,11 @@ test(
     const originalPut = S3.prototype.putObject
     const originalDelete = S3.prototype.deleteObject
     const objects = new Map()
+    // A legacy configuration value may overlap the public image hostname.
+    // The response must still deliver a usable image URL.
+    sails.hooks.secrets.remember({
+      envVars: { LEGACY_STORAGE_LABEL: 'files.example.test' }
+    })
     const storage = {
       key: 'local-test-only',
       secret: 'local-test-only',
@@ -79,6 +84,13 @@ test(
       await expect(
         page.raw.locator('img[data-test="profile-photo-avatar"]')
       ).toBeVisible()
+      await page.raw.waitForFunction(() => {
+        const images = [...document.querySelectorAll('img[data-slot="avatar"]')]
+        return (
+          images.length >= 2 &&
+          images.every((image) => image.complete && image.naturalWidth > 0)
+        )
+      })
       expect(objects.size).toBe(1)
       const savedKey = [...objects.keys()][0]
       expect(

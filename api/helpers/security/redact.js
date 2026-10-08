@@ -242,7 +242,7 @@ function createRedactor() {
     }
     collect(record)
   }
-  function text(value) {
+  function text(value, publicUrl = false) {
     if (overflow)
       return '[Diagnostic output withheld: redaction capacity exceeded]'
     if (dirty) {
@@ -255,11 +255,13 @@ function createRedactor() {
       )
       dirty = false
     }
-    // Docker routing identifiers are already public in containerName fields.
-    // Preserve the same host in a diagnostic URL, without exempting userinfo,
-    // paths or query credentials. Legacy metadata can classify NODE_ENV as a
-    // secret, and its value must not erase the middle of this public hostname.
-    const hosts = /https?:\/\/slipway-[a-z0-9_.-]+:\d+(?=[/\s?#]|$)/gi
+    // Public access fields and Docker routing identifiers contain hostnames
+    // already exposed by the control plane. Preserve their routing identity
+    // without exempting userinfo, paths or query credentials. Ordinary text
+    // only receives the narrower Docker-host exception.
+    const hosts = publicUrl
+      ? /^https?:\/\/[a-z0-9.[\]:-]+(?=[/\s?#]|$)/gi
+      : /https?:\/\/slipway-[a-z0-9_.-]+:\d+(?=[/\s?#]|$)/gi
     let result = ''
     let offset = 0
     for (const host of value.matchAll(hosts)) {
@@ -301,6 +303,31 @@ function createRedactor() {
         )
         .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9+/_=.-]+/gi, '$1 [REDACTED]')
     )
+  }
+  function routingUrl(value, seen, depth) {
+    if (typeof value !== 'string') return protect(value, seen, depth + 1)
+    try {
+      const url = new URL(value)
+      if (
+        !['http:', 'https:'].includes(url.protocol) ||
+        url.username ||
+        url.password ||
+        !/^https?:\/\/[a-z0-9.[\]:-]+(?=[/?#]|$)/i.test(value)
+      )
+        return text(value)
+      return text(value, true)
+    } catch {
+      return text(value)
+    }
+  }
+  function routingDomain(value, seen, depth) {
+    // Domain fields contain public routing identity, never paths or credentials.
+    return typeof value === 'string' &&
+      /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(
+        value
+      )
+      ? value
+      : protect(value, seen, depth + 1)
   }
   function protect(value, seen = new WeakSet(), depth = 0) {
     if (typeof value === 'string') return text(value)
@@ -361,6 +388,41 @@ function createRedactor() {
           result[key] = entry == null || entry === '' ? entry : HIDDEN
         else if (identifiers.has(key) && typeof entry === 'string')
           result[key] = entry
+        else if (['domain', 'fullDomain', 'generatedDomain'].includes(key))
+          result[key] = routingDomain(entry, seen, depth)
+        else if (key === 'domains' && Array.isArray(entry))
+          result[key] = entry.map((domain) =>
+            routingDomain(domain, seen, depth)
+          )
+        else if (
+          [
+            'primaryUrl',
+            'appUrl',
+            'bridgeUrl',
+            'directUrl',
+            'photoUrl',
+            'logoUrl'
+          ].includes(key)
+        )
+          result[key] = routingUrl(entry, seen, depth)
+        else if (key === 'accessUrls' && Array.isArray(entry))
+          result[key] = entry.map((address) => {
+            const safe = protect(address, seen, depth + 1)
+            if (
+              address &&
+              safe &&
+              typeof safe === 'object' &&
+              ['custom', 'generated', 'direct'].includes(address.kind) &&
+              typeof address.value === 'string' &&
+              address.href === address.value &&
+              address.display === address.value.replace(/^https?:\/\//, '')
+            ) {
+              const url = routingUrl(address.value)
+              safe.value = safe.href = url
+              safe.display = url.replace(/^https?:\/\//, '')
+            }
+            return safe
+          })
         else result[key] = protect(entry, seen, depth + 1)
       }
     }
