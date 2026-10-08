@@ -4,7 +4,7 @@ import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import EllipsisHorizontal from '@/components/ui/icons/EllipsisHorizontal.vue'
 import Input from '@/components/ui/input/Input.vue'
-import { Head, router, useForm } from '@inertiajs/vue3'
+import { Head, Link, router, useForm } from '@inertiajs/vue3'
 import { computed, inject, ref } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
@@ -202,7 +202,7 @@ function timeAgo(timestamp) {
               href: `/projects/${project.slug}/environments/${environment.slug}`
             },
             { label: app.name.toLowerCase(), href: basePath },
-            { label: 'bridge access' }
+            { label: 'bridge' }
           ]"
         />
       </div>
@@ -222,30 +222,45 @@ function timeAgo(timestamp) {
             <p
               class="mt-1 max-w-xl text-sm leading-6 text-gray-500 dark:text-gray-400"
             >
-              Invite people by email. Bridge grants access only after they sign
-              in to {{ app.name }} with that verified address.
+              Work with {{ app.name }} data and manage access to its Bridge.
             </p>
           </div>
           <div class="flex shrink-0 items-center">
-            <a
-              v-if="app.bridgeEnabled && app.bridgeUrl"
-              :href="app.bridgeUrl"
-              target="_blank"
-              rel="noopener"
+            <Link
+              v-if="app.status === 'running'"
+              :href="bridgePath"
               class="min-h-9 inline-flex items-center rounded-lg bg-gray-950 px-3.5 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-950 dark:hover:bg-gray-100"
             >
-              Open public Bridge
-            </a>
-            <button
-              v-if="!app.bridgeEnabled"
-              type="button"
-              class="min-h-9 inline-flex items-center rounded-lg bg-gray-950 px-3.5 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-950 dark:hover:bg-gray-100"
-              @click="setEnabled(true)"
-            >
-              Enable Bridge
-            </button>
+              Open workspace
+            </Link>
           </div>
         </div>
+
+        <section
+          v-if="!app.bridgeEnabled"
+          class="mt-8"
+          aria-labelledby="bridge-access-off-title"
+          data-test="bridge-access-off"
+        >
+          <h2
+            id="bridge-access-off-title"
+            class="text-sm font-medium text-gray-900 dark:text-white"
+          >
+            App-local access is off
+          </h2>
+          <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
+            Your team can use the workspace in Slipway. Enable app-local access
+            to invite people who sign in to {{ app.name }} with a verified
+            email.
+          </p>
+          <button
+            type="button"
+            class="min-h-9 mt-4 inline-flex items-center rounded-lg bg-gray-100 px-3.5 text-sm font-medium text-gray-900 hover:bg-gray-200 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
+            @click="setEnabled(true)"
+          >
+            Enable Bridge
+          </button>
+        </section>
 
         <Alert
           v-if="app.bridgeEnabled && !hookDetected"
@@ -311,7 +326,11 @@ function timeAgo(timestamp) {
           </a>
         </section>
 
-        <section class="mt-10" aria-labelledby="invite-title">
+        <section
+          v-if="app.bridgeEnabled"
+          class="mt-10"
+          aria-labelledby="invite-title"
+        >
           <div>
             <h2
               id="invite-title"

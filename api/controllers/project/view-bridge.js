@@ -72,6 +72,7 @@ module.exports = {
       project,
       environment,
       app,
+      user,
       actor,
       bridgeBasePath,
       bridgeApiBasePath,
@@ -83,6 +84,7 @@ module.exports = {
     // Load models server-side if app is running
     let models = {}
     let modelsError = null
+    let modelsErrorCode = null
     let dashboards = []
     let activeDashboard = null
     let bridgeWorkspace = bridgeHostOrigin
@@ -102,6 +104,7 @@ module.exports = {
 
         if (introspection.error) {
           modelsError = introspection.error
+          modelsErrorCode = introspection.errorCode || 'BRIDGE_RUNTIME_FAILED'
         } else {
           const authorizedModels =
             await sails.helpers.bridge.authorizeResourceActions.with({
@@ -195,6 +198,7 @@ module.exports = {
         }
       } catch (err) {
         modelsError = err.message
+        modelsErrorCode = 'BRIDGE_RUNTIME_FAILED'
       }
     }
 
@@ -217,6 +221,8 @@ module.exports = {
           slug: app.slug
         },
         appScoped: Boolean(appSlug),
+        canManageBridge:
+          !bridgeHostOrigin && ['owner', 'admin'].includes(user?.teamRole),
         bridgeRequestBasePath: bridgeBasePath,
         bridgeRequestApiBasePath: bridgeApiBasePath,
         hostBridgeAssetBasePath: bridgeAssetBasePath,
@@ -225,6 +231,7 @@ module.exports = {
         appRunning,
         models,
         modelsError,
+        modelsErrorCode,
         dashboards,
         activeDashboard
       }

@@ -402,6 +402,9 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       readString(raw.singularLabel) || singularizeLabel(label)
 
     const normalizedActions = normalizeActions(identity, raw.actions)
+    // A disabled form is a hard deny, even if actions explicitly opts in.
+    if (raw.create === false) normalizedActions.permissions.create = false
+    if (raw.edit === false) normalizedActions.permissions.update = false
     const slug = slugFor(identity, raw.slug)
     const resource = {
       identity: model.identity || identity,
@@ -438,13 +441,13 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       create: normalizeFieldList(
         identity,
         'create',
-        raw.create ?? defaultCreateFields,
+        raw.create === false ? [] : raw.create ?? defaultCreateFields,
         writableCreateFields
       ),
       edit: normalizeFieldList(
         identity,
         'edit',
-        raw.edit ?? defaultEditFields,
+        raw.edit === false ? [] : raw.edit ?? defaultEditFields,
         writableEditFields
       ),
       filters: normalizeFieldList(
@@ -2357,7 +2360,11 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
   function normalizeFieldList(identity, surface, value, fieldNames) {
     if (!Array.isArray(value)) {
       throw new Error(
-        `Bridge resource "${identity}".${surface} must be an array of field names.`
+        `Bridge resource "${identity}".${surface} must be an array of field names${
+          ['create', 'edit'].includes(surface)
+            ? ' or false to disable the action'
+            : ''
+        }.`
       )
     }
 

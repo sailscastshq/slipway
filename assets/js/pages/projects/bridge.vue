@@ -23,12 +23,14 @@ const props = defineProps({
   environment: Object,
   app: Object,
   appScoped: Boolean,
+  canManageBridge: Boolean,
   bridgeRequestBasePath: String,
   hostBridgeOrigin: Boolean,
   bridgeWorkspace: Object,
   appRunning: Boolean,
   models: Object,
   modelsError: String,
+  modelsErrorCode: String,
   dashboards: Array,
   activeDashboard: Object
 })
@@ -40,6 +42,24 @@ const bridgeBasePath = computed(
       ? `/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/bridge`
       : `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`)
 )
+const appPath = computed(
+  () =>
+    `/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}`
+)
+const errorTitle = computed(() => {
+  if (props.modelsErrorCode === 'BRIDGE_INVALID_CONFIG')
+    return 'Bridge configuration needs attention'
+  if (props.modelsErrorCode === 'BRIDGE_WORKER_KILLED')
+    return 'Bridge worker was stopped'
+  return 'Bridge is unavailable'
+})
+const errorGuidance = computed(() => {
+  if (props.modelsErrorCode === 'BRIDGE_INVALID_CONFIG')
+    return 'Update sails.config.slipway.bridge in your app, then redeploy. Bridge will check the new configuration when you reopen the workspace.'
+  if (props.modelsErrorCode === 'BRIDGE_WORKER_KILLED')
+    return 'The worker was killed before it finished. Check app logs and memory usage before retrying. Exit 137 can indicate a memory limit or an external kill.'
+  return 'Check the app logs, then retry. The running app may need attention before Bridge can load its resources.'
+})
 
 // Search
 const searchQuery = ref('')
@@ -82,7 +102,9 @@ function bridgeModelUrl(identity) {
 }
 
 function refresh() {
-  router.reload({ only: ['models', 'modelsError', 'activeDashboard'] })
+  router.reload({
+    only: ['models', 'modelsError', 'modelsErrorCode', 'activeDashboard']
+  })
 }
 
 function switchDashboard(id) {
@@ -105,6 +127,13 @@ function switchDashboard(id) {
       :breadcrumbs="[{ label: 'bridge' }]"
     >
       <template #actions>
+        <Link
+          v-if="canManageBridge"
+          :href="`${appPath}/bridge/access`"
+          class="rounded-md px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+        >
+          Manage access
+        </Link>
         <BareSelect
           v-if="dashboards?.length > 1"
           :model-value="activeDashboard?.id"
@@ -177,12 +206,43 @@ function switchDashboard(id) {
           id="bridge-models-error-title"
           class="mt-4 text-sm font-medium text-gray-900 dark:text-white"
         >
-          Failed to load models
+          {{ errorTitle }}
         </h2>
         <p class="mt-1 max-w-sm text-sm text-gray-500 dark:text-gray-400">
-          {{ modelsError }}
+          {{ errorGuidance }}
         </p>
+        <p
+          v-if="hostBridgeOrigin"
+          class="mt-2 max-w-sm text-sm text-gray-500 dark:text-gray-400"
+        >
+          Contact this app's administrator if the problem continues.
+        </p>
+        <div
+          v-else
+          class="mt-4 flex flex-wrap items-center justify-center gap-4 text-sm"
+        >
+          <Link
+            :href="`${appPath}?logs=1`"
+            class="text-gray-700 underline underline-offset-4 dark:text-gray-300"
+          >
+            View app logs
+          </Link>
+          <Link
+            :href="`${appPath}/settings`"
+            class="text-gray-700 underline underline-offset-4 dark:text-gray-300"
+          >
+            App settings
+          </Link>
+        </div>
+        <details
+          v-if="!hostBridgeOrigin"
+          class="mt-4 max-w-xl px-4 text-left text-xs text-gray-500 dark:text-gray-400"
+        >
+          <summary class="cursor-pointer text-center">Error details</summary>
+          <p class="mt-2 whitespace-pre-wrap break-words">{{ modelsError }}</p>
+        </details>
         <button
+          v-if="modelsErrorCode !== 'BRIDGE_INVALID_CONFIG'"
           type="button"
           class="mt-4 inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
           @click="refresh"

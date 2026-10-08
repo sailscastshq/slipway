@@ -11,7 +11,6 @@ import {
   assertMutationResponse
 } from '@/lib/mutation-feedback'
 import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
-import Users from '@/components/ui/icons/Users.vue'
 import Terminal from '@/components/ui/icons/Terminal.vue'
 import Stop from '@/components/ui/icons/Stop.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
@@ -1089,11 +1088,15 @@ onBeforeUnmount(() => {
                       Helm
                     </Link>
                     <Link
-                      :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/bridge`"
+                      :href="`/projects/${project.slug}/environments/${
+                        environment.slug
+                      }/apps/${app.slug}/bridge${
+                        canManageBridge ? '/access' : ''
+                      }`"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
                       <Cube class="h-4 w-4 text-gray-400" stroke-width="2" />
-                      Open Bridge
+                      Bridge
                     </Link>
                     <Link
                       v-if="hasDatabaseService"
@@ -1192,11 +1195,11 @@ onBeforeUnmount(() => {
                       ></span>
                     </button>
                     <Link
-                      v-if="canManageBridge"
+                      v-if="canManageBridge && app.status !== 'running'"
                       :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/bridge/access`"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <Users class="h-4 w-4 text-gray-400" stroke-width="2" />
+                      <Cube class="h-4 w-4 text-gray-400" stroke-width="2" />
                       Bridge
                     </Link>
                     <Link

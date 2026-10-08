@@ -42,6 +42,53 @@ test('Bridge derives a usable resource contract with zero config', async ({
   ])
 })
 
+test('Bridge treats disabled create and edit surfaces as hard action denies', async ({
+  sails,
+  expect
+}) => {
+  const contract = await sails.helpers.bridge.normalizeResourceContract.with({
+    models: modelMetadata(),
+    config: {
+      resources: {
+        course: {
+          create: false,
+          edit: false,
+          actions: { create: true, update: true }
+        }
+      }
+    }
+  })
+  const course = contract.resources.course
+  expect(course.create).toEqual([])
+  expect(course.edit).toEqual([])
+  expect(course.actions.create).toBe(false)
+  expect(course.actions.update).toBe(false)
+  expect(course.actions.view).toBe(true)
+  expect(course.list.length > 0).toBe(true)
+  const originalIntrospect = sails.helpers.bridge.introspectModels
+  sails.helpers.bridge.introspectModels = async () => ({
+    models: contract.resources
+  })
+  try {
+    for (const action of ['create', 'update']) {
+      let rejected
+      try {
+        await sails.helpers.bridge.loadResource.with({
+          containerName: 'disabled-forms',
+          environmentId: 742,
+          modelIdentity: 'course',
+          action
+        })
+      } catch (error) {
+        rejected = error
+      }
+      expect(rejected?.code).toBe('BRIDGE_ACTION_NOT_ALLOWED')
+    }
+  } finally {
+    sails.helpers.bridge.introspectModels = originalIntrospect
+  }
+})
+
 test('Bridge normalizes target metadata through its public Sails helper', async ({
   sails,
   expect

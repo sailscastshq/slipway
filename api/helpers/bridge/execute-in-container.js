@@ -115,7 +115,7 @@ function createWorker({ key, dockerPath, containerName }) {
     failWorker(worker, error.message)
   })
 
-  proc.on('close', (exitCode) => {
+  proc.on('close', (exitCode, signal) => {
     worker.resolveClosed()
     if (worker.closed) {
       if (workers.get(worker.key) === worker) workers.delete(worker.key)
@@ -124,8 +124,14 @@ function createWorker({ key, dockerPath, containerName }) {
     const detail = worker.stderr.trim()
     failWorker(
       worker,
-      detail || `Bridge worker stopped unexpectedly (exit ${exitCode}).`,
-      exitCode || 1
+      detail ||
+        `Bridge worker stopped unexpectedly (${
+          signal ? `signal ${signal}` : `exit ${exitCode}`
+        }).`,
+      exitCode || 1,
+      exitCode === 137 || signal === 'SIGKILL'
+        ? 'BRIDGE_WORKER_KILLED'
+        : 'BRIDGE_RUNTIME_FAILED'
     )
   })
 
@@ -242,7 +248,7 @@ function retireIdleWorker(worker) {
   }
 }
 
-function failWorker(worker, message, exitCode = 1) {
+function failWorker(worker, message, exitCode = 1, errorCode) {
   if (worker.closed) return
   worker.closed = true
   clearIdleTimer(worker)
@@ -250,19 +256,20 @@ function failWorker(worker, message, exitCode = 1) {
 
   for (const pending of worker.pending.values()) {
     clearTimeout(pending.timer)
-    pending.resolve(failure(message, exitCode))
+    pending.resolve(failure(message, exitCode, errorCode))
   }
   worker.pending.clear()
 
   if (!worker.proc.killed) worker.proc.kill('SIGTERM')
 }
 
-function failure(message, exitCode = 1) {
+function failure(message, exitCode = 1, errorCode = 'BRIDGE_RUNTIME_FAILED') {
   return {
     success: false,
     output: '',
     error: message || 'Bridge worker failed.',
-    exitCode
+    exitCode,
+    errorCode
   }
 }
 

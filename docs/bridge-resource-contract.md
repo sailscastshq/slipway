@@ -464,6 +464,13 @@ Setting a surface to `false` is a hard deny for that surface, including forged
 payloads. Setting it to `true` explicitly opts a sensitive-name field into that
 surface. Protected values are never readable through Bridge.
 
+Resource-level `create` and `edit` normally contain field-name arrays. Set
+`create: false` to disable record creation, or `edit: false` to disable record
+updates. Each shorthand produces an empty form surface and a hard action deny,
+even if `actions.create` or `actions.update` is set to `true`. Direct requests
+are rejected too. Use `actions` for other operation permissions; `true` is not
+a field list.
+
 ## Target app authorization
 
 Static `actions` remain useful for permanently disabling operations. For the
