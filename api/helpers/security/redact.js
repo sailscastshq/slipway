@@ -8,6 +8,7 @@ const configurationMaps = new Map([
   ['appEnvVars', 'appEnvVarMetadata'],
   ['globalEnvVars', 'globalEnvVarMetadata']
 ])
+const configurationMetadata = new Set(configurationMaps.values())
 function isCredentialName(name) {
   return (
     sensitive.test(name.replace(/[^a-z]/gi, '')) ||
@@ -240,6 +241,8 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
         return
       }
       for (const [key, entry] of Object.entries(value)) {
+        // Variable names in this map label public annotations, not values.
+        if (configurationMetadata.has(key)) continue
         if (key === 'env' && !presentation) collect(entry, true)
         else if (configurationMaps.has(key) || key === 'env') {
           const metadata = value[configurationMaps.get(key)] || {}
@@ -455,6 +458,18 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
           result[key] = entry.map((token) => protect(token, seen, depth + 1))
         else if (typeof entry === 'boolean' && /^has[A-Z]/.test(key))
           result[key] = entry
+        else if (
+          presentation &&
+          configurationMetadata.has(key) &&
+          entry &&
+          typeof entry === 'object'
+        )
+          result[key] = Object.fromEntries(
+            Object.entries(entry).map(([name, metadata]) => [
+              name,
+              protect(metadata, seen, depth + 1)
+            ])
+          )
         else if (configurationMaps.has(key) || (presentation && key === 'env'))
           result[key] = publicValues(
             entry && typeof entry === 'object' ? entry : {},

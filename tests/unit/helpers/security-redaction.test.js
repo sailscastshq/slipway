@@ -585,3 +585,45 @@ test('response credential sources retain encoding protection and scoped grants w
   res.statusCode = 200
   expect(res.json({ value: canary, error: 'failed' }).value).toBe('[REDACTED]')
 })
+
+test('secret-variable annotations stay public and never seed response credential patterns', ({
+  expect
+}) => {
+  const hook = require('../../../api/hooks/secrets')({})
+  const metadata = {
+    APP_SECRET: {
+      kind: 'secret',
+      previewPolicy: 'omit',
+      description: 'Signing configuration for flossafrica',
+      changedByName: 'Kelvin Omereshone'
+    }
+  }
+  hook.remember({
+    secureEnvVars: { APP_SECRET: 'metadata-credential-canary-746' },
+    envVarMetadata: metadata
+  })
+  const res = { statusCode: 200, json: (v) => v, set() {} }
+  hook.routes.before['/*'](
+    { options: { action: 'project/view-app' } },
+    res,
+    () => {}
+  )
+  const safe = res.json({
+    envVars: { APP_SECRET: 'metadata-credential-canary-746' },
+    envVarMetadata: metadata,
+    user: { fullName: 'Kelvin Omereshone' },
+    description: metadata.APP_SECRET.description,
+    actualCredential: 'metadata-credential-canary-746'
+  })
+  expect(JSON.parse(JSON.stringify(safe.envVarMetadata))).toEqual(metadata)
+  expect(safe.user.fullName).toBe('Kelvin Omereshone')
+  expect(safe.description).toBe(metadata.APP_SECRET.description)
+  expect(hook.text(metadata.APP_SECRET.description)).toBe(
+    metadata.APP_SECRET.description
+  )
+  expect(hook.text('Kelvin Omereshone metadata-credential-canary-746')).toBe(
+    'Kelvin Omereshone [REDACTED]'
+  )
+  expect(safe.actualCredential).toBe('[REDACTED]')
+  expect(safe.envVars.APP_SECRET).toBe('[REDACTED]')
+})

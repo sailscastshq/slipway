@@ -59,7 +59,9 @@ The response catalogue registers credentials from sensitive fields, explicit
 `kind: secret` metadata, recognizable legacy credential variable names
 (passwords, tokens, keys, DSNs and database connection URLs), and supported
 credential settings such as SMTP passwords, webhooks and backup storage keys.
-Encryption at rest is not classification: neither an encrypted settings column
+Variable metadata is annotation, not credential material: secret variable names
+must not register their descriptions or author names as secret patterns, and
+those annotations remain readable. Encryption at rest is not classification: neither an encrypted settings column
 nor `secureEnvVars` makes all nested labels and coordinates credentials.
 Explicit `kind: plain` environment metadata remains an administrator decision.
 Unknown variables still cannot be read from a configuration map without reveal.
