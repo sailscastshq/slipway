@@ -13,7 +13,11 @@ test('response redaction preserves public project names while masking matching c
   })
   hook.remember({ key: 'smtpUsername', encryptedValue: 'kelvin@example.test' })
   hook.remember({
-    envVars: { LEGACY_LABEL: 'sailsconf', STORAGE_LABEL: 'files.example.test' }
+    envVars: {
+      LEGACY_LABEL: 'sailsconf',
+      STORAGE_LABEL: 'files.example.test',
+      OWNER_LABEL: 'sailscasts'
+    }
   })
   const request = { options: { action: 'dashboard/view-dashboard' } }
   const response = {
@@ -30,6 +34,13 @@ test('response redaction preserves public project names while masking matching c
         { id: 1, name: 'flossafrica', slug: 'flossafrica', status: 'running' }
       ],
       appName: 'flossafrica',
+      connectedRepo: {
+        id: 7,
+        owner: 'sailscastshq',
+        name: 'chieflevite',
+        fullName: 'sailscastshq/chieflevite',
+        htmlUrl: 'https://github.com/sailscastshq/chieflevite'
+      },
       app: {
         fullDomain: 'sailsconf.com',
         generatedDomain: 'sailsconf-production.slipway.test',
@@ -75,6 +86,9 @@ test('response redaction preserves public project names while masking matching c
   ]) {
     expect(result.props.projects[0].name).toBe('flossafrica')
     expect(result.props.appName).toBe('flossafrica')
+    expect(JSON.parse(JSON.stringify(result.props.connectedRepo))).toEqual(
+      page.props.connectedRepo
+    )
     expect(result.props.user.email).toBe('kelvin@example.test')
     expect(result.props.user.photoUrl).toBe(page.props.user.photoUrl)
     expect(result.props.team.logoUrl).toBe(page.props.team.logoUrl)
@@ -85,6 +99,51 @@ test('response redaction preserves public project names while masking matching c
     expect(result.props.envVars.API_TOKEN).toBe('[REDACTED]')
     expect(result.props.message).toBe('flossafrica [REDACTED]')
   }
+})
+
+test('repository identity exemptions require a consistent structured repository and never exempt clone credentials or unrelated full names', ({
+  expect
+}) => {
+  const redact = createRedactor()
+  redact.remember({
+    envVars: { LABEL: 'sailscasts', TOKEN: 'github-canary-739' }
+  })
+  const repo = {
+    id: '739',
+    owner: 'sailscastshq',
+    name: 'chieflevite',
+    fullName: 'sailscastshq/chieflevite',
+    htmlUrl: 'https://github.com/sailscastshq/chieflevite',
+    cloneUrl:
+      'https://user:github-canary-739@github.com/sailscastshq/chieflevite.git?token=github-canary-739',
+    token: 'github-canary-739'
+  }
+  const result = redact.protect({
+    repos: [repo],
+    fullName: repo.fullName,
+    owner: repo.owner,
+    message: repo.fullName,
+    invalid: { ...repo, name: 'different' },
+    unsafe: {
+      ...repo,
+      htmlUrl:
+        'https://user:github-canary-739@github.com/sailscastshq/chieflevite'
+    }
+  })
+  expect(result.repos[0].fullName).toBe(repo.fullName)
+  expect(result.repos[0].owner).toBe(repo.owner)
+  expect(result.repos[0].htmlUrl).toBe(repo.htmlUrl)
+  expect(result.repos[0].token).toBe('[REDACTED]')
+  expect(result.repos[0].cloneUrl).toBe(
+    'https://[REDACTED]@github.com/[REDACTED]hq/chieflevite.git?token=[REDACTED]'
+  )
+  expect(result.fullName).toBe('[REDACTED]hq/chieflevite')
+  expect(result.owner).toBe('[REDACTED]hq')
+  expect(result.message).toBe('[REDACTED]hq/chieflevite')
+  expect(result.invalid.fullName).toBe('[REDACTED]hq/chieflevite')
+  expect(result.unsafe.fullName).toBe('[REDACTED]hq/chieflevite')
+  redact.remember({ key: 'webhookUrl', value: repo.htmlUrl })
+  expect(redact.protect(repo).htmlUrl).toBe('[REDACTED]')
 })
 
 test('public routing URL fields still mask credentials and reject inconsistent access labels', ({

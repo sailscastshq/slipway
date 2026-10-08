@@ -20,6 +20,9 @@ for (const flow of ['create', 'connect']) {
     },
     async ({ sails, world, login, page, expect }) => {
       const current = world.current
+      sails.hooks.secrets.remember({
+        envVars: { LEGACY_OWNER_LABEL: 'sailscasts' }
+      })
       const provider = await world.create('gitprovider').with({
         team: current.teams.genesisTeam.id,
         clientSecret: `pagination-${flow}`
@@ -36,8 +39,12 @@ for (const flow of ['create', 'connect']) {
         }`,
         owner: { login: 'sailscastshq' },
         default_branch: 'main',
-        ssh_url: `git@github.com:sailscastshq/project-${id}.git`,
-        html_url: `https://github.com/sailscastshq/project-${id}`,
+        ssh_url: `git@github.com:sailscastshq/${
+          id === 201 ? 'sailsconf.com' : `project-${id}`
+        }.git`,
+        html_url: `https://github.com/sailscastshq/${
+          id === 201 ? 'sailsconf.com' : `project-${id}`
+        }`,
         private: true
       })
       global.fetch = async (url, options) => {
@@ -204,10 +211,17 @@ test(
   },
   async ({ sails, world, login, page, expect }) => {
     const current = world.current
+    sails.hooks.secrets.remember({
+      envVars: { LEGACY_OWNER_LABEL: 'sailscasts' }
+    })
     const provider = await world
       .create('gitprovider')
       .with({ team: current.teams.genesisTeam.id })
     const repository = await world.create('gitrepository').with({
+      fullName: 'sailscastshq/chieflevite',
+      owner: 'sailscastshq',
+      name: 'chieflevite',
+      htmlUrl: 'https://github.com/sailscastshq/chieflevite',
       provider: provider.id,
       app: current.apps.web.id,
       environment: current.environments.production.id,
@@ -240,6 +254,12 @@ test(
       await page.goto(
         `/projects/webhook-repair-ui/environments/production/apps/web/settings`
       )
+      await expect(
+        page.raw.getByRole('link', {
+          name: 'sailscastshq/chieflevite',
+          exact: true
+        })
+      ).toHaveAttribute('href', 'https://github.com/sailscastshq/chieflevite')
       await expect(
         page.raw.getByRole('switch', { name: 'Auto-deploy on push' })
       ).toBeChecked()

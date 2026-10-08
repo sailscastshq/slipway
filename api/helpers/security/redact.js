@@ -63,6 +63,24 @@ const identifiers = new Set([
   'key',
   '_csrf'
 ])
+function isGithubRepository(value) {
+  if (
+    !value.id ||
+    typeof value.owner !== 'string' ||
+    !/^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$/i.test(value.owner) ||
+    typeof value.name !== 'string' ||
+    !/^[a-z0-9_.-]{1,100}$/i.test(value.name) ||
+    ['.', '..'].includes(value.name) ||
+    value.fullName !== `${value.owner}/${value.name}`
+  )
+    return false
+  // Legacy linked records may have no web URL. If supplied, it must be the
+  // canonical, credential-free GitHub page for this exact owner/name pair.
+  return (
+    value.htmlUrl == null ||
+    value.htmlUrl === `https://github.com/${value.fullName}`
+  )
+}
 module.exports = {
   friendlyName: 'Redact diagnostic output',
   description:
@@ -352,6 +370,7 @@ function createRedactor() {
       result = value.map((entry) => protect(entry, seen, depth + 1))
     else {
       result = Object.create(null)
+      const repositoryIdentity = isGithubRepository(value)
       for (const [key, entry] of Object.entries(value)) {
         if (
           key === 'errors' &&
@@ -388,6 +407,12 @@ function createRedactor() {
           result[key] = entry == null || entry === '' ? entry : HIDDEN
         else if (identifiers.has(key) && typeof entry === 'string')
           result[key] = entry
+        else if (
+          repositoryIdentity &&
+          ['owner', 'fullName', 'htmlUrl'].includes(key)
+        )
+          result[key] =
+            key === 'htmlUrl' && variants.has(entry) ? HIDDEN : entry
         else if (['domain', 'fullDomain', 'generatedDomain'].includes(key))
           result[key] = routingDomain(entry, seen, depth)
         else if (key === 'domains' && Array.isArray(entry))
