@@ -134,6 +134,22 @@ test(
       ).toHaveCount(0)
       await page.raw
         .locator('#bridge-conferenceevent-title')
+        .fill('Support [REDACTED]')
+      await page.raw
+        .getByRole('button', { name: 'Save changes', exact: true })
+        .click()
+      await expect(
+        page.raw
+          .getByText(/This field contains a redaction placeholder/)
+          .first()
+      ).toBeVisible()
+      expect(record.title).toBe('SailsConf 2026')
+      await page.raw.reload()
+      await expect(
+        page.raw.locator('#bridge-conferenceevent-title')
+      ).toHaveValue('SailsConf 2026')
+      await page.raw
+        .locator('#bridge-conferenceevent-title')
         .fill('SailsConf 2026 proposals')
       await page.raw
         .getByRole('button', { name: 'Save changes', exact: true })

@@ -170,3 +170,11 @@ or exported data, revoke/rotate it at its provider and update the deployed app.
 Masking does not revoke a leaked credential, delete copies already downloaded,
 or repair previous disclosure. Use Slipway diagnostic APIs for support packets;
 do not attach unredacted database files, environment dumps or process heaps.
+
+Bridge create/edit submissions reject `[REDACTED]` placeholders, including nested
+JSON and collection values, before mutating a target application record. The field
+error asks the operator to reload and restore the original text. This prevents a
+masked form value from overwriting real data. It also means existing affected
+records must have their original text restored before saving; an update cannot
+infer text that was already replaced in an application database. This safeguard
+reserves the literal `[REDACTED]` marker in Bridge mutation fields.

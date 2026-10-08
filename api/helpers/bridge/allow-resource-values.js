@@ -94,6 +94,12 @@ module.exports = {
         continue
       }
 
+      if (containsRedactionPlaceholder(values[key])) {
+        fieldErrors[key] =
+          'This field contains a redaction placeholder. Reload the record and restore the original text before saving.'
+        continue
+      }
+
       const attribute = resource.attributes[key]
       const association = (resource.associations || []).find(
         (candidate) => candidate.type === 'model' && candidate.alias === key
@@ -398,4 +404,17 @@ function containsRawHtml(value) {
   return /<!--[\s\S]*?-->|<\/?[a-z][^<>]*>|<![A-Z][^>]*>|<\?[\s\S]*?\?>/i.test(
     withoutAutolinks
   )
+}
+
+function containsRedactionPlaceholder(value) {
+  const pending = [value]
+  const seen = new WeakSet()
+  while (pending.length) {
+    const entry = pending.pop()
+    if (typeof entry === 'string' && entry.includes('[REDACTED]')) return true
+    if (!entry || typeof entry !== 'object' || seen.has(entry)) continue
+    seen.add(entry)
+    pending.push(...Object.values(entry))
+  }
+  return false
 }
