@@ -40,6 +40,7 @@ const identifiers = new Set([
   'projectName',
   'environmentName',
   'serviceName',
+  'email',
   'slug',
   'status',
   'type',

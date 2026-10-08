@@ -11,6 +11,7 @@ test('response redaction preserves public project names while masking matching c
   hook.remember({
     appEnvVars: { APP_NAME: 'flossafrica', API_TOKEN: 'credential-canary-734' }
   })
+  hook.remember({ key: 'smtpUsername', encryptedValue: 'kelvin@example.test' })
   const request = { options: { action: 'dashboard/view-dashboard' } }
   const response = {
     statusCode: 200,
@@ -26,6 +27,8 @@ test('response redaction preserves public project names while masking matching c
         { id: 1, name: 'flossafrica', slug: 'flossafrica', status: 'running' }
       ],
       appName: 'flossafrica',
+      user: { id: 2, name: 'Kelvin', email: 'kelvin@example.test' },
+      smtpPassword: 'kelvin@example.test',
       token: 'flossafrica',
       envVars: { APP_NAME: 'flossafrica', API_TOKEN: 'credential-canary-734' },
       message: 'flossafrica credential-canary-734'
@@ -37,6 +40,8 @@ test('response redaction preserves public project names while masking matching c
   ]) {
     expect(result.props.projects[0].name).toBe('flossafrica')
     expect(result.props.appName).toBe('flossafrica')
+    expect(result.props.user.email).toBe('kelvin@example.test')
+    expect(result.props.smtpPassword).toBe('[REDACTED]')
     expect(result.props.token).toBe('[REDACTED]')
     expect(result.props.envVars.APP_NAME).toBe('[REDACTED]')
     expect(result.props.envVars.API_TOKEN).toBe('[REDACTED]')
