@@ -70,7 +70,10 @@ module.exports = {
           : null,
         connectedRepos: connectedRepos.map((r) => ({
           id: r.id,
+          owner: r.owner,
+          name: r.name,
           fullName: r.fullName,
+          htmlUrl: r.htmlUrl,
           defaultBranch: r.defaultBranch,
           isPrivate: r.isPrivate,
           environment: r.environment

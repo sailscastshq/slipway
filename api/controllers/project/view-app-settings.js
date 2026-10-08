@@ -67,6 +67,8 @@ module.exports = {
       ? {
           id: gitRepo.id,
           fullName: gitRepo.fullName,
+          owner: gitRepo.owner,
+          name: gitRepo.name,
           htmlUrl: gitRepo.htmlUrl,
           defaultBranch: gitRepo.defaultBranch,
           deployBranch,
