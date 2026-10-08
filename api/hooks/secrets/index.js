@@ -2,6 +2,14 @@ const { createRedactor } = require('../../helpers/security/redact')._private
 
 module.exports = function secretsHook(sails) {
   const redact = createRedactor()
+  const credentials = createRedactor({
+    context: 'response',
+    diagnostics: redact
+  })
+  function remember(value) {
+    redact.remember(value)
+    credentials.remember(value)
+  }
   // Only intentional credential fields from successful, authenticated actions
   // bypass masking. Errors from the same actions still go through redaction.
   const grants = {
@@ -18,7 +26,10 @@ module.exports = function secretsHook(sails) {
     'project/bridge-resume-upload-field': ['uploadUrl']
   }
   function response(req, res, value) {
-    const result = redact.protect(value)
+    const result =
+      res.statusCode >= 400 || value instanceof Error
+        ? redact.protect(value)
+        : credentials.protect(value)
     if (
       req.options?.action === 'auth/view-reset-password' &&
       value?.props?.token &&
@@ -65,7 +76,7 @@ module.exports = function secretsHook(sails) {
     return result
   }
   const hook = {
-    remember: redact.remember,
+    remember,
     protect: redact.protect,
     text: redact.text,
     stream: redact.stream,
@@ -73,9 +84,9 @@ module.exports = function secretsHook(sails) {
       sails.after('hook:orm:loaded', async () => {
         let section = 'instance configuration'
         try {
-          redact.remember({ secret: sails.config.session?.secret })
-          redact.remember(sails.config.custom || {})
-          redact.remember({
+          remember({ secret: sails.config.session?.secret })
+          remember(sails.config.custom || {})
+          remember({
             accessKey: sails.config.uploads?.key,
             secret: sails.config.uploads?.secret
           })
@@ -107,7 +118,7 @@ module.exports = function secretsHook(sails) {
                 .skip(offset)
                 .limit(100)
                 .decrypt()
-              records.forEach(redact.remember)
+              records.forEach(remember)
               if (records.length < 100) break
             }
           }
@@ -147,10 +158,18 @@ module.exports = function secretsHook(sails) {
           res.view = function (name, locals, ...args) {
             if (locals?.page) {
               const originalPage = locals.page
+              const page = response(req, res, originalPage)
               locals = {
                 ...locals,
-                page: response(req, res, locals.page),
-                ssr: redact.protect(locals.ssr)
+                page,
+                // SSR was rendered before this response boundary. If props were
+                // sanitized, discard that HTML and let Inertia render the safe
+                // page in the browser. Never do substring surgery on markup.
+                ssr:
+                  locals.ssr &&
+                  JSON.stringify(page) === JSON.stringify(originalPage)
+                    ? locals.ssr
+                    : null
               }
               if (
                 req.options?.action === 'auth/view-reset-password' &&

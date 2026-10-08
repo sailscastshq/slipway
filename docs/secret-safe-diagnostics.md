@@ -1,6 +1,6 @@
 # Secret-safe configuration and diagnostics
 
-Slipway 0.0.90 returns configuration values as `[REDACTED]` by default. A
+Slipway returns configuration values as `[REDACTED]` by default. A
 variable is public only when its metadata explicitly declares `kind: plain`.
 This applies to arbitrary variable names, not just keys containing `SECRET` or
 `PASSWORD`. Declaring a value public is an administrator decision: do not mark
@@ -40,6 +40,53 @@ The updated CLI's `db:url` intentionally reveals a connection URL after server
 authorization and auditing. Existing CLI deployment commands continue working;
 a CLI update is needed for the new reveal behavior and its additional client
 output protection, not for host-port allocation or server-side redaction.
+
+## Presentation and credential classification
+
+Response protection and diagnostic protection have separate catalogues. Unknown
+legacy environment values are deliberately hidden in configuration maps and
+masked in logs, errors and diagnostic streams. That conservative decision does
+not make them secret patterns for unrelated page content. For example, a legacy
+`BRAND=flossafrica` must not turn a Bearing title `Support flossafrica` into
+`Support [REDACTED]`. The same rule covers arbitrary titles, descriptions,
+rich text, emails, image origins and navigation URLs; it needs no display-field
+allowlist.
+
+The response catalogue registers credentials from sensitive fields, explicit
+`kind: secret` metadata, recognizable legacy credential variable names
+(passwords, tokens, keys, DSNs and database connection URLs), and supported
+credential settings such as SMTP passwords, webhooks and backup storage keys.
+Encryption at rest is not classification: neither an encrypted settings column
+nor `secureEnvVars` makes all nested labels and coordinates credentials.
+Explicit `kind: plain` environment metadata remains an administrator decision.
+Unknown variables still cannot be read from a configuration map without reveal.
+
+Confirmed credential values and their supported encodings remain masked even
+inside display-name, domain and other presentation fields. These fields no
+longer bypass credential protection. If a public label really equals an
+explicitly classified credential, rotate that credential or correct its metadata;
+there is no global display-name exemption. Arbitrarily named, unclassified
+secrets copied into unrelated free-form content cannot reliably be identified
+without also guessing at public text: source DTOs and secret metadata remain
+part of the security boundary.
+
+JSON, Inertia initial pages, navigation responses and SSE use response
+protection. Error HTTP responses, Error instances and explicit diagnostic
+fields (`error`, `errors`, `stack`, `buildLogs`, `stdout`, `stderr`) retain the
+conservative diagnostic policy. Existing persistence and streaming protections
+remain in place. Intentional capability grants below remain action- and
+success-scoped.
+
+Rendered SSR markup is never searched and rewritten. If response protection
+changes props, the already-rendered HTML is discarded and Inertia renders the
+sanitized page in the browser. Unchanged pages retain their exact SSR output.
+This avoids both credential-bearing stale HTML and damaged markup/hydration.
+
+This separation follows the distinction between protected diagnostic data in
+[OWASP's logging guidance](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html)
+and context/field-based redaction described in
+[Pino's documentation](https://github.com/pinojs/pino/blob/main/docs/redaction.md).
+Slipway implements it in its local Sails hook without adding a logger dependency.
 
 ## Diagnostic boundaries and limits
 
