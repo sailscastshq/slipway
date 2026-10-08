@@ -474,6 +474,42 @@ test(
       }
     })
 
+    const originalIntrospect = sails.helpers.bridge.introspectModels
+    try {
+      await sails.models.app
+        .updateOne({ id: app.id })
+        .set({ status: 'running', containerName: 'host-origin-error-742' })
+      sails.helpers.bridge.introspectModels = async () => ({
+        error: 'Internal diagnostic at /private/app/config/slipway.js:42',
+        errorCode: 'BRIDGE_INVALID_CONFIG'
+      })
+      const failedBridge = await request
+        .withSession(launch.session)
+        .get(internalBridgePath, {
+          headers: {
+            host: 'host-app.example',
+            'x-forwarded-host': 'host-app.example',
+            'x-inertia': 'true',
+            accept: 'text/html, application/xhtml+xml'
+          }
+        })
+      expect(failedBridge).toHaveStatus(200)
+      expect(failedBridge).toHaveInertiaProps({
+        modelsError: "Bridge could not load this app's resources.",
+        modelsErrorCode: 'BRIDGE_INVALID_CONFIG',
+        canViewDiagnostics: false,
+        canManageBridge: false
+      })
+      expect(JSON.stringify(failedBridge.data).includes('/private/app')).toBe(
+        false
+      )
+    } finally {
+      sails.helpers.bridge.introspectModels = originalIntrospect
+      await sails.models.app
+        .updateOne({ id: app.id })
+        .set({ status: app.status, containerName: app.containerName })
+    }
+
     const search = await request
       .withSession(launch.session)
       .get(`${internalBridgePath}/user?search=ada`, {

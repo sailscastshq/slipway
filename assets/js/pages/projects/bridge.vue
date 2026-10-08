@@ -24,6 +24,7 @@ const props = defineProps({
   app: Object,
   appScoped: Boolean,
   canManageBridge: Boolean,
+  canViewDiagnostics: Boolean,
   bridgeRequestBasePath: String,
   hostBridgeOrigin: Boolean,
   bridgeWorkspace: Object,
@@ -212,7 +213,7 @@ function switchDashboard(id) {
           {{ errorGuidance }}
         </p>
         <p
-          v-if="hostBridgeOrigin"
+          v-if="!canViewDiagnostics"
           class="mt-2 max-w-sm text-sm text-gray-500 dark:text-gray-400"
         >
           Contact this app's administrator if the problem continues.
@@ -235,7 +236,7 @@ function switchDashboard(id) {
           </Link>
         </div>
         <details
-          v-if="!hostBridgeOrigin"
+          v-if="canViewDiagnostics"
           class="mt-4 max-w-xl px-4 text-left text-xs text-gray-500 dark:text-gray-400"
         >
           <summary class="cursor-pointer text-center">Error details</summary>

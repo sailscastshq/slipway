@@ -223,6 +223,7 @@ module.exports = {
         appScoped: Boolean(appSlug),
         canManageBridge:
           !bridgeHostOrigin && ['owner', 'admin'].includes(user?.teamRole),
+        canViewDiagnostics: !resolved.access,
         bridgeRequestBasePath: bridgeBasePath,
         bridgeRequestApiBasePath: bridgeApiBasePath,
         hostBridgeAssetBasePath: bridgeAssetBasePath,
@@ -230,7 +231,10 @@ module.exports = {
         bridgeWorkspace,
         appRunning,
         models,
-        modelsError,
+        modelsError:
+          resolved.access && modelsError
+            ? "Bridge could not load this app's resources."
+            : modelsError,
         modelsErrorCode,
         dashboards,
         activeDashboard
