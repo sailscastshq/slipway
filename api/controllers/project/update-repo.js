@@ -54,17 +54,44 @@ module.exports = {
     })
     if (!app) throw { notFound: `/projects/${slug}/environments/${envSlug}` }
 
-    const repo = await GitRepository.findOne({ app: app.id })
+    const repo = await GitRepository.findOne({ app: app.id }).decrypt()
     if (!repo) {
       sails.inertia.flash('error', 'No repository connected to this app')
       return redirectUrl
+    }
+
+    if (autoDeploy) {
+      const provider = await GitProvider.findOne({
+        id: repo.provider,
+        team: user.team,
+        type: 'github',
+        isActive: true
+      }).decrypt()
+      if (!provider?.clientSecret) {
+        sails.inertia.flash(
+          'error',
+          'Connect GitHub in Settings → Git before enabling auto-deploy.'
+        )
+        return redirectUrl
+      }
+      const webhook = await sails.helpers.git.checkGithubWebhook.with({
+        accessToken: provider.clientSecret,
+        repository: repo,
+        repair: true
+      })
+      if (webhook.status !== 'ready') {
+        sails.inertia.flash('error', webhook.message)
+        return redirectUrl
+      }
     }
 
     await GitRepository.updateOne({ id: repo.id }).set({ autoDeploy })
 
     sails.inertia.flash(
       'success',
-      `Auto-deploy ${autoDeploy ? 'enabled' : 'disabled'}`
+      autoDeploy
+        ? 'Auto-deploy enabled for future pushes. Manually deploy any push missed while the webhook was inactive.'
+        : 'Auto-deploy disabled'
     )
     return redirectUrl
   }

@@ -53,11 +53,11 @@ module.exports = {
       team: user.team.id,
       type: 'github',
       isActive: true
-    })
+    }).decrypt()
     const githubConnected = !!gitProvider
 
     // Get connected repository for this app
-    const gitRepo = await GitRepository.findOne({ app: app.id })
+    const gitRepo = await GitRepository.findOne({ app: app.id }).decrypt()
     // Determine the deploy branch from branchMappings (first key), fallback to defaultBranch
     const deployBranch = gitRepo
       ? Object.keys(gitRepo.branchMappings || {})[0] || gitRepo.defaultBranch
@@ -70,7 +70,18 @@ module.exports = {
           htmlUrl: gitRepo.htmlUrl,
           defaultBranch: gitRepo.defaultBranch,
           deployBranch,
-          autoDeploy: gitRepo.autoDeploy
+          autoDeploy: gitRepo.autoDeploy,
+          webhook:
+            gitProvider?.clientSecret && gitRepo.provider === gitProvider.id
+              ? await sails.helpers.git.checkGithubWebhook.with({
+                  accessToken: gitProvider.clientSecret,
+                  repository: gitRepo
+                })
+              : {
+                  status: 'unverified',
+                  message:
+                    'Connect GitHub in Settings → Git to verify this webhook.'
+                }
         }
       : null
 
