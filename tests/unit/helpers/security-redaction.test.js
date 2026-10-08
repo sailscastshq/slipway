@@ -4,6 +4,100 @@ const { test } = require('sounding')
 const { createRedactor, preserveValues, publicValues } =
   require('../../../api/helpers/security/redact')._private
 
+test('response redaction preserves public project names while masking matching credential values', ({
+  expect
+}) => {
+  const hook = require('../../../api/hooks/secrets')({})
+  hook.remember({
+    appEnvVars: { APP_NAME: 'flossafrica', API_TOKEN: 'credential-canary-734' }
+  })
+  hook.remember({ key: 'smtpUsername', encryptedValue: 'kelvin@example.test' })
+  const request = { options: { action: 'dashboard/view-dashboard' } }
+  const response = {
+    statusCode: 200,
+    json: (value) => value,
+    view: (name, locals) => locals,
+    set() {}
+  }
+  hook.routes.before['/*'](request, response, () => {})
+  const page = {
+    component: 'dashboard/index',
+    props: {
+      projects: [
+        { id: 1, name: 'flossafrica', slug: 'flossafrica', status: 'running' }
+      ],
+      appName: 'flossafrica',
+      user: { id: 2, name: 'Kelvin', email: 'kelvin@example.test' },
+      smtpPassword: 'kelvin@example.test',
+      token: 'flossafrica',
+      envVars: { APP_NAME: 'flossafrica', API_TOKEN: 'credential-canary-734' },
+      message: 'flossafrica credential-canary-734'
+    }
+  }
+  for (const result of [
+    response.json(page),
+    response.view('app', { page }).page
+  ]) {
+    expect(result.props.projects[0].name).toBe('flossafrica')
+    expect(result.props.appName).toBe('flossafrica')
+    expect(result.props.user.email).toBe('kelvin@example.test')
+    expect(result.props.smtpPassword).toBe('[REDACTED]')
+    expect(result.props.token).toBe('[REDACTED]')
+    expect(result.props.envVars.APP_NAME).toBe('[REDACTED]')
+    expect(result.props.envVars.API_TOKEN).toBe('[REDACTED]')
+    expect(result.props.message).toBe('flossafrica [REDACTED]')
+  }
+})
+
+test('legacy public runtime values do not erase deployment URLs, but explicit secrets still do', ({
+  expect
+}) => {
+  const redact = createRedactor()
+  redact.remember({
+    envVars: {
+      NODE_ENV: 'production',
+      APP_NAME: 'chieflevite',
+      ODD_NAME: 'private-canary-734'
+    }
+  })
+  const endpoint =
+    'http://slipway-chieflevite-production-chieflevite-com-733:1337/health'
+  expect(redact.text(`Health check: polling ${endpoint}`)).toBe(
+    `Health check: polling ${endpoint}`
+  )
+  expect(redact.text('private-canary-734')).toBe('[REDACTED]')
+  expect(
+    redact.protect({ envVars: { NODE_ENV: 'production' } }).envVars.NODE_ENV
+  ).toBe('[REDACTED]')
+  redact.remember({
+    envVars: { APP_NAME: 'private-name-734' },
+    envVarMetadata: { APP_NAME: { kind: 'secret' } }
+  })
+  expect(redact.text('private-name-734')).toBe('[REDACTED]')
+  redact.remember({
+    envVars: { NODE_ENV: 'production' },
+    envVarMetadata: { NODE_ENV: { kind: 'secret' } }
+  })
+  expect(redact.text(`${endpoint}?token=private-canary-734`)).toBe(
+    `${endpoint}?token=[REDACTED]`
+  )
+  expect(redact.text('production private-name-734')).toBe(
+    '[REDACTED] [REDACTED]'
+  )
+  expect(
+    redact.text(
+      'http://user:private-canary-734@slipway-chieflevite-production-chieflevite-com-733:1337/health'
+    )
+  ).toBe(
+    'http://[REDACTED]@slipway-chieflevite-[REDACTED]-chieflevite-com-733:1337/health'
+  )
+  const webhook = 'http://slipway-private-webhook:1337/private-capability'
+  redact.remember({ key: 'webhookUrl', value: webhook })
+  expect(redact.text(`Failed request ${webhook}`)).toBe(
+    'Failed request [REDACTED]'
+  )
+})
+
 test('diagnostics mask nested credentials, URLs and common reversible encodings without changing control data', ({
   expect
 }) => {

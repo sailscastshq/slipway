@@ -8,6 +8,14 @@ const configurationMaps = new Map([
   ['appEnvVars', 'appEnvVarMetadata'],
   ['globalEnvVars', 'globalEnvVarMetadata']
 ])
+function isPublicRuntimeValue(name, value) {
+  if (typeof value !== 'string') return false
+  if (['NODE_ENV', 'SAILS_ENV', 'ENVIRONMENT'].includes(name))
+    return ['production', 'development', 'test', 'staging'].includes(value)
+  if (['APP_NAME', 'PROJECT_NAME', 'SERVICE_NAME'].includes(name))
+    return /^[a-zA-Z0-9][a-zA-Z0-9 ._-]{0,127}$/.test(value)
+  return false
+}
 function isPublicUploadOrigin(name, value) {
   if (!/^(R2|S3|SPACES)_PUBLIC_URL$/.test(name)) return false
   try {
@@ -25,6 +33,14 @@ function isPublicUploadOrigin(name, value) {
 }
 const identifiers = new Set([
   'id',
+  // Display names are public control data, like slugs. A value registered from
+  // APP_NAME must not erase navigation labels that happen to contain it.
+  'name',
+  'appName',
+  'projectName',
+  'environmentName',
+  'serviceName',
+  'email',
   'slug',
   'status',
   'type',
@@ -181,6 +197,10 @@ function createRedactor() {
               // URLs. The environment map itself remains masked by publicValues.
               if (
                 metadata[name]?.kind !== 'plain' &&
+                !(
+                  metadata[name]?.kind !== 'secret' &&
+                  isPublicRuntimeValue(name, configured)
+                ) &&
                 !isPublicUploadOrigin(name, configured)
               )
                 collect(configured, true)
@@ -235,7 +255,34 @@ function createRedactor() {
       )
       dirty = false
     }
-    let result = matcher ? value.replace(matcher, HIDDEN) : value
+    // Docker routing identifiers are already public in containerName fields.
+    // Preserve the same host in a diagnostic URL, without exempting userinfo,
+    // paths or query credentials. Legacy metadata can classify NODE_ENV as a
+    // secret, and its value must not erase the middle of this public hostname.
+    const hosts = /https?:\/\/slipway-[a-z0-9_.-]+:\d+(?=[/\s?#]|$)/gi
+    let result = ''
+    let offset = 0
+    for (const host of value.matchAll(hosts)) {
+      if (host.index < offset) continue
+      const preceding = value.slice(offset, host.index)
+      result += matcher ? preceding.replace(matcher, HIDDEN) : preceding
+      if (matcher) matcher.lastIndex = host.index
+      const credential = matcher?.exec(value)
+      if (matcher) matcher.lastIndex = 0
+      // A whole URL registered as a credential is never a public-host grant.
+      if (
+        credential?.index === host.index &&
+        credential[0].length >= host[0].length
+      ) {
+        result += HIDDEN
+        offset = host.index + credential[0].length
+      } else {
+        result += host[0]
+        offset = host.index + host[0].length
+      }
+    }
+    const remaining = value.slice(offset)
+    result += matcher ? remaining.replace(matcher, HIDDEN) : remaining
     return (
       result
         // Start only at a scheme boundary: restarting inside a long ordinary
