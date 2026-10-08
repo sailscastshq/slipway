@@ -231,6 +231,12 @@ test(
       autoDeploy: true
     })
     const originalFetch = global.fetch
+    const originalGithubConfig = sails.config.custom.github
+    sails.config.custom.github = {
+      ...originalGithubConfig,
+      clientId: 'github-ui-fixture',
+      clientSecret: 'github-ui-fixture-secret'
+    }
     let active = false
     global.fetch = async (url, options = {}) => {
       if (!String(url).startsWith('https://api.github.com/'))
@@ -277,8 +283,13 @@ test(
         fullPage: true,
         animations: 'disabled'
       })
+      await page.goto('/settings/git')
+      await expect(
+        page.raw.getByText('sailscastshq/chieflevite', { exact: true })
+      ).toBeVisible()
     } finally {
       global.fetch = originalFetch
+      sails.config.custom.github = originalGithubConfig
     }
   }
 )
