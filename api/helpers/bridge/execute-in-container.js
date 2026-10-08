@@ -289,6 +289,11 @@ function closeAllWorkers() {
 function buildWorkerSource() {
   return `
 process.title = 'slipway-bridge-worker';
+// These inherited settings re-enable resident services in the integration hook's
+// configure phase. Clear them only in this child, before Sails reads app config.
+delete process.env.SLIPWAY_TELEMETRY_URL;
+delete process.env.SLIPWAY_TELEMETRY_TOKEN;
+delete process.env.SLIPWAY_WAKE_ENABLED;
 const readline = require('node:readline');
 const RESULT_MARKER = ${JSON.stringify(RESULT_MARKER)};
 const BOOT_ERROR_MARKER = ${JSON.stringify(BOOT_ERROR_MARKER)};
@@ -300,6 +305,14 @@ const BOOT_ERROR_MARKER = ${JSON.stringify(BOOT_ERROR_MARKER)};
     await new Promise((resolve, reject) => {
       sailsApp.load({
         models: { migrate: 'safe' },
+        // Keep Quest's API and app helpers without acquiring schedule authority.
+        quest: { autoStart: false },
+        slipway: {
+          lookout: { enabled: false, telemetryUrl: '', telemetryToken: '' },
+          quest: { enabled: false },
+          wake: { enabled: false },
+          bridge: { impersonation: { enabled: false } }
+        },
         hooks: {
           // renderView (used by Sails Mail) requires both hooks. load(), unlike
           // lift(), initializes them without starting an HTTP listener.

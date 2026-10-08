@@ -1,6 +1,10 @@
 const fs = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
+const http = require('node:http')
+const assert = require('node:assert/strict')
+const { execFile } = require('node:child_process')
+const { promisify } = require('node:util')
 
 const { test } = require('sounding')
 
@@ -275,8 +279,13 @@ function restoreEnvironment(name, value) {
 }
 
 async function readBootCount(bootCountPath) {
-  const boots = await fs.readFile(bootCountPath, 'utf8')
-  return boots.trim().split('\n').length
+  try {
+    const boots = await fs.readFile(bootCountPath, 'utf8')
+    return boots.trim().split('\n').length
+  } catch (error) {
+    if (error.code === 'ENOENT') return 0
+    throw error
+  }
 }
 
 async function readExitCount(exitCountPath) {
@@ -294,12 +303,21 @@ function sleep(milliseconds) {
 }
 
 for (const withContent of [true, false]) {
-  test(`Bridge worker renders mail without listeners and preserves live assets (content: ${withContent})`, async ({
+  test(`Bridge isolates resident services while preserving mail and live assets (content: ${withContent})`, async ({
     sails,
     expect
   }) => {
     const fixture = await createFakeDockerFixture()
     const restore = useFakeDocker(sails, fixture)
+    const registrations = []
+    const receiver = http.createServer((req, res) => {
+      registrations.push(req.url)
+      req.resume()
+      res.setHeader('content-type', 'application/json')
+      res.end(JSON.stringify({ active: [], status: 'disabled' }))
+    })
+    await new Promise((resolve) => receiver.listen(0, '127.0.0.1', resolve))
+    const endpoint = `http://127.0.0.1:${receiver.address().port}`
     try {
       // Execute the real generated worker source locally instead of Docker.
       await fs.writeFile(
@@ -307,9 +325,19 @@ for (const withContent of [true, false]) {
         `#!/usr/bin/env node
 process.chdir(${JSON.stringify(fixture.directory)})
 process.env.NODE_ENV = 'production'
+// Deployment environment must not override the worker's isolation settings.
+process.env.SLIPWAY_TELEMETRY_URL = ${JSON.stringify(endpoint + '/telemetry')}
+process.env.SLIPWAY_TELEMETRY_TOKEN = 'fixture-token'
+process.env.SLIPWAY_WAKE_ENABLED = 'true'
 const fs = require('node:fs')
 fs.appendFileSync(process.env.SLIPWAY_FAKE_DOCKER_BOOT_COUNT_PATH, 'boot\\n')
 process.on('exit', () => fs.appendFileSync(process.env.SLIPWAY_FAKE_DOCKER_EXIT_COUNT_PATH, 'exit\\n'))
+const fixtureStopTimer = setInterval(() => {
+  if (!fs.existsSync(process.env.SLIPWAY_FAKE_DOCKER_ARGS_PATH + '.stop')) return;
+  clearInterval(fixtureStopTimer);
+  require('sails').lower(() => process.exit());
+}, 10);
+fixtureStopTimer.unref();
 eval(process.argv[9])
 `,
         { mode: 0o755 }
@@ -325,7 +353,8 @@ eval(process.argv[9])
           dependencies: {
             sails: '*',
             'sails-hook-orm': '*',
-            'sails-hook-mail': '*'
+            'sails-hook-mail': '*',
+            'sails-hook-quest': '*'
           }
         })
       )
@@ -336,6 +365,7 @@ eval(process.argv[9])
         'views/emails',
         'views/layouts',
         '.tmp/public',
+        'api/hooks/slipway',
         'api/hooks/shipwright',
         ...(withContent ? ['api/hooks/content'] : [])
       ]) {
@@ -348,12 +378,50 @@ eval(process.argv[9])
         `module.exports.globals = { sails: true, _: false, async: false, models: false }`
       )
       await fs.writeFile(
+        path.join(fixture.directory, 'api/hooks/slipway/index.js'),
+        `module.exports = require(${JSON.stringify(
+          path.resolve('packages/hook')
+        )})`
+      )
+      await fs.writeFile(
         path.join(fixture.directory, 'config/models.js'),
         `module.exports.models = { migrate: 'safe', attributes: { id: { type: 'number', autoIncrement: true } } }`
       )
       await fs.writeFile(
         path.join(fixture.directory, 'config/datastores.js'),
         `module.exports.datastores = { default: { adapter: 'sails-disk', inMemoryOnly: true } }`
+      )
+      await fs.writeFile(
+        path.join(fixture.directory, 'config/quest.js'),
+        `module.exports.quest = { autoStart: true, jobs: [{ name: 'resident-only', interval: 86400000 }] }`
+      )
+      await fs.writeFile(
+        path.join(fixture.directory, 'config/slipway.js'),
+        `module.exports.slipway = ${JSON.stringify({
+          lookout: {
+            enabled: true,
+            telemetryUrl: endpoint + '/telemetry',
+            telemetryToken: 'fixture-token',
+            appId: '42',
+            deploymentId: '7'
+          },
+          quest: { enabled: true },
+          wake: {
+            enabled: true,
+            ingestUrl: endpoint + '/wake/ingest',
+            secret: 'swk_' + 'a'.repeat(64),
+            appId: '42',
+            deploymentId: '7'
+          },
+          bridge: {
+            enabled: true,
+            exchangeUrl: endpoint + '/exchange',
+            appId: '42',
+            secret: 'slb_fixture',
+            impersonation: { enabled: true, readOnlyPaths: ['/account'] },
+            resources: { person: { create: ['name'] } }
+          }
+        })}`
       )
       await fs.writeFile(
         path.join(fixture.directory, 'api/models/Person.js'),
@@ -391,6 +459,41 @@ eval(process.argv[9])
           path.join(fixture.directory, '.tmp/public', name),
           contents
         )
+      // Positive control: the identical app config really starts schedules and
+      // integrations in a resident runtime. No jobs become due during the trial.
+      const resident = await promisify(execFile)(
+        process.execPath,
+        [
+          '-e',
+          `const app = require('sails');
+          app.load({hooks:{session:false,sockets:false,pubsub:false,grunt:false,shipwright:false,content:false},log:{level:'silent'}}, async error => {
+            if (error) throw error;
+            console.log('RESIDENT:' + JSON.stringify(app.quest.metadata('resident-only')));
+            await new Promise(resolve => setTimeout(resolve, 150));
+            app.lower(() => process.exit());
+          });`
+        ],
+        {
+          cwd: fixture.directory,
+          env: { ...process.env, NODE_ENV: 'production' },
+          timeout: 15000
+        }
+      )
+      const residentMetadata = JSON.parse(
+        resident.stdout
+          .split('\n')
+          .find((line) => line.startsWith('RESIDENT:'))
+          .slice(9)
+      )
+      expect(residentMetadata.scheduled).toBe(true)
+      for (const endpoint of ['/telemetry', '/wake/register', '/support'])
+        assert.ok(
+          registrations.includes(endpoint),
+          `Missing resident registration ${endpoint}: ${JSON.stringify(
+            registrations
+          )}; stdout: ${resident.stdout}`
+        )
+      registrations.length = 0
       const run = (code, idleTimeoutMs) =>
         sails.helpers.bridge.executeInContainer.with({
           containerName: `fixture-${withContent}`,
@@ -410,6 +513,26 @@ eval(process.argv[9])
           shipwright: false,
           content: false
         })
+        const inspection = await run(`
+          sails.emit('ready');
+          return {
+            job: sails.quest.metadata('resident-only'),
+            quest: sails.config.slipway.quest.enabled,
+            wake: sails.config.slipway.wake.enabled,
+            support: sails.config.slipway.bridge.impersonation.enabled,
+            resources: sails.config.slipway.bridge.resources,
+            flagsHelper: typeof sails.helpers.flags.enabled
+          };
+        `)
+        expect(inspection.success).toBe(true)
+        const state = JSON.parse(inspection.output)
+        expect(state.job.scheduled).toBe(false)
+        expect(state.job.scheduleState.registration).toBe('not_attempted')
+        expect(state.quest).toBe(false)
+        expect(state.wake).toBe(false)
+        expect(state.support).toBe(false)
+        expect(state.resources).toEqual({ person: { create: ['name'] } })
+        expect(state.flagsHelper).toBe('function')
         // Actual Sails Mail rendering, captured at its local log transport.
         // Repeat without restarting to exercise the warm runtime too.
         for (let send = 0; send < 2; send++) {
@@ -458,9 +581,14 @@ eval(process.argv[9])
       expect(
         JSON.parse(afterIdle.output) !== JSON.parse(beforeIdle.output)
       ).toBe(true)
+      expect(registrations).toEqual([])
     } finally {
       restore()
-      await cleanupFakeDocker(fixture)
+      try {
+        await cleanupFakeDocker(fixture)
+      } finally {
+        await new Promise((resolve) => receiver.close(resolve))
+      }
     }
   })
 }
