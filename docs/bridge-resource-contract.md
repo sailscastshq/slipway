@@ -10,6 +10,13 @@ returning its memory to the app container. The first request after an idle
 period may take longer while the worker loads the application's models and
 helpers.
 
+The inspection worker keeps Quest's API and app helpers available, but does not
+automatically start Quest schedules, resident Quest controls, Wake collection,
+Lookout registration, or support-view sessions. These remain owned by the
+deployed app process. This isolation is applied by Slipway before loading the
+worker, including when deployment environment variables enable those services;
+it does not require an integration-hook package update.
+
 ```js
 module.exports.slipway = {
   bridge: {
