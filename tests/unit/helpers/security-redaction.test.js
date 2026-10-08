@@ -430,7 +430,9 @@ test('presentation uses credential provenance, not legacy configuration substrin
     arbitraryNewField: 'Help flossafrica grow. Contact kelvin@example.test.',
     body: '![flossafrica](https://files.example.test/flossafrica.webp)',
     link: 'https://flossafrica.com/bearing/updates',
-    email: 'kelvin@example.test'
+    email: 'kelvin@example.test',
+    example:
+      'Use token=example and password=placeholder in the tutorial. Authorization: Bearer sample-token'
   }
   for (const safe of [
     res.json(content),

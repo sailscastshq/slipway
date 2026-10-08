@@ -342,6 +342,11 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
     }
     const remaining = value.slice(offset)
     result += matcher ? remaining.replace(matcher, HIDDEN) : remaining
+    // Public prose and code examples are not diagnostics. A literal
+    // `token=example` is not evidence of a credential. Registered credentials
+    // are already masked above; only complete URLs receive syntax masking here.
+    if (presentation && !/^[a-z][a-z0-9+.-]*:\/\/\S+$/i.test(value))
+      return result
     return (
       result
         // Start only at a scheme boundary: restarting inside a long ordinary

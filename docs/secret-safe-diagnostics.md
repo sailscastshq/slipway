@@ -50,7 +50,10 @@ not make them secret patterns for unrelated page content. For example, a legacy
 `BRAND=flossafrica` must not turn a Bearing title `Support flossafrica` into
 `Support [REDACTED]`. The same rule covers arbitrary titles, descriptions,
 rich text, emails, image origins and navigation URLs; it needs no display-field
-allowlist.
+allowlist. Public prose and code examples are not scanned for assignment or
+header syntax: `token=example` alone is not a credential. Complete URLs still
+receive userinfo and credential-query protection, and registered credentials
+remain masked anywhere they appear.
 
 The response catalogue registers credentials from sensitive fields, explicit
 `kind: secret` metadata, recognizable legacy credential variable names
@@ -123,7 +126,7 @@ lifetime. Secrets changed by direct SQL outside these application paths require
 an instance restart to refresh the catalogue.
 
 Structured credential fields and private configuration values are masked at
-any length. Free-form text also masks URL userinfo, common credential query
+any length. Free-form diagnostic text also masks URL userinfo, common credential query
 parameters, Basic/Bearer headers and credential assignments. Registered strings
 of at least eight characters are masked in plaintext, URI-encoded, JSON-escaped,
 HTML-escaped, base64/base64url and hexadecimal forms. Matching short arbitrary
