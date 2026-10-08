@@ -19,9 +19,19 @@ test(
   async ({ sails, world, page, login, expect }) => {
     const { projects, environments, apps, users, auth } = world.current
     const app = apps.web
+    const dashboardProjects = [projects.deploymentTarget]
+    for (const name of ['sailsconf', 'sailscasts']) {
+      dashboardProjects.push(
+        await sails.models.project
+          .create({ name, team: projects.deploymentTarget.team })
+          .fetch()
+      )
+    }
     const environmentValues = {
       BASE_URL: 'https://flossafrica.com',
       R2_BUCKET: 'flossafrica',
+      S3_BUCKET_NAME: 'sailsconf',
+      SPACES_BUCKET: 'sailscasts',
       sails_environment: 'production',
       R2_PUBLIC_URL: 'https://files.example.test',
       API_TOKEN: 'bearing-credential-canary-748'
@@ -122,6 +132,17 @@ test(
       password: auth.genesisUserPassword
     })
     await expect(page.raw).toHaveURL(new RegExp('/$'))
+    for (const project of dashboardProjects) {
+      await expect(
+        page.raw.getByRole('link', { name: project.name, exact: true }).first()
+      ).toBeVisible()
+    }
+    await expect(
+      page.raw.getByText('[REDACTED]', { exact: false })
+    ).toHaveCount(0)
+    await page.screenshot(path.join(screenshots, 'dashboard-projects.png'), {
+      fullPage: true
+    })
     await page.goto(
       `/projects/${projects.deploymentTarget.slug}/environments/${environments.production.slug}/apps/${app.slug}/bearing`
     )
