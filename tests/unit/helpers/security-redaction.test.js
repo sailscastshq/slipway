@@ -40,8 +40,52 @@ test('response redaction preserves public project names while masking matching c
     expect(result.props.token).toBe('[REDACTED]')
     expect(result.props.envVars.APP_NAME).toBe('[REDACTED]')
     expect(result.props.envVars.API_TOKEN).toBe('[REDACTED]')
-    expect(result.props.message).toBe('[REDACTED] [REDACTED]')
+    expect(result.props.message).toBe('flossafrica [REDACTED]')
   }
+})
+
+test('legacy public runtime values do not erase deployment URLs, but explicit secrets still do', ({
+  expect
+}) => {
+  const redact = createRedactor()
+  redact.remember({
+    envVars: {
+      NODE_ENV: 'production',
+      APP_NAME: 'chieflevite',
+      ODD_NAME: 'private-canary-734'
+    }
+  })
+  const endpoint =
+    'http://slipway-chieflevite-production-chieflevite-com-733:1337/health'
+  expect(redact.text(`Health check: polling ${endpoint}`)).toBe(
+    `Health check: polling ${endpoint}`
+  )
+  expect(redact.text('private-canary-734')).toBe('[REDACTED]')
+  expect(
+    redact.protect({ envVars: { NODE_ENV: 'production' } }).envVars.NODE_ENV
+  ).toBe('[REDACTED]')
+  redact.remember({
+    envVars: { APP_NAME: 'private-name-734' },
+    envVarMetadata: { APP_NAME: { kind: 'secret' } }
+  })
+  expect(redact.text('private-name-734')).toBe('[REDACTED]')
+  redact.remember({
+    envVars: { NODE_ENV: 'production' },
+    envVarMetadata: { NODE_ENV: { kind: 'secret' } }
+  })
+  expect(redact.text(`${endpoint}?token=private-canary-734`)).toBe(
+    `${endpoint}?token=[REDACTED]`
+  )
+  expect(redact.text('production private-name-734')).toBe(
+    '[REDACTED] [REDACTED]'
+  )
+  expect(
+    redact.text(
+      'http://user:private-canary-734@slipway-chieflevite-production-chieflevite-com-733:1337/health'
+    )
+  ).toBe(
+    'http://[REDACTED]@slipway-chieflevite-[REDACTED]-chieflevite-com-733:1337/health'
+  )
 })
 
 test('diagnostics mask nested credentials, URLs and common reversible encodings without changing control data', ({
