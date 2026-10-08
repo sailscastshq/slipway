@@ -61,138 +61,148 @@ try {
     `FROM ${image}\nRUN apt-get update && apt-get install -y --no-install-recommends psmisc && rm -rf /var/lib/apt/lists/*\n`
   )
   docker(['build', '-t', helperImage, work], { stdio: 'inherit' })
-  for (const fail of [false, true]) {
-    const container = `${tag}-slipway-${fail}`
-    const volume = `${tag}-${fail}`
-    docker(['volume', 'create', '--label', `slipway.test.owner=${tag}`, volume])
-    ownedVolumes.push(volume)
-    const live = JSON.parse(docker(['volume', 'inspect', volume]))[0].Mountpoint
-    docker([
-      'run',
-      '--rm',
-      '--network',
-      'none',
-      '-v',
-      `${volume}:/app/db`,
-      '-v',
-      `${work}:/proof`,
-      image,
-      'node',
-      '-e',
-      seedCode(fail)
-    ])
-    docker([
-      'run',
-      '-d',
-      ...owner,
-      '--name',
-      container,
-      '--network',
-      'none',
-      '-e',
-      `FAIL_RESTART=${fail ? '1' : '0'}`,
-      '-v',
-      `${volume}:/app/db`,
-      '-v',
-      `${work}:/proof:ro`,
-      image,
-      'node',
-      '/proof/server.cjs'
-    ])
-    ownedContainers.push(container)
-    // Shares only fixture data and source paths. Never mounts the host root.
-    const operator = `${tag}-operator`
-    ownedContainers.push(operator)
-    let failed = false
-    try {
-      docker(
-        [
-          'run',
-          '--rm',
-          ...owner,
-          '--name',
-          operator,
-          '--pid',
-          'host',
-          '--cap-add',
-          'SYS_PTRACE',
-          '-e',
-          `SLIPWAY_RECOVERY_CONTAINER=${container}`,
-          '-e',
-          `SLIPWAY_RECOVERY_ROOT=${work}`,
-          '-e',
-          'SLIPWAY_RECOVERY_HEALTH_ATTEMPTS=3',
-          '-v',
-          '/var/run/docker.sock:/var/run/docker.sock',
-          '-v',
-          `${volume}:${live}`,
-          '-v',
-          `${repo}:${repo}:ro`,
-          '-v',
-          `${work}:${work}`,
-          helperImage,
-          'bash',
-          `${repo}/bin/recover-slipway.sh`,
-          image,
-          `${work}/sqlite3-recovery`,
-          '--reset-observability'
-        ],
-        { stdio: 'inherit' }
-      )
-    } catch {
-      failed = true
-    }
-    assert.equal(failed, fail)
-    const original = JSON.parse(
-      fs.readFileSync(path.join(work, `original-${fail}.json`))
-    )
-    const proof = JSON.parse(
+  for (const method of ['native', 'logical'])
+    for (const fail of [false, true]) {
+      const identity = `${method}-${fail}`
+      const container = `${tag}-slipway-${identity}`
+      const volume = `${tag}-${identity}`
+      docker([
+        'volume',
+        'create',
+        '--label',
+        `slipway.test.owner=${tag}`,
+        volume
+      ])
+      ownedVolumes.push(volume)
+      const live = JSON.parse(docker(['volume', 'inspect', volume]))[0]
+        .Mountpoint
       docker([
         'run',
         '--rm',
         '--network',
         'none',
         '-v',
-        `${volume}:/app/db:ro`,
+        `${volume}:/app/db`,
+        '-v',
+        `${work}:/proof`,
         image,
         'node',
         '-e',
-        `const fs=require('fs'),D=require('better-sqlite3'),c=require('crypto');const d=new D('/app/db/app.db',{readonly:true});let integrity;try{integrity=d.pragma('integrity_check',{simple:true})}catch{integrity='corrupt'}console.log(JSON.stringify({integrity,rows:d.prepare('SELECT * FROM fixture_records').all(),marker:fs.existsSync('/app/db/.slipway-recovery-in-progress'),hashes:${JSON.stringify(
-          original.map((item) => item.file)
-        )}.map(file=>({file,hash:c.createHash('sha256').update(fs.readFileSync('/app/db/'+file)).digest('hex')}))}));d.close()`
+        seedCode(identity)
       ])
-    )
-    assert.equal(proof.marker, false)
-    if (fail) assert.deepEqual(proof.hashes, original)
-    else {
-      assert.equal(proof.integrity, 'ok')
-      assert.deepEqual(proof.rows, [{ id: 1, payload: 'must preserve' }])
-      const count = docker([
-        'exec',
+      docker([
+        'run',
+        '-d',
+        ...owner,
+        '--name',
         container,
-        'node',
+        '--network',
+        'none',
         '-e',
-        "const D=require('better-sqlite3'),d=new D('/app/db/observability.db');console.log(d.prepare('SELECT count(*) count FROM fixture_records').get().count);d.close()"
+        `FAIL_RESTART=${fail ? '1' : '0'}`,
+        '-v',
+        `${volume}:/app/db`,
+        '-v',
+        `${work}:/proof:ro`,
+        image,
+        'node',
+        '/proof/server.cjs'
       ])
-      assert.equal(count.trim(), '0')
+      ownedContainers.push(container)
+      // Shares only fixture data and source paths. Never mounts the host root.
+      const operator = `${tag}-operator`
+      ownedContainers.push(operator)
+      let failed = false
+      try {
+        docker(
+          [
+            'run',
+            '--rm',
+            ...owner,
+            '--name',
+            operator,
+            '--pid',
+            'host',
+            '--cap-add',
+            'SYS_PTRACE',
+            '-e',
+            `SLIPWAY_RECOVERY_CONTAINER=${container}`,
+            '-e',
+            `SLIPWAY_RECOVERY_ROOT=${work}`,
+            '-e',
+            'SLIPWAY_RECOVERY_HEALTH_ATTEMPTS=3',
+            '-v',
+            '/var/run/docker.sock:/var/run/docker.sock',
+            '-v',
+            `${volume}:${live}`,
+            '-v',
+            `${repo}:${repo}:ro`,
+            '-v',
+            `${work}:${work}`,
+            helperImage,
+            'bash',
+            `${repo}/bin/recover-slipway.sh`,
+            image,
+            method === 'logical' ? '--logical-app' : `${work}/sqlite3-recovery`,
+            '--reset-observability'
+          ],
+          { stdio: 'inherit' }
+        )
+      } catch {
+        failed = true
+      }
+      assert.equal(failed, fail)
+      const original = JSON.parse(
+        fs.readFileSync(path.join(work, `original-${identity}.json`))
+      )
+      const proof = JSON.parse(
+        docker([
+          'run',
+          '--rm',
+          '--network',
+          'none',
+          '-v',
+          `${volume}:/app/db:ro`,
+          image,
+          'node',
+          '-e',
+          `const fs=require('fs'),D=require('better-sqlite3'),c=require('crypto');const d=new D('/app/db/app.db',{readonly:true});let integrity;try{integrity=d.pragma('integrity_check',{simple:true})}catch{integrity='corrupt'}console.log(JSON.stringify({integrity,rows:d.prepare('SELECT * FROM fixture_records').all(),marker:fs.existsSync('/app/db/.slipway-recovery-in-progress'),hashes:${JSON.stringify(
+            original.map((item) => item.file)
+          )}.map(file=>({file,hash:c.createHash('sha256').update(fs.readFileSync('/app/db/'+file)).digest('hex')}))}));d.close()`
+        ])
+      )
+      assert.equal(proof.marker, false)
+      if (fail) assert.deepEqual(proof.hashes, original)
+      else {
+        assert.equal(proof.integrity, 'ok')
+        assert.deepEqual(proof.rows, [{ id: 1, payload: 'must preserve' }])
+        const count = docker([
+          'exec',
+          container,
+          'node',
+          '-e',
+          "const D=require('better-sqlite3'),d=new D('/app/db/observability.db');console.log(d.prepare('SELECT count(*) count FROM fixture_records').get().count);d.close()"
+        ])
+        assert.equal(count.trim(), '0')
+      }
+      console.log(
+        JSON.stringify({
+          method,
+          fixture: fail
+            ? 'failed restart rollback'
+            : 'successful recovery and observability reset',
+          passed: true
+        })
+      )
+      assert.equal(
+        JSON.parse(docker(['inspect', container]))[0].Config.Labels[
+          'slipway.test.owner'
+        ],
+        tag
+      )
+      docker(['rm', '-f', container])
+      ownedContainers.splice(ownedContainers.indexOf(container), 1)
     }
-    console.log(
-      JSON.stringify({
-        fixture: fail
-          ? 'failed restart rollback'
-          : 'successful recovery and observability reset',
-        passed: true
-      })
-    )
-    assert.equal(
-      JSON.parse(docker(['inspect', container]))[0].Config.Labels[
-        'slipway.test.owner'
-      ],
-      tag
-    )
-    docker(['rm', '-f', container])
-    ownedContainers.splice(ownedContainers.indexOf(container), 1)
-  }
 } finally {
   for (const name of ownedContainers) {
     try {

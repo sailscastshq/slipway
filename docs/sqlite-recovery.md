@@ -54,3 +54,21 @@ SQLite's backup API provides consistent snapshots, but does not repair an alread
 The pre-update helper already used SQLite's backup API, rather than a raw copy of a live database. Its gaps were single-datastore coverage, missing snapshot integrity verification, and treating backup failure as non-blocking. Migration snapshots already had integrity verification and retained rollback data. The audit also found duplicate native library versions; no specific corrupting write, unsafe system restore or hardware cause has been established. Existing single-writer checks at migration startup remain in place. Application service restores operate on customer databases and remain a separate path.
 
 Testing uses disposable databases and Docker containers, including corrupt planner/index pages, application parity refusal, observability reset, retained archive contents, immutable migration receipts, restart and failed-recovery rollback. Passing these checks establishes behavior on those fixtures, not proof that an arbitrary damaged application database can be recovered without loss.
+
+## Logical reconstruction when native recovery aborts
+
+If the native `.recover` command aborts, do not import its incomplete SQL or
+bypass startup integrity checks. When every application table is still fully
+readable, an explicit logical reconstruction can rebuild indexes and omit
+damaged internal planner statistics. It must pass the same complete application
+schema/row parity, integrity, and foreign-key checks. Unreadable tables or
+unsupported virtual/generated-column schemas stop the operation.
+
+Use the offline helper's `prepare --source SNAPSHOT --output NEW_DIR
+--logical-app --reset-observability` first to test a retained cold snapshot.
+This only creates candidates; it never installs files. For installation, the
+guarded wrapper accepts `recover-slipway.sh IMAGE --logical-app
+--reset-observability`. It takes a fresh cold snapshot and retains the same
+separate migration validation, original-schema install, and rollback safeguards.
+No standalone SQLite recovery binary is needed in this mode. Observability
+history is discarded only with the explicit acknowledgement; app data is not.

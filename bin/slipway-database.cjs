@@ -224,12 +224,103 @@ async function check(
 
 // Source must be a stopped, consistent snapshot. This command only creates a
 // new candidate directory; it cannot replace or reset a live database.
-async function prepare({ source, output, sqlite, resetObservability }) {
+function rebuildApp(source, destination) {
+  // Never operate on live files. The caller supplies a cold snapshot and a
+  // new destination; unreadable data aborts rather than being silently omitted.
+  const descriptor = fs.openSync(destination, 'wx', 0o600)
+  fs.closeSync(descriptor)
+  const original = new Database(source, { readonly: true, fileMustExist: true })
+  const candidate = new Database(destination)
+  original.defaultSafeIntegers(true)
+  candidate.defaultSafeIntegers(true)
+  try {
+    original.exec('BEGIN')
+    const catalog = objects(original)
+    candidate.pragma('foreign_keys = OFF')
+    candidate.transaction(() => {
+      for (const table of catalog.filter((item) => item.type === 'table')) {
+        if (/^\s*CREATE\s+VIRTUAL\b/i.test(table.sql))
+          throw new Error('Logical recovery does not support virtual tables')
+        candidate.exec(table.sql)
+        const columns = original
+          .prepare(`PRAGMA table_xinfo(${quote(table.name)})`)
+          .all()
+        if (columns.some((column) => Number(column.hidden) !== 0))
+          throw new Error(
+            'Logical recovery does not support generated or hidden columns'
+          )
+        const names = columns.map((column) => column.name)
+        // Preserve implicit rowids too; they can be referenced by views and
+        // application queries even when no INTEGER PRIMARY KEY is declared.
+        if (
+          !/\bWITHOUT\s+ROWID\s*(?:,\s*STRICT\s*)?$/i.test(table.sql.trim())
+        ) {
+          const rowid = ['rowid', '_rowid_', 'oid'].find(
+            (name) => !names.some((column) => column.toLowerCase() === name)
+          )
+          if (!rowid)
+            throw new Error('Logical recovery cannot preserve a shadowed rowid')
+          names.unshift(rowid)
+        }
+        const fields = names.map(quote).join(', ')
+        const insert = candidate.prepare(
+          `INSERT INTO ${quote(table.name)} (${fields}) VALUES (${names
+            .map(() => '?')
+            .join(', ')})`
+        )
+        for (const row of original
+          .prepare(`SELECT ${fields} FROM ${quote(table.name)} NOT INDEXED`)
+          .raw()
+          .iterate())
+          insert.run(...row)
+      }
+      if (
+        original
+          .prepare("SELECT 1 FROM sqlite_schema WHERE name='sqlite_sequence'")
+          .get()
+      ) {
+        candidate.exec('DELETE FROM sqlite_sequence')
+        const insert = candidate.prepare(
+          'INSERT INTO sqlite_sequence(name, seq) VALUES (?, ?)'
+        )
+        for (const row of original
+          .prepare('SELECT name, seq FROM sqlite_sequence NOT INDEXED')
+          .raw()
+          .iterate())
+          insert.run(...row)
+      }
+      // Rebuild indexes from retained rows and install triggers only after
+      // copying, so recovery cannot invoke application side effects.
+      for (const type of ['index', 'view', 'trigger'])
+        for (const object of catalog.filter((item) => item.type === type))
+          candidate.exec(object.sql)
+      for (const name of ['user_version', 'application_id'])
+        candidate.pragma(`${name} = ${original.pragma(name, { simple: true })}`)
+    })()
+    verify(candidate)
+  } finally {
+    original.close()
+    candidate.close()
+  }
+  return parity(source, destination)
+}
+
+async function prepare({
+  source,
+  output,
+  sqlite,
+  logicalApp,
+  resetObservability
+}) {
   if (!resetObservability)
     throw new Error(
       'Explicit --reset-observability is required; observability history will be discarded in the candidate only'
     )
   source = fs.realpathSync(source)
+  if (Boolean(sqlite) === Boolean(logicalApp))
+    throw new Error(
+      'Choose exactly one app recovery method: --sqlite or --logical-app'
+    )
   output = path.resolve(output)
   if (output === source || output.startsWith(source + path.sep))
     throw new Error('Candidate must be outside the source snapshot')
@@ -239,28 +330,37 @@ async function prepare({ source, output, sqlite, resetObservability }) {
       throw new Error('Source databases must be distinct regular files')
   }
   fs.mkdirSync(output, { mode: 0o700 }) // Never overwrite an existing candidate.
-  const sqlPath = path.join(output, 'app-recovery.sql')
-  const descriptor = fs.openSync(sqlPath, 'wx', 0o600)
-  try {
-    execFileSync(
-      sqlite,
-      ['-readonly', path.join(source, 'app.db'), '.recover --ignore-freelist'],
-      {
-        stdio: ['ignore', descriptor, 'pipe'],
-        timeout: 300000
-      }
-    )
-  } finally {
-    fs.closeSync(descriptor)
-  }
   const app = path.join(output, 'app.db')
-  execFileSync(sqlite, ['-bail', app], {
-    input: '.dbconfig defensive off\n.read ' + JSON.stringify(sqlPath) + '\n',
-    timeout: 300000,
-    stdio: ['pipe', 'ignore', 'pipe']
-  })
-  fs.chmodSync(app, 0o600)
-  const verifiedTables = parity(path.join(source, 'app.db'), app)
+  let verifiedTables
+  if (logicalApp) {
+    verifiedTables = rebuildApp(path.join(source, 'app.db'), app)
+  } else {
+    const sqlPath = path.join(output, 'app-recovery.sql')
+    const descriptor = fs.openSync(sqlPath, 'wx', 0o600)
+    try {
+      execFileSync(
+        sqlite,
+        [
+          '-readonly',
+          path.join(source, 'app.db'),
+          '.recover --ignore-freelist'
+        ],
+        {
+          stdio: ['ignore', descriptor, 'pipe'],
+          timeout: 300000
+        }
+      )
+    } finally {
+      fs.closeSync(descriptor)
+    }
+    execFileSync(sqlite, ['-bail', app], {
+      input: '.dbconfig defensive off\n.read ' + JSON.stringify(sqlPath) + '\n',
+      timeout: 300000,
+      stdio: ['pipe', 'ignore', 'pipe']
+    })
+    fs.chmodSync(app, 0o600)
+    verifiedTables = parity(path.join(source, 'app.db'), app)
+  }
   const original = new Database(path.join(source, 'observability.db'), {
     readonly: true,
     fileMustExist: true
@@ -303,6 +403,7 @@ async function main(args) {
   while (args.length) {
     const key = args.shift()
     if (key === '--reset-observability') options.resetObservability = true
+    else if (key === '--logical-app') options.logicalApp = true
     else if (
       ['--directory', '--source', '--output', '--sqlite', '--scratch'].includes(
         key
@@ -320,7 +421,7 @@ async function main(args) {
     command === 'prepare' &&
     options.source &&
     options.output &&
-    options.sqlite
+    (options.sqlite || options.logicalApp)
   )
     return prepare(options)
   if (command === 'migrate' && options.directory) {
@@ -339,11 +440,20 @@ async function main(args) {
     }
   }
   throw new Error(
-    'Usage: check --directory DIR | prepare --source SNAPSHOT --output NEW_DIR --sqlite RECOVERY_CLI --reset-observability | migrate --directory CANDIDATE'
+    'Usage: check --directory DIR | prepare --source SNAPSHOT --output NEW_DIR (--sqlite RECOVERY_CLI | --logical-app) --reset-observability | migrate --directory CANDIDATE'
   )
 }
 
-module.exports = { snapshot, bundle, parity, check, prepare, verify, main }
+module.exports = {
+  snapshot,
+  bundle,
+  parity,
+  check,
+  prepare,
+  rebuildApp,
+  verify,
+  main
+}
 if (require.main === module)
   main(process.argv.slice(2))
     .then((result) => {

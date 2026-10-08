@@ -3,7 +3,7 @@
 set -euo pipefail
 umask 077
 if [[ $# != 3 || $3 != --reset-observability ]]; then
-  echo 'Usage: recover-slipway.sh IMAGE HOST_SQLITE_RECOVERY_BINARY --reset-observability' >&2
+  echo 'Usage: recover-slipway.sh IMAGE HOST_SQLITE_RECOVERY_BINARY|--logical-app --reset-observability' >&2
   exit 2
 fi
 command -v fuser >/dev/null
@@ -12,9 +12,15 @@ health_attempts=${SLIPWAY_RECOVERY_HEALTH_ATTEMPTS:-90}
 container=${SLIPWAY_RECOVERY_CONTAINER:-slipway}
 [[ $container =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]+$ ]]
 image=$1
-sqlite_tool=$(realpath "$2")
+if [[ $2 == --logical-app ]]; then
+  recovery_args=(--logical-app)
+else
+  sqlite_tool=$(realpath "$2")
+  [[ -x $sqlite_tool ]]
+  recovery_args=(--sqlite /recovery/sqlite3-recovery)
+fi
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-[[ $(uname -s) == Linux && $EUID == 0 && -x $sqlite_tool ]]
+[[ $(uname -s) == Linux && $EUID == 0 ]]
 [[ $(docker context inspect --format '{{.Endpoints.docker.Host}}') == unix://* ]]
 docker image inspect "$image" >/dev/null # Pull explicitly before downtime.
 [[ $(docker inspect --format '{{.State.Running}}' "$container") == true ]]
@@ -22,7 +28,7 @@ live=$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/app/db"}
 [[ -d $live && -f $live/app.db ]]
 work=$(mktemp -d "${SLIPWAY_RECOVERY_ROOT:-/root}/slipway-recovery-XXXXXX")
 printf 'Recovery directory: %s\n' "$work"
-cp -- "$sqlite_tool" "$work/sqlite3-recovery"
+if [[ $2 != --logical-app ]]; then cp -- "$sqlite_tool" "$work/sqlite3-recovery"; fi
 docker inspect "$container" > "$work/container-before.json"
 # This file includes environment secrets. Keep the complete recovery tree private.
 stopped=false
@@ -87,7 +93,7 @@ run_doctor() {
     "$image" node bin/slipway-database.cjs "$@"
 }
 run_doctor prepare --source /recovery/snapshot --output /recovery/candidate \
-  --sqlite /recovery/sqlite3-recovery --reset-observability > "$work/prepare-report.json"
+  "${recovery_args[@]}" --reset-observability > "$work/prepare-report.json"
 # Migrates only a second copy. Its generated receipt paths use the final /app/db.
 cp -a "$work/candidate" "$work/validation"
 docker run --rm --network none \
