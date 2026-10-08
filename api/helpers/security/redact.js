@@ -19,10 +19,45 @@ function isCredentialName(name) {
 }
 function isPublicRuntimeValue(name, value) {
   if (typeof value !== 'string') return false
-  if (['NODE_ENV', 'SAILS_ENV', 'ENVIRONMENT'].includes(name))
+  // `kind: secret` defaults configuration to reveal-only. It does not turn
+  // public runtime coordinates into credentials or secret substring patterns.
+  const normalized = name
+    .replace(/^SAILS_CUSTOM_+/i, '')
+    .replace(/([a-z])([A-Z])/g, '$1_$2')
+    .toUpperCase()
+  if (
+    ['NODE_ENV', 'SAILS_ENV', 'SAILS_ENVIRONMENT', 'ENVIRONMENT'].includes(
+      normalized
+    )
+  )
     return ['production', 'development', 'test', 'staging'].includes(value)
-  if (['APP_NAME', 'PROJECT_NAME', 'SERVICE_NAME'].includes(name))
+  if (['APP_NAME', 'PROJECT_NAME', 'SERVICE_NAME'].includes(normalized))
     return /^[a-zA-Z0-9][a-zA-Z0-9 ._-]{0,127}$/.test(value)
+  if (
+    /^(?:BRIDGE_)?(?:R2|S3|SPACES|AZURE)_(?:BUCKET|BUCKET_NAME|CONTAINER|CONTAINER_NAME)$/.test(
+      normalized
+    )
+  )
+    return /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,254}$/.test(value)
+  if (
+    ['BASE_URL', 'APP_URL', 'SITE_URL', 'PUBLIC_URL', 'APP_BASE_URL'].includes(
+      normalized
+    ) ||
+    /^(?:BRIDGE_)?(?:R2|S3|SPACES)_PUBLIC_URL$/.test(normalized)
+  ) {
+    try {
+      const url = new URL(value)
+      return (
+        ['http:', 'https:'].includes(url.protocol) &&
+        !url.username &&
+        !url.password &&
+        !url.search &&
+        !url.hash
+      )
+    } catch {
+      return false
+    }
+  }
   return false
 }
 function isPublicUploadOrigin(name, value) {
@@ -256,7 +291,7 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
                   metadata[name]?.kind === 'secret' ||
                   isCredentialName(name)) &&
                 !(
-                  metadata[name]?.kind !== 'secret' &&
+                  (presentation || metadata[name]?.kind !== 'secret') &&
                   isPublicRuntimeValue(name, configured)
                 ) &&
                 !(

@@ -15,6 +15,36 @@ test(
   async ({ sails, world, request, expect }) => {
     const { projects, environments, apps, users } = world.current
     const app = apps.web
+    const dashboardProjects = [projects.deploymentTarget]
+    for (const name of ['sailsconf', 'sailscasts']) {
+      dashboardProjects.push(
+        await sails.models.project
+          .create({ name, team: projects.deploymentTarget.team })
+          .fetch()
+      )
+    }
+    const environmentValues = {
+      BASE_URL: 'https://flossafrica.com',
+      R2_BUCKET: 'flossafrica',
+      S3_BUCKET_NAME: 'sailsconf',
+      SPACES_BUCKET: 'sailscasts',
+      sails_environment: 'production',
+      R2_PUBLIC_URL: 'https://files.example.test',
+      API_TOKEN: 'bearing-credential-canary-748'
+    }
+    const envVarMetadata =
+      await sails.helpers.configuration.normalizeEnvVarMetadata.with({
+        values: environmentValues,
+        recordChanges: false
+      })
+    await sails.models.environment
+      .updateOne({ id: environments.production.id })
+      .set({ envVars: environmentValues, envVarMetadata })
+    sails.hooks.secrets.remember(
+      await sails.models.environment
+        .findOne({ id: environments.production.id })
+        .decrypt()
+    )
     await sails.models.app.updateOne({ id: app.id }).set({
       bearingEnabled: true,
       secureEnvVars: {
@@ -59,6 +89,13 @@ test(
       const path = `${base}/feedback/${feedback.publicId}${embedded}`
       const page = await client.withHeaders(INERTIA_HEADERS).get(path)
       expect(page).toHaveStatus(200)
+      expect(page.data.props.app.name).toBe('flossafrica')
+      expect(page.data.props.app.homeUrl).toBe('https://flossafrica.com/')
+      expect(page.data.props.app.publicUrl).toContain(
+        'https://flossafrica.com/bearing/feedback/'
+      )
+      expect(page.data.props.realtime.subscribePath).toBe(`${base}/realtime`)
+      expect(JSON.stringify(page.data).includes('[REDACTED]')).toBe(false)
       expect(page.data.props.feedback.data[0].title).toBe(title)
       expect(page.data.props.feedback.data[0].details).toBe(details)
       const document = await client
@@ -78,6 +115,33 @@ test(
         `https://flossafrica.com/bearing/updates/p/${update.slug}`
       )
     }
+    const dashboard = await request
+      .using('virtual')
+      .as('genesisUser')
+      .withHeaders(INERTIA_HEADERS)
+      .get('/')
+    expect(dashboard).toHaveStatus(200)
+    for (const project of dashboardProjects) {
+      const rendered = dashboard.data.props.projects.find(
+        (entry) => entry.id === project.id
+      )
+      expect(rendered.name).toBe(project.name)
+      expect(rendered.slug).toBe(project.slug)
+      expect(
+        (await sails.models.project.findOne({ id: project.id })).name
+      ).toBe(project.name)
+    }
+    const stored = await sails.models.environment
+      .findOne({ id: environments.production.id })
+      .decrypt()
+    expect(stored.envVars).toEqual(environmentValues)
+    expect(stored.envVarMetadata).toEqual(envVarMetadata)
+    expect(
+      (await sails.models.bearingfeedback.findOne({ id: feedback.id })).title
+    ).toBe(title)
+    expect(
+      (await sails.models.bearingupdate.findOne({ id: update.id })).body
+    ).toBe(update.body)
     // Unknown variables stay private inside configuration and diagnostics.
     expect(sails.hooks.secrets.protect(persisted).secureEnvVars.BRAND).toBe(
       '[REDACTED]'

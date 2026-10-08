@@ -13,6 +13,26 @@ test(
   },
   async ({ sails, world, login, page, expect }) => {
     const original = { ...sails.helpers.bridge }
+    const environmentValues = {
+      BASE_URL: 'https://flossafrica.com',
+      R2_BUCKET: 'url-slugs',
+      APP_NAME: 'SailsConf',
+      sails_environment: 'production',
+      API_TOKEN: 'bridge-credential-canary-748'
+    }
+    const envVarMetadata =
+      await sails.helpers.configuration.normalizeEnvVarMetadata.with({
+        values: environmentValues,
+        recordChanges: false
+      })
+    await sails.models.environment
+      .updateOne({ id: world.current.environments.production.id })
+      .set({ envVars: environmentValues, envVarMetadata })
+    sails.hooks.secrets.remember(
+      await sails.models.environment
+        .findOne({ id: world.current.environments.production.id })
+        .decrypt()
+    )
     let record = { id: 42, title: 'SailsConf 2026' }
     let executions = 0
     const contract = await sails.helpers.bridge.normalizeResourceContract.with({
@@ -106,6 +126,28 @@ test(
       await page.raw.waitForURL((url) => !url.pathname.startsWith('/login'))
       const base = '/projects/url-slugs/environments/production/bridge'
       await page.goto(`${base}/conferenceevent/42/edit`)
+      await expect(
+        page.raw.locator('#bridge-conferenceevent-title')
+      ).toHaveValue('SailsConf 2026')
+      await expect(
+        page.raw.getByText('[REDACTED]', { exact: false })
+      ).toHaveCount(0)
+      await page.raw
+        .locator('#bridge-conferenceevent-title')
+        .fill('Support [REDACTED]')
+      await page.raw
+        .getByRole('button', { name: 'Save changes', exact: true })
+        .click()
+      await expect(
+        page.raw
+          .getByText(/This field contains a redaction placeholder/)
+          .first()
+      ).toBeVisible()
+      expect(record.title).toBe('SailsConf 2026')
+      await page.raw.reload()
+      await expect(
+        page.raw.locator('#bridge-conferenceevent-title')
+      ).toHaveValue('SailsConf 2026')
       await page.raw
         .locator('#bridge-conferenceevent-title')
         .fill('SailsConf 2026 proposals')
@@ -116,6 +158,10 @@ test(
       await expect(
         page.raw.getByText('SailsConf 2026 proposals', { exact: true }).first()
       ).toBeVisible()
+      expect(record.title).toBe('SailsConf 2026 proposals')
+      await expect(
+        page.raw.getByText('[REDACTED]', { exact: false })
+      ).toHaveCount(0)
       const out = path.resolve('output/issue-573')
       fs.mkdirSync(out, { recursive: true })
       for (const width of [1280, 390]) {
