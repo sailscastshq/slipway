@@ -1,7 +1,5 @@
 const { StringDecoder } = require('node:string_decoder')
 const HIDDEN = '[REDACTED]'
-const sensitive =
-  /password|secret|token|credential|authorization|encrypted|privatekey|accesskey|apikey|authversion/i
 const configurationMaps = new Map([
   ['envVars', 'envVarMetadata'],
   ['secureEnvVars', 'envVarMetadata'],
@@ -10,12 +8,21 @@ const configurationMaps = new Map([
 ])
 const configurationMetadata = new Set(configurationMaps.values())
 function isCredentialName(name) {
+  const normalized = String(name)
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[^a-z0-9]+/gi, '_')
+    .toLowerCase()
   return (
-    sensitive.test(name.replace(/[^a-z]/gi, '')) ||
-    /(?:^|_)(?:KEY|PASS|DSN)(?:_|$)/i.test(name) ||
+    /(?:^|_)(?:password|passwd|pwd|secret|token|credential|credentials|authorization|private_key|access_key|api_key|auth_version|dsn)(?:$|_(?:value|hash|key))/.test(
+      normalized
+    ) ||
     /^(?:DATABASE|REDIS|MONGO(?:DB)?|AMQP|CONNECTION)_URL$/i.test(name) ||
     /^(?:discordWebhookUrl|slackWebhookUrl|webhookUrl|accountKey)$/i.test(name)
   )
+}
+function isCredentialProvenance(name, metadata = {}) {
+  if (metadata?.redaction === 'credential') return true
+  return isCredentialName(name) && metadata?.kind !== 'plain'
 }
 function isPublicRuntimeValue(name, value) {
   if (typeof value !== 'string') return false
@@ -283,26 +290,22 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
           const metadata = value[configurationMaps.get(key)] || {}
           if (entry && typeof entry === 'object')
             for (const [name, configured] of Object.entries(entry)) {
-              // Public upload origins are intentionally sent to browsers in image
-              // URLs. The environment map itself remains masked by publicValues.
+              const credential = isCredentialProvenance(name, metadata[name])
+              const shouldCollect = presentation
+                ? credential
+                : credential || metadata[name]?.kind !== 'plain'
+              const publicRuntimeValue =
+                isPublicRuntimeValue(name, configured) ||
+                isPublicUploadOrigin(name, configured)
               if (
-                metadata[name]?.kind !== 'plain' &&
-                (!presentation ||
+                shouldCollect &&
+                (!publicRuntimeValue ||
                   metadata[name]?.kind === 'secret' ||
-                  isCredentialName(name)) &&
-                !(
-                  (presentation || metadata[name]?.kind !== 'secret') &&
-                  isPublicRuntimeValue(name, configured)
-                ) &&
-                !(
-                  isPublicUploadOrigin(name, configured) &&
-                  (!presentation || metadata[name]?.kind !== 'secret')
-                )
+                  credential)
               )
                 collect(configured, true)
             }
-        } else
-          collect(entry, force || sensitive.test(key.replace(/[^a-z]/gi, '')))
+        } else collect(entry, force || isCredentialName(key))
       }
       if (value.key === 'globalEnvVars') {
         try {
@@ -329,7 +332,7 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
       }
       if (
         typeof value.key === 'string' &&
-        (sensitive.test(value.key) ||
+        (isCredentialName(value.key) ||
           /^(discordWebhookUrl|slackWebhookUrl|webhookUrl)$/.test(value.key))
       ) {
         collect(value.value, true)
@@ -514,7 +517,7 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
           ['customDefinition', 'customRecovery', 'externalConnection'].includes(
             key
           ) ||
-          sensitive.test(key.replace(/[^a-z]/gi, ''))
+          isCredentialName(key)
         )
           result[key] = entry == null || entry === '' ? entry : HIDDEN
         else if (

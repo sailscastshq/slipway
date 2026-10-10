@@ -55,6 +55,8 @@ function metadataFor(key) {
   return {
     ...metadata,
     kind,
+    redaction:
+      metadata.redaction === 'credential' ? 'credential' : 'unclassified',
     managed: metadata.managed === true,
     previewPolicy:
       metadata.previewPolicy || (kind === 'plain' ? 'inherit' : 'omit')
@@ -180,7 +182,11 @@ function addVar() {
   const nextVars = { ...localVars, [key]: newValue.value }
   const nextMetadata = {
     ...localMetadata,
-    [key]: { kind: 'secret', previewPolicy: 'omit' }
+    [key]: {
+      kind: 'secret',
+      redaction: 'unclassified',
+      previewPolicy: 'omit'
+    }
   }
   saveVars(nextVars, {
     metadata: nextMetadata,
@@ -319,7 +325,11 @@ function saveBulk() {
     const nextMetadata = Object.fromEntries(
       Object.keys(vars).map((key) => [
         key,
-        localMetadata[key] || { kind: 'secret', previewPolicy: 'omit' }
+        localMetadata[key] || {
+          kind: 'secret',
+          redaction: 'unclassified',
+          previewPolicy: 'omit'
+        }
       ])
     )
     saveVars(vars, {

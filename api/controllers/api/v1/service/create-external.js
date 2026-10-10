@@ -77,6 +77,7 @@ module.exports = {
               key,
               {
                 kind: 'secret',
+                redaction: 'credential',
                 managed: true,
                 previewPolicy: 'omit',
                 description: `Connection managed by ${name}`
@@ -123,6 +124,7 @@ module.exports = {
       }).usingConnection(db)
       return service
     })
+    sails.hooks.secrets?.remember({ envVars: values, envVarMetadata: metadata })
     return {
       service: {
         id: service.id,

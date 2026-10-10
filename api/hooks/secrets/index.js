@@ -123,6 +123,14 @@ module.exports = function secretsHook(sails) {
               if (records.length < 100) break
             }
           }
+          const [globalValuesJson, globalMetadataJson] = await Promise.all([
+            sails.helpers.setting.get('globalEnvVars', '{}'),
+            sails.helpers.setting.get('globalEnvVarMetadata', '{}')
+          ])
+          remember({
+            globalEnvVars: parseObject(globalValuesJson),
+            globalEnvVarMetadata: parseObject(globalMetadataJson)
+          })
           for (const level of [
             'error',
             'warn',
@@ -198,4 +206,15 @@ module.exports = function secretsHook(sails) {
     }
   }
   return hook
+}
+
+function parseObject(value) {
+  try {
+    const parsed = JSON.parse(value || '{}')
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed
+      : {}
+  } catch {
+    return {}
+  }
 }

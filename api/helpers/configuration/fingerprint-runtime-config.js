@@ -27,6 +27,7 @@ module.exports = {
           key,
           scope: 'platform',
           kind: 'secret',
+          redaction: 'credential',
           managed: true,
           previewPolicy: 'omit'
         })
@@ -58,6 +59,7 @@ function sanitize(entry) {
       ? entry.scope
       : 'platform',
     kind: entry.kind === 'plain' ? 'plain' : 'secret',
+    redaction: entry.redaction === 'credential' ? 'credential' : 'unclassified',
     managed: entry.managed === true,
     previewPolicy: ['inherit', 'omit', 'randomize'].includes(
       entry.previewPolicy

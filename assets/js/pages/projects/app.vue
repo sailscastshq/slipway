@@ -515,7 +515,11 @@ async function saveBulk() {
   const nextMetadata = Object.fromEntries(
     Object.keys(vars).map((key) => [
       key,
-      localMetadata[key] || { kind: 'secret', previewPolicy: 'omit' }
+      localMetadata[key] || {
+        kind: 'secret',
+        redaction: 'unclassified',
+        previewPolicy: 'omit'
+      }
     ])
   )
   if (!(await saveEnvVars(vars, nextMetadata))) return
@@ -532,6 +536,8 @@ function metadataFor(key) {
   return {
     ...metadata,
     kind,
+    redaction:
+      metadata.redaction === 'credential' ? 'credential' : 'unclassified',
     managed: metadata.managed === true,
     previewPolicy:
       metadata.previewPolicy || (kind === 'plain' ? 'inherit' : 'omit')
@@ -633,7 +639,11 @@ async function addVar() {
   const nextVars = { ...localVars, [key]: newValue.value }
   const nextMetadata = {
     ...localMetadata,
-    [key]: { kind: 'secret', previewPolicy: 'omit' }
+    [key]: {
+      kind: 'secret',
+      redaction: 'unclassified',
+      previewPolicy: 'omit'
+    }
   }
   if (!(await saveEnvVars(nextVars, nextMetadata))) return
   Object.assign(localVars, nextVars)

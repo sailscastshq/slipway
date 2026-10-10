@@ -414,7 +414,9 @@ test('presentation uses credential provenance, not legacy configuration substrin
       SIGNING: 'confirmed-canary-746',
       LEGACY_API_TOKEN: 'legacy-token-canary-746'
     },
-    envVarMetadata: { SIGNING: { kind: 'secret' } }
+    envVarMetadata: {
+      SIGNING: { kind: 'secret', redaction: 'credential' }
+    }
   })
   const req = { options: { action: 'bearing/view-feedback' } }
   const res = {
@@ -467,6 +469,121 @@ test('presentation uses credential provenance, not legacy configuration substrin
   expect(hook.text('flossafrica kelvin@example.test')).toBe(
     '[REDACTED] [REDACTED]'
   )
+})
+
+test('default reveal-only metadata does not redact successful public content', async ({
+  sails,
+  expect
+}) => {
+  const values = {
+    BRAND: 'public-acacia-750',
+    DOCS_URL: 'https://docs.example.test',
+    OWNER: 'owner@example.test',
+    WELCOME: 'Welcome to public-acacia-750'
+  }
+  const metadata = sails.helpers.configuration.normalizeEnvVarMetadata.with({
+    values,
+    metadata: {}
+  })
+  const hook = require('../../../api/hooks/secrets')({})
+  hook.remember({ envVars: values, envVarMetadata: metadata })
+  const response = {
+    statusCode: 200,
+    json: (value) => value,
+    set() {}
+  }
+  hook.routes.before['/*'](
+    { options: { action: 'bearing/view-feedback' } },
+    response,
+    () => {}
+  )
+
+  const publicContent = response.json({
+    title: 'Support public-acacia-750',
+    details: values.WELCOME,
+    owner: values.OWNER,
+    docs: values.DOCS_URL,
+    envVars: values
+  })
+
+  expect(publicContent.title).toBe('Support public-acacia-750')
+  expect(publicContent.details).toBe(values.WELCOME)
+  expect(publicContent.owner).toBe(values.OWNER)
+  expect(publicContent.docs).toBe(values.DOCS_URL)
+  expect(publicContent.envVars.BRAND).toBe('[REDACTED]')
+})
+
+test('explicit credential provenance overrides runtime-coordinate heuristics without masking ordinary field names', ({
+  expect
+}) => {
+  const hook = require('../../../api/hooks/secrets')({})
+  const values = {
+    APP_NAME: 'private-acacia-750',
+    BASE_URL: 'https://hooks.example.test/private-capability-750',
+    S3_BUCKET_NAME: 'private-bucket-750'
+  }
+  const metadata = Object.fromEntries(
+    Object.keys(values).map((key) => [
+      key,
+      { kind: 'secret', redaction: 'credential' }
+    ])
+  )
+  hook.remember({ envVars: values, envVarMetadata: metadata })
+  const response = { statusCode: 200, json: (value) => value, set() {} }
+  hook.routes.before['/*'](
+    { options: { action: 'bearing/view-feedback' } },
+    response,
+    () => {}
+  )
+
+  const result = response.json({
+    title: values.APP_NAME,
+    baseUrl: values.BASE_URL,
+    bucket: values.S3_BUCKET_NAME,
+    tokenCount: 12,
+    secretaryName: 'Jane Public'
+  })
+
+  expect(result.title).toBe('[REDACTED]')
+  expect(result.baseUrl).toBe('[REDACTED]')
+  expect(result.bucket).toBe('[REDACTED]')
+  expect(result.tokenCount).toBe(12)
+  expect(result.secretaryName).toBe('Jane Public')
+})
+
+test('explicit response credentials are masked globally while unclassified values are left intact', ({
+  expect
+}) => {
+  const hook = require('../../../api/hooks/secrets')({})
+  const response = { statusCode: 200, json: (value) => value, set() {} }
+  hook.routes.before['/*'](
+    { options: { action: 'bearing/view-feedback' } },
+    response,
+    () => {}
+  )
+  hook.remember({
+    envVars: { BRAND: 'credential-acacia-750' },
+    envVarMetadata: { BRAND: { kind: 'secret', redaction: 'credential' } }
+  })
+  hook.remember({
+    envVars: { LABEL: 'public-acacia-750' },
+    envVarMetadata: { LABEL: { kind: 'secret', redaction: 'unclassified' } }
+  })
+
+  expect(
+    response.json({
+      title: 'Support credential-acacia-750',
+      label: 'Support public-acacia-750'
+    }).title
+  ).toBe('Support [REDACTED]')
+  expect(
+    response.json({
+      title: 'Support credential-acacia-750',
+      label: 'Support public-acacia-750'
+    }).label
+  ).toBe('Support public-acacia-750')
+  expect(hook.text('credential-acacia-750')).toBe('[REDACTED]')
+  expect(hook.text('public-acacia-750')).toBe('[REDACTED]')
 })
 
 test('SSR is preserved exactly for public props and discarded when credential props were sanitized', ({
@@ -655,7 +772,11 @@ test('reveal-only runtime coordinates never become presentation secrets, while c
   const metadata = Object.fromEntries(
     Object.keys(values).map((key) => [
       key,
-      { kind: 'secret', previewPolicy: 'omit' }
+      {
+        kind: 'secret',
+        redaction: key === 'SIGNING' ? 'credential' : 'unclassified',
+        previewPolicy: 'omit'
+      }
     ])
   )
   hook.remember({ envVars: values, envVarMetadata: metadata })
@@ -695,8 +816,12 @@ test('reveal-only runtime coordinates never become presentation secrets, while c
     expect(result.props.url).toBe(page.props.url)
     expect(result.props.subscribePath).toBe(page.props.subscribePath)
     expect(result.props.values).toEqual(Object.values(coordinates))
-    expect(result.props.arbitrary).toBe('[REDACTED] [REDACTED] [REDACTED]')
-    expect(result.props.unsafeOrigin).toBe('[REDACTED]')
+    expect(result.props.arbitrary).toBe(
+      '[REDACTED] [REDACTED] private-base-748'
+    )
+    expect(result.props.unsafeOrigin).toBe(
+      'https://[REDACTED]@private.example.test'
+    )
     for (const value of Object.values(result.props.envVars))
       expect(value).toBe('[REDACTED]')
   }

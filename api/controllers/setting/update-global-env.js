@@ -103,6 +103,10 @@ module.exports = {
       JSON.stringify(normalizedMetadata),
       'Non-secret metadata for instance-wide environment variables'
     )
+    sails.hooks.secrets?.remember({
+      globalEnvVars: envVars,
+      globalEnvVarMetadata: normalizedMetadata
+    })
     await sails.helpers.configuration.recordEnvVarChanges.with({
       before: previousValues,
       after: envVars,

@@ -212,9 +212,12 @@ module.exports = {
         const previous = currentEnvVarMetadata[key] || {}
         const requested = requestedEnvVarMetadata[key]
         if (!requested) continue
-        const changed = ['kind', 'previewPolicy', 'description'].some(
-          (field) => requested[field] !== previous[field]
-        )
+        const changed = [
+          'kind',
+          'redaction',
+          'previewPolicy',
+          'description'
+        ].some((field) => requested[field] !== previous[field])
         if (changed) {
           problems.push({
             envVarMetadata: `"${key}" is managed by Slipway. Its policy cannot be changed directly.`
@@ -231,7 +234,6 @@ module.exports = {
     }
 
     // Build update object
-    sails.hooks.secrets?.remember({ envVars: nextEnvVars, envVarMetadata })
     const updates = {}
     if (name !== undefined) updates.name = name
     if (isProduction !== undefined) updates.isProduction = isProduction
@@ -265,6 +267,11 @@ module.exports = {
         await sails.helpers.caddy.finishRouteUpdate.with({
           action: 'commit',
           transaction: route.transaction
+        })
+      if (envVars !== undefined || envVarMetadata !== undefined)
+        sails.hooks.secrets?.remember({
+          envVars: nextEnvVars,
+          envVarMetadata: normalizedMetadata
         })
     } catch (error) {
       if (route?.transaction) {

@@ -20,6 +20,7 @@ for (const project of ['desktop', 'mobile']) {
         metadata: {
           REVIEW_TOKEN: {
             kind: 'secret',
+            redaction: 'unclassified',
             previewPolicy: 'omit',
             description: ''
           },
@@ -90,6 +91,7 @@ for (const project of ['desktop', 'mobile']) {
           await (scheme === 'light' ? page.inLightMode() : page.inDarkMode())
           fixture.metadata.REVIEW_TOKEN = {
             kind: 'secret',
+            redaction: 'unclassified',
             previewPolicy: 'omit',
             description: ''
           }
@@ -115,6 +117,7 @@ for (const project of ['desktop', 'mobile']) {
               for (const control of [
                 kind,
                 surface.getByRole('combobox', { name: 'Preview environments' }),
+                surface.getByRole('combobox', { name: 'Response redaction' }),
                 surface.getByRole('textbox', { name: /Description/ })
               ]) {
                 const borders = await control.evaluate((element) => {
@@ -150,7 +153,8 @@ for (const project of ['desktop', 'mobile']) {
 
             for (const select of [
               kind,
-              surface.getByRole('combobox', { name: 'Preview environments' })
+              surface.getByRole('combobox', { name: 'Preview environments' }),
+              surface.getByRole('combobox', { name: 'Response redaction' })
             ]) {
               await expect(select).toHaveAttribute(
                 'data-slot',
@@ -192,6 +196,7 @@ for (const project of ['desktop', 'mobile']) {
             await expect(surface).toBeVisible()
             await expect(kind).toBeFocused()
             await page.raw.keyboard.press('Enter')
+            await page.raw.keyboard.press('Home')
             const secret = page.raw.getByRole('option', {
               name: 'Secret',
               exact: true
@@ -217,6 +222,17 @@ for (const project of ['desktop', 'mobile']) {
             await expect(
               surface.getByRole('combobox', { name: 'Preview environments' })
             ).toBeFocused()
+            await page.raw.keyboard.press('Tab')
+            const redaction = surface.getByRole('combobox', {
+              name: 'Response redaction'
+            })
+            await expect(redaction).toBeFocused()
+            await redaction.click()
+            await page.raw
+              .getByRole('option', { name: 'Treat as credential', exact: true })
+              .click()
+            await expect(redaction).toContainText('Treat as credential')
+            await redaction.focus()
             await page.raw.keyboard.press('Tab')
             const description = surface.getByRole('textbox', {
               name: /Description/
@@ -280,6 +296,12 @@ for (const project of ['desktop', 'mobile']) {
               item.method === 'PATCH' &&
               item.input.envVars.REVIEW_TOKEN === 'synthetic-placeholder' &&
               item.input.envVarMetadata.MANAGED_VALUE.managed === true
+          )
+        ).toBe(true)
+        expect(
+          mutations.some(
+            (item) =>
+              item.input.envVarMetadata.REVIEW_TOKEN.redaction === 'credential'
           )
         ).toBe(true)
       }

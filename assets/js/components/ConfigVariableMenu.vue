@@ -126,6 +126,26 @@ function previewPolicyDescription(policy) {
 
         <label class="block">
           <span class="text-xs font-medium text-gray-700 dark:text-gray-300"
+            >Response redaction</span
+          >
+          <Select
+            :model-value="metadata.redaction || 'unclassified'"
+            :options="[
+              { value: 'unclassified', label: 'No global matching' },
+              { value: 'credential', label: 'Treat as credential' }
+            ]"
+            @change="update('redaction', $event)"
+            :class="fieldClass"
+          />
+          <span
+            class="mt-1 block text-xs leading-5 text-gray-500 dark:text-gray-400"
+          >
+            Credentials are masked when they appear in successful responses.
+          </span>
+        </label>
+
+        <label class="block">
+          <span class="text-xs font-medium text-gray-700 dark:text-gray-300"
             >Description
             <span class="font-normal text-gray-400">(optional)</span></span
           >
