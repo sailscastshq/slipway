@@ -81,6 +81,8 @@ function parseObject(value) {
 function safeMetadata(metadata = {}) {
   return {
     kind: metadata.kind === 'plain' ? 'plain' : 'secret',
+    redaction:
+      metadata.redaction === 'credential' ? 'credential' : 'unclassified',
     managed: metadata.managed === true,
     previewPolicy: ['inherit', 'omit', 'randomize'].includes(
       metadata.previewPolicy

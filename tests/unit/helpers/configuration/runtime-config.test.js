@@ -17,6 +17,7 @@ test('config metadata defaults secrets to omit and keeps plain config inheritabl
   })
 
   expect(metadata.API_SECRET.kind).toBe('secret')
+  expect(metadata.API_SECRET.redaction).toBe('unclassified')
   expect(metadata.API_SECRET.previewPolicy).toBe('omit')
   expect(metadata.LOG_LEVEL.kind).toBe('plain')
   expect(metadata.LOG_LEVEL.previewPolicy).toBe('inherit')
@@ -71,11 +72,13 @@ test('read-only metadata normalization resolves legacy policy without inventing 
 
   expect(missing.DATABASE_URL).toEqual({
     kind: 'secret',
+    redaction: 'unclassified',
     managed: true,
     previewPolicy: 'omit'
   })
   expect(partial.DATABASE_URL).toEqual({
     kind: 'secret',
+    redaction: 'unclassified',
     managed: true,
     previewPolicy: 'omit',
     changedAt: 123,
@@ -92,11 +95,19 @@ test('accepted metadata mutations record the supplied actor and time', async ({
   const metadata = sails.helpers.configuration.normalizeEnvVarMetadata.with({
     values: { API_SECRET: 'new-value' },
     metadata: {
-      API_SECRET: { kind: 'secret', previewPolicy: 'randomize' }
+      API_SECRET: {
+        kind: 'secret',
+        redaction: 'credential',
+        previewPolicy: 'randomize'
+      }
     },
     currentValues: { API_SECRET: 'old-value' },
     currentMetadata: {
-      API_SECRET: { kind: 'secret', previewPolicy: 'omit' }
+      API_SECRET: {
+        kind: 'secret',
+        redaction: 'unclassified',
+        previewPolicy: 'omit'
+      }
     },
     changedBy: '7',
     changedByName: 'Builder',
@@ -105,6 +116,7 @@ test('accepted metadata mutations record the supplied actor and time', async ({
 
   expect(metadata.API_SECRET).toEqual({
     kind: 'secret',
+    redaction: 'credential',
     managed: false,
     previewPolicy: 'randomize',
     changedAt: 456,

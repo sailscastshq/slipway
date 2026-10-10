@@ -50,6 +50,14 @@ module.exports = {
         : allowed(previous.kind, ['secret', 'plain'])
         ? previous.kind
         : 'secret'
+      const redaction = allowed(requested.redaction, [
+        'credential',
+        'unclassified'
+      ])
+        ? requested.redaction
+        : allowed(previous.redaction, ['credential', 'unclassified'])
+        ? previous.redaction
+        : 'unclassified'
       const previewPolicy = allowed(requested.previewPolicy, [
         'inherit',
         'omit',
@@ -68,6 +76,7 @@ module.exports = {
         .slice(0, 160)
       const next = {
         kind,
+        redaction,
         managed: managed.has(key) || previous.managed === true,
         previewPolicy
       }
@@ -83,6 +92,7 @@ module.exports = {
         !Object.prototype.hasOwnProperty.call(currentValues || {}, key) ||
         currentValues[key] !== values[key] ||
         previous.kind !== next.kind ||
+        previous.redaction !== next.redaction ||
         previous.managed !== next.managed ||
         previous.previewPolicy !== next.previewPolicy ||
         String(previous.description || '') !== description

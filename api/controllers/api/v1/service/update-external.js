@@ -108,6 +108,7 @@ module.exports = {
         details: { tlsMode: config.sslMode }
       }).usingConnection(db)
     })
+    sails.hooks.secrets?.remember({ envVars: values, envVarMetadata: metadata })
     return {
       message:
         'Connection saved. Verify access and redeploy apps to use the new settings.'

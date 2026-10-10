@@ -105,7 +105,6 @@ module.exports = {
 
     // Generate credentials
     const password = await sails.helpers.strings.random('url-friendly')
-    sails.hooks.secrets?.remember({ password })
     const username = `slipway_${name.replace(/-/g, '_')}`
     const database = name.replace(/-/g, '_')
 
@@ -127,6 +126,7 @@ module.exports = {
       password,
       environment: environment.id
     }).fetch()
+    sails.hooks.secrets?.remember({ password })
 
     // Create the Docker container
     try {
@@ -164,6 +164,7 @@ module.exports = {
             ...(environment.envVarMetadata || {}),
             [envVarKey]: {
               kind: 'secret',
+              redaction: 'credential',
               managed: true,
               previewPolicy: 'omit',
               description: `Connection URL managed by ${name}`
@@ -176,6 +177,10 @@ module.exports = {
           changedByName: user.fullName
         })
       await Environment.updateOne({ id: environment.id }).set({
+        envVars: updatedVars,
+        envVarMetadata: updatedMetadata
+      })
+      sails.hooks.secrets?.remember({
         envVars: updatedVars,
         envVarMetadata: updatedMetadata
       })

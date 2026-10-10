@@ -43,6 +43,7 @@ module.exports = {
         key,
         operation,
         kind: next.kind || previous.kind || 'secret',
+        redaction: next.redaction || previous.redaction || 'unclassified',
         managed: next.managed === true || previous.managed === true,
         previewPolicy: next.previewPolicy || previous.previewPolicy || 'omit'
       })
@@ -53,7 +54,7 @@ module.exports = {
 }
 
 function metadataChanged(before, after) {
-  return ['kind', 'managed', 'previewPolicy', 'description'].some(
+  return ['kind', 'redaction', 'managed', 'previewPolicy', 'description'].some(
     (field) => (before?.[field] || '') !== (after?.[field] || '')
   )
 }

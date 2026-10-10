@@ -25,6 +25,11 @@ test(
     }
     const environmentValues = {
       BASE_URL: 'https://flossafrica.com',
+      BRAND: 'flossafrica',
+      DOCS_URL: 'https://docs.example.test',
+      OWNER: 'kelvin@example.test',
+      HOST: 'files.example.test',
+      WELCOME: 'Welcome to flossafrica',
       R2_BUCKET: 'flossafrica',
       S3_BUCKET_NAME: 'sailsconf',
       SPACES_BUCKET: 'sailscasts',
@@ -43,18 +48,27 @@ test(
     sails.hooks.secrets.remember(
       await sails.models.environment
         .findOne({ id: environments.production.id })
-        .decrypt()
+        .decrypt(),
+      `environment:${environments.production.id}`
     )
+    const appValues = {
+      BRAND: 'flossafrica',
+      OWNER: 'kelvin@example.test',
+      HOST: 'files.example.test',
+      DOCS_URL: 'https://docs.example.test'
+    }
+    const appEnvVarMetadata =
+      await sails.helpers.configuration.normalizeEnvVarMetadata.with({
+        values: appValues,
+        recordChanges: false
+      })
     await sails.models.app.updateOne({ id: app.id }).set({
       bearingEnabled: true,
-      secureEnvVars: {
-        BRAND: 'flossafrica',
-        OWNER: 'kelvin@example.test',
-        HOST: 'files.example.test'
-      }
+      secureEnvVars: appValues,
+      envVarMetadata: appEnvVarMetadata
     })
     const persisted = await sails.models.app.findOne({ id: app.id }).decrypt()
-    sails.hooks.secrets.remember(persisted)
+    sails.hooks.secrets.remember(persisted, `app:${app.id}`)
     const space = await sails.models.bearingspace
       .create({
         publicSlug: 'bearing-redaction',
@@ -63,7 +77,8 @@ test(
       })
       .fetch()
     const title = 'Support flossafrica'
-    const details = 'Help flossafrica grow. Contact kelvin@example.test.'
+    const details =
+      'Help flossafrica grow. Contact kelvin@example.test. Welcome to flossafrica. Docs: https://docs.example.test. Host: files.example.test.'
     const feedback = await sails.models.bearingfeedback
       .create({ title, details, app: app.id, space: space.id })
       .fetch()
@@ -146,8 +161,10 @@ test(
     expect(sails.hooks.secrets.protect(persisted).secureEnvVars.BRAND).toBe(
       '[REDACTED]'
     )
-    expect(sails.hooks.secrets.text(details)).toBe(
-      'Help [REDACTED] grow. Contact [REDACTED].'
-    )
+    expect(
+      sails.hooks.secrets.text(
+        'Help flossafrica grow. Contact kelvin@example.test.'
+      )
+    ).toBe('Help [REDACTED] grow. Contact [REDACTED].')
   }
 )

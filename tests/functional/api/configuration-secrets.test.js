@@ -158,16 +158,19 @@ test(
     const normalizedPageMetadata = {
       DATABASE_URL: {
         kind: 'secret',
+        redaction: 'unclassified',
         managed: true,
         previewPolicy: 'omit'
       },
       SENTRY_DSN: {
         kind: 'secret',
+        redaction: 'unclassified',
         previewPolicy: 'omit'
       }
     }
     expect(dashboard.page.data.props.envVarMetadata.DATABASE_URL).toEqual({
       kind: 'secret',
+      redaction: 'unclassified',
       managed: true,
       previewPolicy: 'omit'
     })
@@ -187,6 +190,7 @@ test(
     expect(persisted.envVars.DATABASE_URL).toBe(managedValue)
     expect(persisted.envVarMetadata.DATABASE_URL).toEqual({
       kind: 'secret',
+      redaction: 'unclassified',
       managed: true,
       previewPolicy: 'omit'
     })

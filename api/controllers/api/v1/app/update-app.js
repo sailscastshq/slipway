@@ -169,7 +169,6 @@ module.exports = {
       throw 'precognitionSuccess'
     }
 
-    sails.hooks.secrets?.remember({ envVars: nextEnvVars, envVarMetadata })
     const updates = {}
     if (name !== undefined) updates.name = name
     if (dockerfilePath !== undefined) updates.dockerfilePath = dockerfilePath
@@ -226,6 +225,12 @@ module.exports = {
     }
 
     const updated = await App.updateOne({ id: app.id }).set(updates)
+
+    if (envVars !== undefined || envVarMetadata !== undefined)
+      sails.hooks.secrets?.remember({
+        envVars: nextEnvVars,
+        envVarMetadata: normalizedMetadata
+      })
 
     if (envVars !== undefined || envVarMetadata !== undefined) {
       await sails.helpers.configuration.recordEnvVarChanges.with({

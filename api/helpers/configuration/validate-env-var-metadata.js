@@ -36,6 +36,14 @@ module.exports = {
         ]
       }
       if (
+        entry.redaction &&
+        !['credential', 'unclassified'].includes(entry.redaction)
+      ) {
+        return [
+          { envVarMetadata: `Variable "${key}" has an invalid redaction type.` }
+        ]
+      }
+      if (
         entry.previewPolicy &&
         !['inherit', 'omit', 'randomize'].includes(entry.previewPolicy)
       ) {
