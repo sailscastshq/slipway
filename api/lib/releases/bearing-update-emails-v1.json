@@ -1,0 +1,35 @@
+{
+  "version": "bearing-update-emails-v1",
+  "datastores": {
+    "default": {
+      "bearing_update_consents": {
+        "create": "CREATE TABLE `bearing_update_consents` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `participant` INTEGER, `space` INTEGER, `state` TEXT, `email_hash` TEXT)",
+        "accepted": [
+          "CREATE TABLE `bearing_update_consents` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `participant` INTEGER, `space` INTEGER, `state` TEXT, `email_hash` TEXT)"
+        ],
+        "indexes": [
+          "CREATE INDEX bearing_update_consents_scope_latest ON bearing_update_consents (space, participant, id)"
+        ]
+      },
+      "bearing_update_publications": {
+        "create": "CREATE TABLE `bearing_update_publications` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `publication_key` TEXT UNIQUE, `bearing_update` INTEGER, `space` INTEGER, `snapshot` TEXT, `consent_watermark` INTEGER, `cursor` INTEGER, `state` TEXT, `lease_token` TEXT, `lease_until` INTEGER)",
+        "accepted": [
+          "CREATE TABLE `bearing_update_publications` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `publication_key` TEXT UNIQUE, `bearing_update` INTEGER, `space` INTEGER, `snapshot` TEXT, `consent_watermark` INTEGER, `cursor` INTEGER, `state` TEXT, `lease_token` TEXT, `lease_until` INTEGER)"
+        ],
+        "indexes": [
+          "CREATE UNIQUE INDEX `idx_bearing_update_publications_publication_key` ON `bearing_update_publications` (`publication_key`)"
+        ]
+      },
+      "bearing_update_deliveries": {
+        "create": "CREATE TABLE `bearing_update_deliveries` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `delivery_key` TEXT UNIQUE, `publication` INTEGER, `consent` INTEGER, `participant` INTEGER, `state` TEXT, `attempts` INTEGER, `next_attempt_at` INTEGER, `lease_token` TEXT, `lease_until` INTEGER)",
+        "accepted": [
+          "CREATE TABLE `bearing_update_deliveries` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `delivery_key` TEXT UNIQUE, `publication` INTEGER, `consent` INTEGER, `participant` INTEGER, `state` TEXT, `attempts` INTEGER, `next_attempt_at` INTEGER, `lease_token` TEXT, `lease_until` INTEGER)"
+        ],
+        "indexes": [
+          "CREATE UNIQUE INDEX `idx_bearing_update_deliveries_delivery_key` ON `bearing_update_deliveries` (`delivery_key`)",
+          "CREATE INDEX bearing_update_deliveries_due ON bearing_update_deliveries (state, next_attempt_at, lease_until, id)"
+        ]
+      }
+    }
+  }
+}

@@ -48,6 +48,7 @@ module.exports = {
       type: 'boolean',
       defaultsTo: false
     },
+    rejectLoggingTransport: { type: 'boolean', defaultsTo: false },
     text: {
       type: 'string'
     },
@@ -93,12 +94,20 @@ module.exports = {
   fn: async function (inputs) {
     await sails.helpers.setting.syncSmtpConfig()
 
+    const mailer = getConfiguredMailer(inputs.mailer)
+    if (
+      inputs.rejectLoggingTransport &&
+      sails.config.mail.mailers[mailer]?.transport === 'log'
+    )
+      throw new Error('A delivery transport is required for this message.')
+
     const message = {
       ...inputs,
-      mailer: getConfiguredMailer(inputs.mailer),
+      mailer,
       from: inputs.from || sails.config.mail.from.address,
       fromName: inputs.fromName || sails.config.mail.from.name
     }
+    delete message.rejectLoggingTransport
 
     for (const key of Object.keys(message)) {
       if (message[key] === undefined) {

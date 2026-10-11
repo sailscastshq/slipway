@@ -11,6 +11,7 @@ module.exports = {
   tableName: 'bearing_participants',
 
   attributes: {
+    updateConsents: { collection: 'bearingupdateconsent', via: 'participant' },
     participantKey: {
       type: 'string',
       required: true,

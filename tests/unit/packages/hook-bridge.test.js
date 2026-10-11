@@ -181,6 +181,18 @@ test('Bearing inherits the host login and identity contract from Bridge', async 
   expect(response.value).toBe(
     '/academy/sign-in?redirect=%2Facademy%2F_slipway%2Fbearing%2Fidentity'
   )
+  const updates = createResponse()
+  await bearingIdentityRoute(
+    {
+      session: {},
+      originalUrl: '/_slipway/bearing/identity?surface=updates&embedded=1',
+      query: { surface: 'updates', embedded: '1' }
+    },
+    updates
+  )
+  expect(updates.value).toBe(
+    '/academy/sign-in?redirect=%2Facademy%2F_slipway%2Fbearing%2Fidentity%3Fsurface%3Dupdates%26embedded%3D1'
+  )
 })
 
 test('host Bridge fails closed when the app cannot prove email verification', async ({

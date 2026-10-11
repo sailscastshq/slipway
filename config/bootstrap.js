@@ -25,6 +25,7 @@ module.exports.bootstrap = async function () {
   // every modeled column even when a helper only needs one of them.
   await sails.helpers.bridge.ensureSchema()
   await sails.helpers.bearing.ensureSchema()
+  await sails.helpers.bearing.ensureMailSchema()
   // App columns must exist before any helper hydrates the App model.
   await sails.helpers.wake.ensureAppSchema()
   try {
