@@ -213,7 +213,7 @@ test('legacy public runtime values do not erase deployment URLs, but explicit se
     envVarMetadata: { NODE_ENV: { kind: 'secret' } }
   })
   expect(redact.text(`${endpoint}?token=private-canary-734`)).toBe(
-    `${endpoint}?token=[REDACTED]`
+    `${endpoint.replace('production', '[REDACTED]')}?token=[REDACTED]`
   )
   expect(redact.text('production private-name-734')).toBe(
     '[REDACTED] [REDACTED]'

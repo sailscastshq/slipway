@@ -6,6 +6,15 @@ module.exports = function secretsHook(sails) {
     context: 'response',
     diagnostics: redact
   })
+  const deploymentLogs = require('../../lib/deployment-log-events').createCodec(
+    {
+      secret: sails.config?.session?.secret,
+      diagnosticText: redact.text,
+      credentialText: credentials.text
+    }
+  )
+  redact.setDeploymentLogRenderer(deploymentLogs.store)
+  credentials.setDeploymentLogRenderer(deploymentLogs.render)
   function remember(value) {
     redact.remember(value)
     credentials.remember(value)
@@ -81,6 +90,9 @@ module.exports = function secretsHook(sails) {
     protect: redact.protect,
     text: redact.text,
     stream: redact.stream,
+    encodeDeploymentEvent: deploymentLogs.encode,
+    storeDeploymentLog: deploymentLogs.store,
+    renderDeploymentLog: deploymentLogs.render,
     initialize(done) {
       sails.after('hook:orm:loaded', async () => {
         let section = 'instance configuration'

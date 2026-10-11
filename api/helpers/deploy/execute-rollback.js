@@ -341,7 +341,10 @@ module.exports = {
       for (const accessUrl of accessUrls) {
         await Deployment.appendDeployLog(
           rollbackId,
-          `  ${`${accessUrl.logLabel}:`.padEnd(11)}${accessUrl.value}\n`
+          require('../../lib/deployment-log-events').accessUrl(
+            accessUrl.logLabel,
+            accessUrl.value
+          )
         )
       }
       if (directAccess.url) {

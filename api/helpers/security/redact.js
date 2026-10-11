@@ -210,6 +210,7 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
   let overflow = false
   let matcher = null
   let dirty = false
+  let deploymentLogRenderer
   function remember(record) {
     function add(value) {
       if (typeof value !== 'string' || value.length < 8 || value === HIDDEN)
@@ -355,14 +356,14 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
     }
     // Public access fields and Docker routing identifiers contain hostnames
     // already exposed by the control plane. Preserve their routing identity
-    // without exempting userinfo, paths or query credentials. Ordinary text
-    // only receives the narrower Docker-host exception.
+    // without exempting userinfo, paths or query credentials. Raw diagnostics
+    // receive no hostname exception; deployment events carry scoped provenance.
     const hosts = publicUrl
       ? /^https?:\/\/[a-z0-9.[\]:-]+(?=[/\s?#]|$)/gi
-      : /https?:\/\/slipway-[a-z0-9_.-]+:\d+(?=[/\s?#]|$)/gi
+      : null
     let result = ''
     let offset = 0
-    for (const host of presentation ? [] : value.matchAll(hosts)) {
+    for (const host of presentation || !hosts ? [] : value.matchAll(hosts)) {
       if (host.index < offset) continue
       const preceding = value.slice(offset, host.index)
       result += matcher ? preceding.replace(matcher, HIDDEN) : preceding
@@ -460,6 +461,15 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
       const repositoryIdentity = isGithubRepository(value)
       for (const [key, entry] of Object.entries(value)) {
         if (
+          key === 'deployLogs' &&
+          deploymentLogRenderer &&
+          typeof entry === 'string'
+        )
+          result[key] = deploymentLogRenderer(
+            entry,
+            value.deploymentId ?? value.id
+          )
+        else if (
           presentation &&
           diagnostics &&
           [
@@ -610,7 +620,15 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
       }
     }
   }
-  return { remember, protect, text, stream }
+  return {
+    remember,
+    protect,
+    text,
+    stream,
+    setDeploymentLogRenderer(renderer) {
+      deploymentLogRenderer = renderer
+    }
+  }
 }
 module.exports._private = {
   HIDDEN,
