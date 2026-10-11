@@ -813,6 +813,8 @@ test(
       `${hostPath}/${feedback.publicId}`
     )
     expect(permalink).toHaveStatus(200)
+    expect(permalink).toBeInertiaPage('bearing/feedback-detail')
+    expect(permalink.data.props.feedback.data.length).toBe(1)
     expect(permalink).toHaveInertiaProps({
       focusedFeedbackId: feedback.publicId,
       'app.publicUrl': `https://ideas.example.com/bearing/feedback/${feedback.publicId}`,
@@ -1041,6 +1043,8 @@ test(
     const focusedAfterPagination = await participantClient.get(
       `${hostPath}/${feedback.publicId}`
     )
+    expect(focusedAfterPagination).toBeInertiaPage('bearing/feedback-detail')
+    expect(focusedAfterPagination.data.props.feedback.data.length).toBe(1)
     expect(focusedAfterPagination).toHaveInertiaProps({
       focusedFeedbackId: feedback.publicId,
       'feedback.data.0.publicId': feedback.publicId
@@ -1065,6 +1069,37 @@ test(
       `${hostPath}/bfd_missing`
     )
     expect(missingPermalink).toHaveStatus(404)
+
+    const otherApp = await world.create('app').with({
+      environment: environment.id,
+      name: 'Other Product',
+      slug: 'other-product',
+      bearingEnabled: true
+    })
+    const otherSpace = await sails.models.bearingspace
+      .create({
+        publicSlug: 'other-product-space',
+        app: otherApp.id,
+        createdBy: current.users.genesisUser.id
+      })
+      .fetch()
+    const crossAppFeedback = await sails.models.bearingfeedback
+      .create({
+        title: 'Other product feedback',
+        app: otherApp.id,
+        space: otherSpace.id
+      })
+      .fetch()
+    expect(
+      await participantClient.get(`${hostPath}/${crossAppFeedback.publicId}`)
+    ).toHaveStatus(404)
+    const deleted = await sails.models.bearingfeedback
+      .create({ title: 'Deleted feedback', app: app.id, space: space.id })
+      .fetch()
+    await sails.models.bearingfeedback.destroyOne({ id: deleted.id })
+    expect(
+      await participantClient.get(`${hostPath}/${deleted.publicId}`)
+    ).toHaveStatus(404)
 
     await socket.close()
   }

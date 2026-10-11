@@ -90,25 +90,19 @@ module.exports = {
       filters
     })
     const perPage = 20
-    const pageIndex = page - 1
-    const total = await BearingFeedback.count(criteria)
-    const feedback = await BearingFeedback.find(criteria)
-      .populate('author')
-      .sort(
-        filters.sort === 'newest'
-          ? ['createdAt DESC', 'id DESC']
-          : ['voteCount DESC', 'createdAt DESC', 'id DESC']
-      )
-      .limit(perPage)
-      .skip(pageIndex * perPage)
-
-    if (
-      pageIndex === 0 &&
-      focusedFeedback &&
-      !feedback.some((item) => item.id === focusedFeedback.id)
-    ) {
-      feedback.unshift(focusedFeedback)
-    }
+    const pageIndex = focusedFeedback ? 0 : page - 1
+    const total = focusedFeedback ? 1 : await BearingFeedback.count(criteria)
+    const feedback = focusedFeedback
+      ? [focusedFeedback]
+      : await BearingFeedback.find(criteria)
+          .populate('author')
+          .sort(
+            filters.sort === 'newest'
+              ? ['createdAt DESC', 'id DESC']
+              : ['voteCount DESC', 'createdAt DESC', 'id DESC']
+          )
+          .limit(perPage)
+          .skip(pageIndex * perPage)
 
     const voter = await sails.helpers.bearing.resolveVoter.with({
       req: this.req,
@@ -153,7 +147,7 @@ module.exports = {
     })
 
     return {
-      page: 'bearing/feedback',
+      page: focusedFeedback ? 'bearing/feedback-detail' : 'bearing/feedback',
       props: {
         hostAssetBasePath: resolved.hostAssetBasePath,
         app: {

@@ -25,6 +25,7 @@ test(
     const space = await sails.models.bearingspace
       .create({
         publicSlug: 'feedback-detail-browser',
+        allowAnonymousParticipation: true,
         app: app.id,
         createdBy: current.users.genesisUser.id
       })
@@ -39,6 +40,14 @@ test(
         space: space.id
       })
       .fetch()
+    for (let index = 0; index < 12; index++) {
+      await sails.models.bearingfeedback.create({
+        title: `Other request ${index}`,
+        details: 'Another request on the board.',
+        app: app.id,
+        space: space.id
+      })
+    }
     const privatePath = `/_slipway/bearing/host/${project.slug}/${environment.slug}/${app.slug}`
     await page.raw.route('**/bearing/**', async (route) => {
       const url = new URL(route.request().url())
@@ -52,19 +61,89 @@ test(
       url.pathname = url.pathname.replace('/_slipway/bearing/_assets', '')
       await route.continue({ url: url.toString() })
     })
-    await page.goto(`${privatePath}/feedback?embedded=1`)
+    await page.goto(`/bearing/feedback?embedded=1`)
+    await page.resize(1280, 600)
+    await page.raw
+      .getByRole('link', { name: feedback.title, exact: true })
+      .scrollIntoViewIfNeeded()
+    const boardScroll = await page.raw.evaluate(() => window.scrollY)
     await page.raw
       .getByRole('link', { name: feedback.title, exact: true })
       .click()
     await expect(page.raw).toHaveURL(
       new RegExp(`${feedback.publicId}\\?embedded=1$`)
     )
+    await expect(
+      page.raw.getByRole('heading', { level: 1, name: feedback.title })
+    ).toBeVisible()
+    await expect(page.raw.locator('#bearing-feedback-title')).toHaveCount(0)
+    await expect(page.raw.getByLabel('Search feedback')).toHaveCount(0)
+    await expect(page.raw.locator('.bearing-feedback-card')).toHaveCount(1)
+    const vote = page.raw.getByRole('button', {
+      name: `Vote for ${feedback.title}. 0 votes`,
+      exact: true
+    })
+    await vote.click()
+    await expect(
+      page.raw.getByRole('button', {
+        name: `Remove vote from ${feedback.title}. 1 votes`,
+        exact: true
+      })
+    ).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.raw).toHaveURL(
+      new RegExp(`${feedback.publicId}\\?embedded=1$`)
+    )
+    await page.raw.reload()
+    await expect(
+      page.raw.getByRole('heading', { level: 1, name: feedback.title })
+    ).toBeVisible()
+    await page.raw
+      .getByRole('link', { name: 'All feedback', exact: true })
+      .click()
+    await expect(page.raw.getByLabel('Search feedback')).toHaveCount(1)
+    expect(await page.raw.evaluate(() => window.scrollY)).toBe(boardScroll)
+    await page.raw.getByLabel('Search feedback').fill('complete')
+    await expect(page.raw).toHaveURL(/q=complete/)
+    await page.raw
+      .getByRole('link', { name: feedback.title, exact: true })
+      .click()
+    await page.raw
+      .getByRole('link', { name: 'All feedback', exact: true })
+      .click()
+    await expect(page.raw.getByLabel('Search feedback')).toHaveValue('complete')
+    await page.raw
+      .getByRole('link', { name: feedback.title, exact: true })
+      .click()
+    const screenshotRoot = require('node:path').resolve(
+      '.tmp/screenshots/issue-754'
+    )
+    require('node:fs').mkdirSync(screenshotRoot, { recursive: true })
+    for (const [name, width, height] of [
+      ['desktop', 1440, 1000],
+      ['mobile', 390, 700]
+    ]) {
+      await page.resize(width, height)
+      await page.screenshot(
+        require('node:path').join(screenshotRoot, `${name}-detail.png`),
+        { fullPage: true }
+      )
+    }
+    await page.raw.goBack()
+    await expect(page.raw.getByLabel('Search feedback')).toHaveValue('complete')
+    await page.raw.goForward()
+    await expect(
+      page.raw.getByRole('heading', { level: 1, name: feedback.title })
+    ).toBeVisible()
     const publicDetails = page.raw
       .locator(`#bearing-feedback-${feedback.publicId} p`)
       .filter({ hasText: 'The final detail' })
     await expect(publicDetails).not.toHaveClass(/line-clamp-2/)
     await expect(publicDetails).toHaveText(details)
 
+    await sails.models.bearingfeedback.destroy({
+      space: space.id,
+      id: { '!=': feedback.id }
+    })
     const adminPath = `/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/bearing`
     await login.withPassword('genesisUser', page, {
       password: current.auth.genesisUserPassword

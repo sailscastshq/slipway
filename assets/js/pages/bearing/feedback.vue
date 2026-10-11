@@ -30,6 +30,7 @@ import { writeDraft } from '@/components/ui/durable-ui/core'
 import { useFormDraft } from '@/components/ui/durable-ui/useFormDraft'
 
 const props = defineProps({
+  detail: Boolean,
   app: Object,
   bearing: Object,
   participant: Object,
@@ -259,8 +260,14 @@ watch(
 )
 
 onMounted(() => {
-  restoreDraft()
-  revealFocusedFeedback()
+  if (!props.detail) {
+    restoreDraft()
+    const state = readBoardState()
+    if (state?.url === window.location.pathname + window.location.search) {
+      nextTick(() => window.scrollTo(0, state.scrollY))
+    }
+  }
+  if (!props.detail) revealFocusedFeedback()
 })
 
 onUnmounted(() => {
@@ -273,7 +280,7 @@ function reconcileFeedback(snapshot, syncedAt) {
     feedbackItems.value.map((item) => [item.publicId, item])
   )
   const snapshotById = new Map(snapshot.map((item) => [item.publicId, item]))
-  const newSincePageLoad = snapshot.filter(
+  const newSincePageLoad = (props.detail ? [] : snapshot).filter(
     (item) =>
       !previous.has(item.publicId) &&
       new Date(item.createdAt).getTime() >= realtimeCursor
@@ -324,6 +331,7 @@ function newestFeedback(current, incoming) {
 function receiveFeedbackEvent(event) {
   if (!event?.feedback?.publicId) return
   const publicId = event.feedback.publicId
+  if (props.detail && publicId !== props.focusedFeedbackId) return
 
   if (event.verb === 'removed') {
     feedbackItems.value = feedbackItems.value.filter(
@@ -383,6 +391,45 @@ async function revealFocusedFeedback() {
     block: 'center'
   })
   highlightFeedback(props.focusedFeedbackId)
+}
+
+const boardStateKey = `slipway.bearing.board.${props.app.feedbackPath}`
+function readBoardState() {
+  try {
+    const state = JSON.parse(sessionStorage.getItem(boardStateKey))
+    const url = new URL(state?.url, window.location.origin)
+    if (
+      url.origin !== window.location.origin ||
+      url.pathname !== props.app.feedbackPath ||
+      !Number.isFinite(state.expiresAt) ||
+      !Number.isFinite(state.scrollY) ||
+      state.expiresAt < Date.now()
+    )
+      return null
+    return state
+  } catch {
+    return null
+  }
+}
+const boardReturnUrl = computed(
+  () =>
+    readBoardState()?.url ||
+    `${props.app.feedbackPath}${props.embedded ? '?embedded=1' : ''}`
+)
+function rememberBoard() {
+  if (props.detail) return
+  try {
+    sessionStorage.setItem(
+      boardStateKey,
+      JSON.stringify({
+        url: window.location.pathname + window.location.search,
+        scrollY: window.scrollY,
+        expiresAt: Date.now() + 30 * 60 * 1000
+      })
+    )
+  } catch {
+    /* Navigation works even when browser storage is unavailable. */
+  }
 }
 
 function feedbackPermalink(item) {
@@ -454,7 +501,7 @@ function replaceFeedback(publicId, values) {
 }
 
 function refreshFeedback() {
-  const query = {}
+  const query = props.embedded ? { embedded: 1 } : {}
   if (search.value.trim()) query.q = search.value.trim()
   if (categoryFilter.value !== 'all') query.category = categoryFilter.value
   if (statusFilter.value !== 'active') query.status = statusFilter.value
@@ -826,7 +873,13 @@ function shortDate(value) {
       "
     >
       <div class="mx-auto max-w-3xl">
-        <div v-if="!embedded" class="max-w-2xl">
+        <a
+          v-if="detail"
+          :href="boardReturnUrl"
+          class="min-h-10 inline-flex items-center text-sm text-gray-500 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-gray-400"
+          >All feedback</a
+        >
+        <div v-if="!embedded && !detail" class="max-w-2xl">
           <p
             class="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400"
           >
@@ -842,6 +895,7 @@ function shortDate(value) {
         </div>
 
         <section
+          v-if="!detail"
           :class="embedded ? 'mt-0' : 'mt-10'"
           aria-labelledby="share-feedback-heading"
         >
@@ -1087,11 +1141,16 @@ function shortDate(value) {
           </div>
         </section>
 
-        <section class="mt-14" aria-labelledby="feedback-list-heading">
+        <section
+          :class="detail ? 'mt-8' : 'mt-14'"
+          :aria-labelledby="
+            detail ? 'feedback-detail-heading' : 'feedback-list-heading'
+          "
+        >
           <p class="sr-only" aria-live="polite" aria-atomic="true">
             {{ liveAnnouncement }}
           </p>
-          <div class="flex items-end justify-between gap-5">
+          <div v-if="!detail" class="flex items-end justify-between gap-5">
             <div>
               <h2 id="feedback-list-heading" class="text-base font-semibold">
                 From the community
@@ -1104,6 +1163,7 @@ function shortDate(value) {
           </div>
 
           <div
+            v-if="!detail"
             class="mt-7 flex w-full items-center gap-2"
             aria-label="Find and filter feedback"
           >
@@ -1259,7 +1319,8 @@ function shortDate(value) {
             </div>
           </dialog>
 
-          <InfiniteScroll
+          <component
+            :is="detail ? 'div' : InfiniteScroll"
             v-if="visibleFeedback.length"
             data="feedback"
             :buffer="500"
@@ -1269,7 +1330,12 @@ function shortDate(value) {
             <div v-for="item in visibleFeedback" :key="item.publicId">
               <article
                 :id="`bearing-feedback-${item.publicId}`"
-                class="bearing-feedback-card group flex gap-3 rounded-2xl bg-gray-50 p-5 dark:bg-gray-900 sm:gap-5 sm:p-6"
+                class="bearing-feedback-card group flex gap-3 sm:gap-5"
+                :class="
+                  detail
+                    ? ''
+                    : 'rounded-2xl bg-gray-50 p-5 dark:bg-gray-900 sm:p-6'
+                "
                 :data-shared-focus="
                   item.publicId === focusedFeedbackId ? 'true' : undefined
                 "
@@ -1299,14 +1365,23 @@ function shortDate(value) {
                 </button>
                 <div class="min-w-0 flex-1">
                   <div class="flex flex-wrap items-center gap-2.5">
-                    <h3 class="text-sm font-semibold sm:text-base">
+                    <component
+                      :is="detail ? 'h1' : 'h3'"
+                      :id="detail ? 'feedback-detail-heading' : undefined"
+                      :class="
+                        detail
+                          ? 'w-full text-3xl font-semibold tracking-tight sm:text-4xl'
+                          : 'text-sm font-semibold sm:text-base'
+                      "
+                    >
                       <a
                         :href="feedbackPermalink(item)"
+                        @click="rememberBoard"
                         class="rounded-sm transition hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 dark:hover:text-gray-300 dark:focus-visible:ring-white dark:focus-visible:ring-offset-gray-900"
                       >
                         {{ item.title }}
                       </a>
-                    </h3>
+                    </component>
                     <span
                       data-test="bearing-feedback-category"
                       class="rounded-md bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
@@ -1321,7 +1396,8 @@ function shortDate(value) {
                     v-if="item.details"
                     class="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-gray-500 dark:text-gray-400"
                     :class="{
-                      'line-clamp-2': item.publicId !== focusedFeedbackId
+                      'line-clamp-2':
+                        !detail && item.publicId !== focusedFeedbackId
                     }"
                   >
                     {{ item.details }}
@@ -1345,7 +1421,11 @@ function shortDate(value) {
                         :src="image.url"
                         :alt="`${item.title} — image ${imageIndex + 1}`"
                         loading="lazy"
-                        class="max-h-80 w-full object-cover transition duration-300 hover:scale-[1.015]"
+                        :class="
+                          detail
+                            ? 'h-auto w-full object-contain'
+                            : 'max-h-80 w-full object-cover transition duration-300 hover:scale-[1.015]'
+                        "
                       />
                     </a>
                   </div>
@@ -1444,8 +1524,17 @@ function shortDate(value) {
                   <p class="mt-3 text-xs text-gray-400">
                     {{ item.authorName }} · {{ shortDate(item.createdAt) }}
                   </p>
+                  <ShareLinkButton
+                    v-if="detail"
+                    class="mt-5"
+                    :url="feedbackPermalink(item)"
+                    :title="item.title"
+                    :text="item.details || `Feedback for ${app.name}`"
+                    show-label
+                  />
                 </div>
                 <ShareLinkButton
+                  v-if="!detail"
                   :url="feedbackPermalink(item)"
                   :title="item.title"
                   :text="item.details || `Feedback for ${app.name}`"
@@ -1474,7 +1563,7 @@ function shortDate(value) {
                 <span>Loading more feedback…</span>
               </div>
             </template>
-          </InfiniteScroll>
+          </component>
 
           <div
             v-else
