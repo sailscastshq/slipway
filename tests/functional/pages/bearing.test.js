@@ -1070,14 +1070,12 @@ test(
     )
     expect(missingPermalink).toHaveStatus(404)
 
-    const otherApp = await world
-      .create('app')
-      .with({
-        environment: environment.id,
-        name: 'Other Product',
-        slug: 'other-product',
-        bearingEnabled: true
-      })
+    const otherApp = await world.create('app').with({
+      environment: environment.id,
+      name: 'Other Product',
+      slug: 'other-product',
+      bearingEnabled: true
+    })
     const otherSpace = await sails.models.bearingspace
       .create({
         publicSlug: 'other-product-space',
