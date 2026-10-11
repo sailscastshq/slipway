@@ -523,7 +523,7 @@ onUnmounted(() => {
 
 <template>
   <Head :title="`Bearing - ${app.name} | Slipway`"></Head>
-  <div class="flex h-full flex-col">
+  <div class="flex min-h-full flex-col">
     <header
       class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pr-8"
     >
@@ -566,7 +566,7 @@ onUnmounted(() => {
     </header>
 
     <main
-      class="flex-1 overflow-y-auto px-4 py-8 text-gray-950 dark:text-white sm:px-8 sm:py-12"
+      class="flex-1 px-4 py-8 text-gray-950 dark:text-white sm:px-8 sm:py-12"
     >
       <Alert v-if="recoveredUpdate" role="status" class="mb-5">
         An unsaved update is available in this tab (kept for 30 minutes).
