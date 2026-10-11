@@ -592,14 +592,32 @@ test(
     fs.mkdirSync(screenshotRoot, { recursive: true })
     const measurements = []
     async function measure(label) {
-      await page.raw.evaluate(() => {
-        for (const element of [
-          document.scrollingElement,
-          ...document.querySelectorAll('main')
-        ]) {
-          element.scrollTop = element.scrollHeight
-        }
-      })
+      // Editor updates and browser caret scrolling settle after the input
+      // event. Measure the completed scroll, with focus retained, rather than
+      // a transient layout immediately after filling or resizing.
+      await page.raw.waitForFunction(
+        async () => {
+          const frame = () =>
+            new Promise((resolve) => requestAnimationFrame(resolve))
+          await frame()
+          await frame()
+          for (const element of [
+            document.scrollingElement,
+            ...document.querySelectorAll('main')
+          ])
+            element.scrollTop = element.scrollHeight
+          await frame()
+          await frame()
+          const owner = document.querySelector('main')
+          return (
+            Math.abs(
+              owner.scrollHeight - owner.clientHeight - owner.scrollTop
+            ) <= 1
+          )
+        },
+        null,
+        { timeout: 5000 }
+      )
       const geometry = await page.raw.evaluate(() => {
         const box = (element) => {
           const rect = element.getBoundingClientRect()
