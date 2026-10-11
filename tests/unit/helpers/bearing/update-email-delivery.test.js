@@ -167,3 +167,108 @@ test(
     }
   }
 )
+
+test(
+  'bounded competing workers cover a large audience without duplicates or late opt-in backfill',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: { deploymentTarget: { slug: 'bearing-email-bounded' } }
+    }
+  },
+  async ({ sails, world }) => {
+    const current = world.current
+    const app = current.apps.web
+    const environment = current.environments.production
+    const project = current.projects.deploymentTarget
+    await App.updateOne({ id: app.id }).set({ bearingEnabled: true })
+    await Environment.updateOne({ id: environment.id }).set({
+      domain: 'synthetic.example.test'
+    })
+    environment.domain = 'synthetic.example.test'
+    const space = await BearingSpace.create({
+      publicSlug: 'bearing-email-bounded',
+      app: app.id,
+      createdBy: current.users.genesisUser.id
+    }).fetch()
+    async function customer(index) {
+      const email = `synthetic-${index}@example.test`
+      const participant = await BearingParticipant.create({
+        participantKey: 'synthetic-fixture',
+        hostUserId: String(index),
+        email,
+        emailVerifiedAt: Date.now(),
+        firstSeenAt: Date.now(),
+        lastSeenAt: Date.now(),
+        space: space.id
+      }).fetch()
+      await BearingUpdateConsent.create({
+        participant: participant.id,
+        space: space.id,
+        state: 'on',
+        emailHash: mail.emailHash(email)
+      })
+      return participant
+    }
+    for (let index = 0; index < 53; index++) await customer(index)
+    let update
+    await sails.getDatastore().transaction(async (db) => {
+      update = await BearingUpdate.create({
+        title: 'Bounded audience',
+        slug: 'bounded-audience',
+        excerpt: 'Synthetic summary',
+        body: 'Complete synthetic body.',
+        status: 'published',
+        publishedAt: Date.now(),
+        author: current.users.genesisUser.id,
+        app: app.id,
+        space: space.id
+      })
+        .fetch()
+        .usingConnection(db)
+      await mail.recordPublication(update, { app, environment, project }, db)
+    })
+    const late = await customer('late')
+    const sent = []
+    const original = sails.helpers.mail.sendConfigured
+    sails.helpers.mail.sendConfigured = {
+      with: async (message) => {
+        sent.push(message.to)
+      }
+    }
+    try {
+      await drain({ batchSize: 10 })
+      assert.equal(sent.length, 10)
+      assert.equal(
+        await BearingUpdateDelivery.count({
+          publication: (
+            await BearingUpdatePublication.findOne({ bearingUpdate: update.id })
+          ).id
+        }),
+        50
+      )
+      for (let iteration = 0; iteration < 8; iteration++)
+        await Promise.all([drain(), drain(), drain()])
+      assert.equal(sent.length, 53)
+      assert.equal(new Set(sent).size, 53)
+      assert.ok(!sent.includes('synthetic-late@example.test'))
+      assert.equal(
+        await BearingUpdateDelivery.count({ participant: late.id }),
+        0
+      )
+      assert.equal(
+        await BearingUpdateDelivery.count({
+          state: 'sent',
+          publication: (
+            await BearingUpdatePublication.findOne({ bearingUpdate: update.id })
+          ).id
+        }),
+        53
+      )
+      await drain()
+      assert.equal(sent.length, 53)
+    } finally {
+      sails.helpers.mail.sendConfigured = original
+    }
+  }
+)
