@@ -30,7 +30,7 @@ module.exports = {
   },
   fn: async function ({ containerName, fresh }) {
     // Check cache first
-    const cacheKey = `container:status:${containerName}`
+    const cacheKey = `container:status:v2:${containerName}`
     if (!fresh) {
       try {
         const cached = await sails.cache.get(cacheKey)
@@ -67,7 +67,7 @@ module.exports = {
 
       // Cache for 30 seconds
       try {
-        await sails.cache.set(cacheKey, result, 30_000)
+        await sails.cache.set(cacheKey, result, 30)
       } catch (err) {
         /* best-effort */
       }

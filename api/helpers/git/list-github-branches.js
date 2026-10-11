@@ -22,7 +22,7 @@ module.exports = {
 
   fn: async function ({ accessToken, owner, repo }) {
     const scope = createHash('sha256').update(accessToken).digest('hex')
-    const cacheKey = `github:branches:v2:${scope}:${owner}/${repo}`
+    const cacheKey = `github:branches:v3:${scope}:${owner}/${repo}`
     try {
       const cached = await sails.cache.get(cacheKey)
       if (cached) {
@@ -56,7 +56,7 @@ module.exports = {
 
     // Cache for 2 minutes
     try {
-      await sails.cache.set(cacheKey, result, 120_000)
+      await sails.cache.set(cacheKey, result, 120)
     } catch (err) {
       /* best-effort */
     }

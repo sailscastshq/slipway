@@ -29,7 +29,7 @@ module.exports = {
   fn: async function ({ accessToken, page, perPage }) {
     // Check cache first
     const scope = createHash('sha256').update(accessToken).digest('hex')
-    const cacheKey = `github:repos:v2:${scope}:${page}:${perPage}`
+    const cacheKey = `github:repos:v3:${scope}:${page}:${perPage}`
     try {
       const cached = await sails.cache.get(cacheKey)
       if (cached) {
@@ -64,7 +64,7 @@ module.exports = {
 
     // Cache successful response for 5 minutes
     try {
-      await sails.cache.set(cacheKey, result, 300_000)
+      await sails.cache.set(cacheKey, result, 300)
     } catch (err) {
       /* best-effort */
     }
