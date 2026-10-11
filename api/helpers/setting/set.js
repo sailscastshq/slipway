@@ -65,7 +65,7 @@ module.exports = {
 
     // Invalidate cache so next read picks up the new value
     try {
-      await sails.cache.delete(`setting:${key}`)
+      await sails.cache.delete([`setting:v2:${key}`, `setting:${key}`])
     } catch (err) {
       /* best-effort */
     }

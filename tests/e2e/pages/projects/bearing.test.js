@@ -1009,7 +1009,12 @@ test(
     await expect(sharedCard).toContainText(
       'Live feedback lands without a refresh'
     )
-    await expect(sharedCard).toHaveAttribute('data-live-highlight', 'true')
+    await expect(sharedCard.getByRole('heading', { level: 1 })).toHaveText(
+      'Live feedback lands without a refresh'
+    )
+    await expect(
+      page.raw.getByRole('link', { name: 'All feedback' })
+    ).toBeVisible()
     await page.screenshot(
       path.join(screenshotRoot, 'feedback-shared-focus.png'),
       { fullPage: true }

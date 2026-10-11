@@ -41,9 +41,10 @@ module.exports = {
 
   fn: async function ({ key, defaultValue }) {
     // Check cache first (cache-aside pattern)
-    const cacheKey = `setting:${key}`
+    const cacheKey = `setting:v2:${key}`
     try {
-      if (SENSITIVE_KEYS.includes(key)) await sails.cache.delete(cacheKey)
+      if (SENSITIVE_KEYS.includes(key))
+        await sails.cache.delete([cacheKey, `setting:${key}`])
       const cached = SENSITIVE_KEYS.includes(key)
         ? null
         : await sails.cache.get(cacheKey)
@@ -72,7 +73,7 @@ module.exports = {
         if (result !== undefined) {
           try {
             if (!SENSITIVE_KEYS.includes(key))
-              await sails.cache.set(cacheKey, result, 900_000)
+              await sails.cache.set(cacheKey, result, 900)
           } catch (err) {
             /* best-effort */
           }
@@ -81,7 +82,7 @@ module.exports = {
       }
       // Cache the miss so we don't keep querying DB for non-existent keys
       try {
-        await sails.cache.set(cacheKey, '__null__', 900_000)
+        await sails.cache.set(cacheKey, '__null__', 900)
       } catch (err) {
         /* best-effort */
       }

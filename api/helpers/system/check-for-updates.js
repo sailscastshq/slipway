@@ -38,7 +38,7 @@ module.exports = {
     }
 
     // Cache key for rate limiting - only check once per hour
-    const cacheKey = 'slipway_update_check'
+    const cacheKey = 'slipway_update_check:v2'
     if (!skipCache) {
       const cached = await sailsApp.cache.get(cacheKey)
       if (cached) {
@@ -111,8 +111,8 @@ module.exports = {
         error: isNewer && !imageReady ? 'image_not_ready' : null
       }
 
-      // Cache for 1 hour (3600000ms)
-      await sailsApp.cache.set(cacheKey, result, 3600000)
+      // Cache for 1 hour (sails-stash TTLs are in seconds)
+      await sailsApp.cache.set(cacheKey, result, 3600)
 
       return result
     } catch (err) {

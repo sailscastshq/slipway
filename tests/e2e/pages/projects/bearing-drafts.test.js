@@ -1,4 +1,5 @@
 const fs = require('node:fs')
+const assert = require('node:assert/strict')
 const path = require('node:path')
 const { test } = require('sounding')
 const { Resvg } = require('@resvg/resvg-js')
@@ -523,6 +524,187 @@ test(
       '.bearing-markdown',
       'public-widget-width',
       page.raw.frameLocator('iframe')
+    )
+  }
+)
+
+test(
+  'Bearing Updates keeps scroll range inside the app shell after editor focus and resize',
+  {
+    browser: true,
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'bearing-scroll-review',
+          name: 'Bearing Scroll Review'
+        }
+      }
+    }
+  },
+  async ({ sails, world, login, page, expect }) => {
+    const current = world.current
+    const app = current.apps.web
+    const environment = current.environments.production
+    const project = current.projects.deploymentTarget
+    const author = current.users.genesisUser
+    const space = await sails.models.bearingspace
+      .create({
+        publicSlug: 'bearing-scroll-review',
+        app: app.id,
+        createdBy: author.id
+      })
+      .fetch()
+    for (let index = 0; index < 8; index++) {
+      await sails.models.bearingupdate.create({
+        title: `Scroll fixture update ${index + 1}`,
+        slug: `scroll-fixture-update-${index + 1}`,
+        excerpt: 'A published update used to measure the end of the content.',
+        body: 'The full update body.',
+        status: 'published',
+        publishedAt: Date.now(),
+        author: author.id,
+        app: app.id,
+        space: space.id
+      })
+    }
+    await page.raw.route('**/api/v1/system/check-update', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          currentVersion: '0.0.95',
+          latestVersion: '0.0.96',
+          updateAvailable: true,
+          releaseUrl: null
+        })
+      })
+    )
+    await login.withPassword('genesisUser', page, {
+      password: current.auth.genesisUserPassword
+    })
+    await expect(page.raw).toHaveURL(/\/$/)
+    const bearingPath = `/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/bearing`
+    await page.goto(`${bearingPath}?view=updates`)
+    await expect(page.raw.locator('#bearing-update-title')).toBeVisible()
+    const stage = process.env.SLIPWAY_BEARING_GEOMETRY || 'fixed'
+    const screenshotRoot = path.resolve(`.tmp/screenshots/issue-752/${stage}`)
+    fs.mkdirSync(screenshotRoot, { recursive: true })
+    const measurements = []
+    async function measure(label) {
+      // Editor updates and browser caret scrolling settle after the input
+      // event. Measure the completed scroll, with focus retained, rather than
+      // a transient layout immediately after filling or resizing.
+      await page.raw.waitForFunction(
+        async () => {
+          const frame = () =>
+            new Promise((resolve) => requestAnimationFrame(resolve))
+          await frame()
+          await frame()
+          for (const element of [
+            document.scrollingElement,
+            ...document.querySelectorAll('main')
+          ])
+            element.scrollTop = element.scrollHeight
+          await frame()
+          await frame()
+          const owner = document.querySelector('main')
+          return (
+            Math.abs(
+              owner.scrollHeight - owner.clientHeight - owner.scrollTop
+            ) <= 1
+          )
+        },
+        null,
+        { timeout: 5000 }
+      )
+      const geometry = await page.raw.evaluate(() => {
+        const box = (element) => {
+          const rect = element.getBoundingClientRect()
+          return {
+            top: rect.top,
+            bottom: rect.bottom,
+            height: rect.height,
+            scrollTop: element.scrollTop,
+            scrollHeight: element.scrollHeight,
+            clientHeight: element.clientHeight
+          }
+        }
+        return {
+          viewport: { width: innerWidth, height: innerHeight },
+          document: box(document.scrollingElement),
+          mains: [...document.querySelectorAll('main')].map(box),
+          sidebar: document.querySelector('[data-slot="sidebar"]')
+            ? box(document.querySelector('[data-slot="sidebar"]'))
+            : null,
+          body: box(document.body),
+          lastUpdate: box(
+            document.querySelector(
+              '[data-value="updates"]:not(button) article:last-of-type'
+            ) || [...document.querySelectorAll('main article')].at(-1)
+          ),
+          innerPaddingBottom: parseFloat(
+            getComputedStyle(document.querySelectorAll('main')[1]).paddingBottom
+          )
+        }
+      })
+      measurements.push({ label, ...geometry })
+      await page.screenshot(path.join(screenshotRoot, `${label}.png`), {
+        fullPage: true,
+        animations: 'disabled'
+      })
+      if (stage !== 'baseline') {
+        assert.ok(
+          geometry.document.scrollHeight <= geometry.viewport.height + 1
+        )
+        expect(geometry.document.scrollTop).toBe(0)
+        expect(geometry.mains[1].scrollTop).toBe(0)
+        assert.ok(
+          geometry.viewport.height - geometry.lastUpdate.bottom <=
+            geometry.innerPaddingBottom + 2
+        )
+        assert.ok(geometry.lastUpdate.bottom <= geometry.viewport.height + 1)
+      }
+    }
+    for (const [name, width, height] of [
+      ['desktop', 1440, 1000],
+      ['laptop', 1280, 600],
+      ['mobile', 390, 700]
+    ]) {
+      await page.resize(width, height)
+      await measure(`${name}-banner`)
+      await page.raw.locator('#bearing-update-title').fill('A synthetic draft')
+      await page.raw
+        .locator('#bearing-update-excerpt')
+        .fill('Summary for the scroll fixture')
+      await page.raw
+        .locator('[data-test="bearing-update-body-visual-editor"]')
+        .fill('Draft content with a final line.')
+      await measure(`${name}-focus`)
+      await page.raw
+        .getByRole('button', { name: 'Source', exact: true })
+        .click()
+      await measure(`${name}-source`)
+      await page.raw.getByRole('button', { name: 'Write', exact: true }).click()
+      await measure(`${name}-write`)
+    }
+    await page.raw
+      .getByRole('button', { name: 'Dismiss update notice' })
+      .click()
+    await expect(
+      page.raw.getByRole('button', { name: 'Dismiss update notice' })
+    ).toHaveCount(0)
+    await measure('mobile-dismissed')
+    await page.raw
+      .getByRole('button', { name: 'Save draft', exact: true })
+      .click()
+    await expect(page.raw.locator('#bearing-update-title')).toHaveValue('')
+    await measure('mobile-saved')
+    await page.goto(`${bearingPath}?view=updates`)
+    await measure('mobile-navigation')
+    fs.writeFileSync(
+      path.join(screenshotRoot, 'geometry.json'),
+      JSON.stringify(measurements, null, 2)
     )
   }
 )
