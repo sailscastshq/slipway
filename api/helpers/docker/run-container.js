@@ -132,7 +132,7 @@ module.exports = {
     if (deploymentId) {
       await Deployment.appendDeployLog(
         deploymentId,
-        `Starting container: ${containerName}\n`
+        require('../../lib/deployment-log-events').containerStart(containerName)
       )
     }
 

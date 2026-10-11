@@ -78,9 +78,12 @@ module.exports = {
     if (deploymentId) {
       await Deployment.appendDeployLog(
         deploymentId,
-        `Health check: polling http://${containerName}:${port}${healthPath} (timeout: ${Math.round(
-          timeout / 1000
-        )}s)\n`
+        require('../../lib/deployment-log-events').healthPoll(
+          containerName,
+          port,
+          healthPath,
+          Math.round(timeout / 1000)
+        )
       )
     }
 
@@ -108,7 +111,13 @@ module.exports = {
           if (deploymentId) {
             await Deployment.appendDeployLog(
               deploymentId,
-              `Health check passed: ${endpoint} returned HTTP ${statusCode} (attempt ${attempts})\n`
+              require('../../lib/deployment-log-events').healthPassed(
+                checkHost,
+                checkPort,
+                healthPath,
+                statusCode,
+                attempts
+              )
             )
           }
           return { statusCode, attempts }

@@ -498,7 +498,10 @@ module.exports = {
       for (const accessUrl of accessUrls) {
         await Deployment.appendDeployLog(
           deploymentId,
-          `  ${`${accessUrl.logLabel}:`.padEnd(11)}${accessUrl.value}\n`
+          require('../../lib/deployment-log-events').accessUrl(
+            accessUrl.logLabel,
+            accessUrl.value
+          )
         )
       }
       if (directUrl) {

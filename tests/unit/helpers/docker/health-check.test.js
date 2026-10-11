@@ -20,7 +20,7 @@ test('docker health check passes when the configured path returns a 2xx response
   })
 
   Deployment.appendDeployLog = async (deploymentId, line) => {
-    deployLogs.push({ deploymentId, line })
+    deployLogs.push({ deploymentId, line: String(line) })
   }
 
   try {

@@ -71,7 +71,7 @@ module.exports = {
     )
     let lastDeployLogLength = Math.min(
       deployOffset,
-      (deployment.deployLogs || '').length
+      displayDeployLogs(deployment).length
     )
 
     const checkInterval = setInterval(async () => {
@@ -110,12 +110,10 @@ module.exports = {
           stream.send({ output: newOutput, source: 'build' })
         }
 
-        if (
-          current.deployLogs &&
-          current.deployLogs.length > lastDeployLogLength
-        ) {
-          const newOutput = current.deployLogs.slice(lastDeployLogLength)
-          lastDeployLogLength = current.deployLogs.length
+        const deployLogs = displayDeployLogs(current)
+        if (deployLogs.length > lastDeployLogLength) {
+          const newOutput = deployLogs.slice(lastDeployLogLength)
+          lastDeployLogLength = deployLogs.length
           stream.send({ output: newOutput, source: 'deploy' })
         }
 
@@ -137,6 +135,15 @@ module.exports = {
 
     return stream.wait()
   }
+}
+
+function displayDeployLogs(deployment) {
+  return sails.hooks.secrets?.renderDeploymentLog
+    ? sails.hooks.secrets.renderDeploymentLog(
+        deployment.deployLogs || '',
+        deployment.id
+      )
+    : deployment.deployLogs || ''
 }
 
 async function deploymentState(deployment) {

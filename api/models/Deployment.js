@@ -184,6 +184,11 @@ async function appendLog(deploymentId, field, log) {
   if (!log) return
 
   const key = `${deploymentId}:${field}`
+  if (field === 'deployLogs') {
+    log = sails.hooks.secrets?.encodeDeploymentEvent
+      ? sails.hooks.secrets.encodeDeploymentEvent(log, deploymentId)
+      : String(log)
+  }
   const occurredAt = new Date().toISOString()
   const previous = logAppendQueues.get(key) || Promise.resolve()
   const pending = previous
@@ -211,7 +216,9 @@ function redactDiagnostics(values, proceed) {
     if (values.buildLogs != null)
       values.buildLogs = redact.protect(values.buildLogs)
     if (values.deployLogs != null)
-      values.deployLogs = redact.protect(values.deployLogs)
+      values.deployLogs = redact.storeDeploymentLog
+        ? redact.storeDeploymentLog(values.deployLogs)
+        : redact.protect(values.deployLogs)
     if (values.errorMessage != null)
       values.errorMessage = redact.protect(values.errorMessage)
   }
