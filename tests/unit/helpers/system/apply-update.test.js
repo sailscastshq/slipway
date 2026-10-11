@@ -244,7 +244,12 @@ test('self-update validates without allocating or publishing a host port and cle
     let swapArgs
     const context = {
       config: { custom: {} },
-      cache: { set: async (key, value) => progress.push(value) },
+      cache: {
+        set: async (key, value, ttl) => {
+          expect(ttl).toBe(key === 'slipway_update_progress' ? 900 : 1)
+          progress.push(value)
+        }
+      },
       log: {
         info: (value) => logs.push(value),
         error: (value) => logs.push(value)

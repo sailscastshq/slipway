@@ -65,7 +65,12 @@ module.exports = {
             }
           }).usingConnection(connection)
         })
-        await sails.cache.delete('setting:backupStorageConfig').catch(() => {})
+        await sails.cache
+          .delete([
+            'setting:v2:backupStorageConfig',
+            'setting:backupStorageConfig'
+          ])
+          .catch(() => {})
       }
       return {
         success: true,

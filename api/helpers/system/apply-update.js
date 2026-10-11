@@ -53,7 +53,7 @@ module.exports = {
       await sails.cache.set(
         CACHE_KEY,
         { phase, detail, updatedAt: Date.now() },
-        900000
+        900
       )
       sails.log.info(
         `[slipway] Update progress: ${phase}${detail ? ' — ' + detail : ''}`
@@ -293,7 +293,7 @@ module.exports = {
 
       // Clear the update check cache so the new version doesn't show
       // a stale "update available" banner after restart.
-      await sails.cache.set('slipway_update_check', null, 1)
+      await sails.cache.set('slipway_update_check:v2', null, 1)
 
       return {
         status: 'updating',
