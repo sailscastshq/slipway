@@ -146,6 +146,14 @@ function buildIntrospectionCode(environment = []) {
       // Skip internal Waterline models
       if (identity.startsWith('_') || !model.attributes) continue;
 
+      // Content models are file-backed, not definitions for the selected SQL
+      // database. Keep same-named native tables unmanaged instead of proposing
+      // identity/type changes from inherited Waterline defaults.
+      const datastoreName = model.datastore || 'default';
+      const datastore = sailsApp.config?.datastores?.[datastoreName] ||
+        sailsApp.datastores?.[datastoreName]?.config;
+      if (datastore?.adapter === 'sails-content') continue;
+
       models[identity] = {
         identity: model.identity,
         tableName: model.tableName || model.identity,
