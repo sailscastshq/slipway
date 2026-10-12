@@ -1,5 +1,6 @@
 const plans = require('../../../../lib/migration-plans')
 const migrationContext = require('../../../../lib/migration-context')
+const { performance } = require('node:perf_hooks')
 
 module.exports = {
   friendlyName: 'Get schema diff',
@@ -15,7 +16,8 @@ module.exports = {
     environmentSlug: {
       type: 'string',
       defaultsTo: 'production'
-    }
+    },
+    refreshModels: { type: 'boolean', defaultsTo: false }
   },
 
   exits: {
@@ -33,7 +35,10 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug }) {
+  fn: async function ({ projectSlug, environmentSlug, refreshModels = false }) {
+    const started = performance.now()
+    const timings = {}
+    this.res?.set?.('Cache-Control', 'private, no-store')
     const user = await User.forRequest(this.req)
     const project = await Project.findOne({ slug: projectSlug }).populate(
       'team'
@@ -81,10 +86,29 @@ module.exports = {
     // Try to get models - first from running app, then from static files
     let modelsResult
     let modelsSource = 'static'
+    let schemaPromise
+    const readSchema = async () => {
+      const at = performance.now()
+      try {
+        return await sails.helpers.dock.getSchema(service)
+      } catch (error) {
+        return {
+          error: error.message || 'The database catalog could not be read.'
+        }
+      } finally {
+        timings.catalog = performance.now() - at
+      }
+    }
+    const modelsStarted = performance.now()
 
     if (app && app.status === 'running' && app.containerName) {
       // Try running app first
-      modelsResult = await sails.helpers.dock.getModels(app.containerName)
+      schemaPromise = readSchema()
+      modelsResult = await sails.helpers.dock.getModels(
+        app.containerName,
+        true,
+        refreshModels
+      )
       modelsSource = 'runtime'
     }
 
@@ -122,7 +146,11 @@ module.exports = {
     }
 
     // Get current schema
-    const schemaResult = await sails.helpers.dock.getSchema(service)
+    timings.models = performance.now() - modelsStarted
+    for (const [name, value] of Object.entries(modelsResult.timings || {}))
+      if (typeof value === 'number' && Number.isFinite(value))
+        timings[name] = value
+    const schemaResult = await (schemaPromise || readSchema())
 
     if (schemaResult.error) {
       throw {
@@ -141,6 +169,7 @@ module.exports = {
     }
 
     // Generate diff
+    const diffStarted = performance.now()
     const diff = await sails.helpers.dock.generateDiff(
       modelsResult.models,
       schemaResult.tables,
@@ -154,6 +183,7 @@ module.exports = {
       modelsResult.models,
       schemaResult.tables
     )
+    timings.diff = performance.now() - diffStarted
 
     // Static parsing restores the preview, but cannot authorize database writes.
     if (modelsSource === 'static') {
@@ -165,6 +195,7 @@ module.exports = {
       }))
     }
     let preflight
+    const preflightStarted = performance.now()
     if (
       ['postgresql', 'mysql'].includes(service.type) &&
       statements.length &&
@@ -177,7 +208,9 @@ module.exports = {
       )
       statements = preflight.statements
     }
+    timings.preflight = performance.now() - preflightStarted
     let plan
+    const planStarted = performance.now()
     if (statements.length && !statements.some((item) => item.blocked)) {
       if (!['sqlite', 'postgresql'].includes(service.type)) {
         statements = statements.map((item) => ({
@@ -205,6 +238,14 @@ module.exports = {
         if (plan) statements = plan.statements
       }
     }
+    timings.plan = performance.now() - planStarted
+    timings.total = performance.now() - started
+    this.res?.set?.(
+      'Server-Timing',
+      Object.entries(timings)
+        .map(([name, duration]) => `${name};dur=${duration.toFixed(1)}`)
+        .join(', ')
+    )
     const blocked = statements.filter((item) => item.blocked)
     return {
       preflight: preflight
@@ -218,6 +259,14 @@ module.exports = {
         ? { id: plan.id, hash: plan.hash, expiresAt: plan.expiresAt }
         : null,
       databaseType: service.type,
+      // Display identity only. SQL, operation IDs and plan contracts retain
+      // physical table/column names; never guess singular forms from SQL names.
+      modelLabels: Object.fromEntries(
+        Object.entries(modelsResult.models).map(([identity, model]) => [
+          model.tableName || identity,
+          model.identity || identity
+        ])
+      ),
       diff,
       state: blocked.length ? 'unverified' : diff.state,
       verification: {

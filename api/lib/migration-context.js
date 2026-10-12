@@ -79,7 +79,13 @@ async function refresh(scope) {
   })
   if (!app?.containerName)
     throw failure('The deployed app changed. Refresh the migration preview.')
-  const models = await sails.helpers.dock.getModels(app.containerName)
+  // Mutation validation must perform its own fresh inspection, never reuse
+  // a preview cache or an inspection that started before this validation.
+  const models = await sails.helpers.dock.getModels(
+    app.containerName,
+    false,
+    true
+  )
   if (models.error || !Object.keys(models.models || {}).length)
     throw failure(
       'The deployed model snapshot is unavailable. Refresh before migrating.'
