@@ -1,9 +1,42 @@
 const { spawn, execFile } = require('node:child_process')
 const { promisify } = require('node:util')
-const { randomUUID } = require('node:crypto')
+const { randomUUID, createHash } = require('node:crypto')
+const { performance } = require('node:perf_hooks')
 const execFileAsync = promisify(execFile)
 let inspectionQueue = Promise.resolve()
 const pendingInspections = new Map()
+const previewSnapshots = new Map()
+const previewLifetime = 10000
+const maximumPreviewBytes = 8 * 1024 * 1024
+let previewBytes = 0
+
+function removePreview(key) {
+  const entry = previewSnapshots.get(key)
+  if (entry) previewBytes -= entry.bytes
+  previewSnapshots.delete(key)
+}
+function trimPreviews() {
+  for (const [key, entry] of previewSnapshots)
+    if (entry.expiresAt <= performance.now()) removePreview(key)
+}
+function rememberPreview(key, result) {
+  const json = JSON.stringify(result.models)
+  const bytes = Buffer.byteLength(json)
+  if (bytes > maximumPreviewBytes / 2) return
+  removePreview(key)
+  trimPreviews()
+  while (
+    previewSnapshots.size >= 16 ||
+    previewBytes + bytes > maximumPreviewBytes
+  )
+    removePreview(previewSnapshots.keys().next().value)
+  previewSnapshots.set(key, {
+    json,
+    bytes,
+    expiresAt: performance.now() + previewLifetime
+  })
+  previewBytes += bytes
+}
 
 module.exports = {
   friendlyName: 'Get Waterline models',
@@ -15,7 +48,9 @@ module.exports = {
       type: 'string',
       required: true,
       description: 'Docker container name of the running app'
-    }
+    },
+    preview: { type: 'boolean', defaultsTo: false },
+    forceRefresh: { type: 'boolean', defaultsTo: false }
   },
 
   exits: {
@@ -25,38 +60,113 @@ module.exports = {
     }
   },
 
-  fn: async function ({ containerName }) {
-    if (pendingInspections.has(containerName)) {
-      return pendingInspections.get(containerName)
+  fn: async function ({
+    containerName,
+    preview = false,
+    forceRefresh = false
+  }) {
+    const started = performance.now()
+    const dockerPath = sails.config.docker?.binaryPath || 'docker'
+    let descriptor
+    try {
+      const { stdout } = await execFileAsync(
+        dockerPath,
+        ['inspect', containerName],
+        {
+          timeout: 5000,
+          maxBuffer: 1024 * 1024
+        }
+      )
+      descriptor = JSON.parse(stdout)[0]
+      if (!descriptor?.Image || descriptor.State?.Running === false)
+        throw new Error('Container unavailable')
+    } catch {
+      return {
+        models: {},
+        error:
+          'The deployed app schema is unavailable. Check the app container and retry.'
+      }
     }
-    const inspection = inspectionQueue.then(() =>
-      inspectContainer(containerName)
+    const inspectMs = performance.now() - started
+    const cacheable =
+      preview &&
+      typeof descriptor.Id === 'string' &&
+      descriptor.State?.Running === true &&
+      typeof descriptor.State?.StartedAt === 'string' &&
+      descriptor.State.StartedAt
+    // Inspect on every preview. Replacement, restart, image, environment,
+    // routing, mount or execution-context changes invalidate the snapshot.
+    const key = createHash('sha256')
+      .update(
+        JSON.stringify({
+          dockerPath,
+          containerName,
+          id: descriptor.Id,
+          image: descriptor.Image,
+          startedAt: descriptor.State?.StartedAt,
+          config: descriptor.Config,
+          mounts: descriptor.Mounts,
+          network: descriptor.HostConfig?.NetworkMode
+        })
+      )
+      .digest('hex')
+    trimPreviews()
+    if (cacheable && !forceRefresh && previewSnapshots.has(key))
+      return {
+        models: JSON.parse(previewSnapshots.get(key).json),
+        timings: { inspectMs, queueMs: 0, containerMs: 0, cacheHit: true }
+      }
+    if (forceRefresh || !preview) removePreview(key)
+    // Mutation validation defaults to fresh and never shares an in-flight
+    // preview. Only explicitly opted-in read-only previews use the short cache.
+    const mode = preview
+      ? forceRefresh
+        ? 'forced-preview'
+        : 'preview'
+      : forceRefresh
+      ? `validation:${randomUUID()}`
+      : 'fresh'
+    const pendingKey = `${mode}:${key}`
+    if (pendingInspections.has(pendingKey))
+      return pendingInspections.get(pendingKey)
+    const queuedAt = performance.now()
+    const inspection = inspectionQueue.then(async () => {
+      const queueMs = performance.now() - queuedAt
+      const containerStarted = performance.now()
+      const result = await inspectContainer(
+        containerName,
+        descriptor,
+        dockerPath
+      )
+      if (result.error || !preview) removePreview(key)
+      else if (cacheable) rememberPreview(key, result)
+      return {
+        ...result,
+        timings: {
+          inspectMs,
+          queueMs,
+          containerMs: performance.now() - containerStarted,
+          cacheHit: false
+        }
+      }
+    })
+    pendingInspections.set(pendingKey, inspection)
+    inspectionQueue = inspection.then(
+      () => {},
+      () => {}
     )
-    pendingInspections.set(containerName, inspection)
-    inspectionQueue = inspection.catch(() => {})
     try {
       return await inspection
     } finally {
-      pendingInspections.delete(containerName)
+      pendingInspections.delete(pendingKey)
     }
   }
 }
 
-async function inspectContainer(containerName) {
-  const dockerPath = sails.config.docker?.binaryPath || 'docker'
+async function inspectContainer(containerName, inspection, dockerPath) {
   const snapshotName = `slipway-schema-${randomUUID()}`
   let created = false
   try {
-    const { stdout } = await execFileAsync(
-      dockerPath,
-      ['inspect', containerName],
-      {
-        timeout: 5000,
-        maxBuffer: 1024 * 1024
-      }
-    )
-    const inspection = JSON.parse(stdout)[0]
-    if (!inspection?.Image) throw new Error('Container unavailable')
     const code = buildIntrospectionCode(inspection.Config?.Env || [])
     const args = [
       'run',
@@ -88,7 +198,7 @@ async function inspectContainer(containerName) {
       '--max-old-space-size=256'
     ]
     created = true
-    const result = await executeInContainer(args, code)
+    const result = await executeInContainer(args, code, dockerPath)
     if (!result.success) {
       return {
         models: {},
@@ -210,9 +320,12 @@ function buildIntrospectionCode(environment = []) {
 `
 }
 
-function executeInContainer(args, code) {
+function executeInContainer(
+  args,
+  code,
+  dockerPath = sails.config.docker?.binaryPath || 'docker'
+) {
   return new Promise((resolve) => {
-    const dockerPath = sails.config.docker?.binaryPath || 'docker'
     const proc = spawn(dockerPath, args, {
       timeout: 25000 // Bound both the Docker client and its inspection child
     })
@@ -257,4 +370,14 @@ function executeInContainer(args, code) {
   })
 }
 
-module.exports._private = { buildIntrospectionCode, executeInContainer }
+module.exports._private = {
+  buildIntrospectionCode,
+  executeInContainer,
+  clearPreviewCache() {
+    previewSnapshots.clear()
+    previewBytes = 0
+  },
+  previewCacheStats() {
+    return { entries: previewSnapshots.size, bytes: previewBytes }
+  }
+}

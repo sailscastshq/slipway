@@ -536,13 +536,15 @@ async function fetchSchema() {
 }
 
 // Fetch diff
-async function fetchDiff() {
+async function fetchDiff(refreshModels = false) {
   diffLoading.value = true
   diffError.value = null
   migrationError.value = null
 
   try {
-    const res = await fetch(apiUrl('/diff'))
+    const res = await fetch(
+      apiUrl('/diff', refreshModels === true ? 'refreshModels=true' : '')
+    )
     const data = await res.json()
 
     if (!res.ok) {
@@ -578,6 +580,11 @@ const diffModels = computed(() => {
   })
   return Array.from(models).sort()
 })
+
+function displayModel(tableName) {
+  const identity = diff.value?.modelLabels?.[tableName]
+  return typeof identity === 'string' && identity ? identity : tableName
+}
 
 // Filter statements by selected models
 const filteredStatements = computed(() => {
@@ -2305,13 +2312,47 @@ onUnmounted(() => {
         data-value="migrate"
         class="flex-1 overflow-auto p-4 sm:p-6"
       >
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+              {{ isMongoDB ? 'Collection Diff' : 'Schema Diff' }}
+            </h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              Comparing models with
+              {{ isMongoDB ? 'collections' : 'database' }}
+              <span
+                v-if="diff?.modelsSource === 'static'"
+                class="text-gray-500 dark:text-gray-400"
+                >(from source files)</span
+              >
+              <span
+                v-else-if="diff?.modelsSource"
+                class="text-gray-500 dark:text-gray-400"
+                >(from running app)</span
+              >
+            </p>
+          </div>
+          <button
+            @click="fetchDiff(true)"
+            :disabled="diffLoading"
+            class="text-sm text-gray-500 hover:text-gray-900 disabled:cursor-wait disabled:opacity-50 dark:text-gray-400 dark:hover:text-white"
+          >
+            Refresh
+          </button>
+        </div>
+
         <div
           v-if="diffLoading"
           role="status"
-          class="flex items-center justify-center py-12"
+          class="flex items-center gap-3 border-y border-gray-200 py-6 text-gray-950 dark:border-gray-800 dark:text-gray-100"
         >
-          <Spinner class="h-6 w-6 text-gray-400 dark:text-gray-600" />
-          <span class="sr-only">Loading migration diff</span>
+          <Spinner class="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+          <div>
+            <p class="text-sm font-medium">Loading migration diff</p>
+            <p class="mt-1 text-xs text-gray-600 dark:text-gray-400">
+              Checking deployed models and database.
+            </p>
+          </div>
         </div>
 
         <Alert
@@ -2321,45 +2362,20 @@ onUnmounted(() => {
         >
           <p class="text-sm text-red-600 dark:text-red-400">{{ diffError }}</p>
           <button
-            @click="fetchDiff"
+            @click="fetchDiff(true)"
             class="mt-2 text-sm text-red-600 underline hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
           >
             Try again
           </button>
         </Alert>
 
-        <div v-else-if="diff" class="space-y-6">
+        <div v-else-if="diff" class="space-y-4">
           <Alert
             v-if="migrationError"
             role="alert"
             class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
             >{{ migrationError }}</Alert
           >
-          <div class="flex items-center justify-between">
-            <div>
-              <h3 class="text-sm font-medium text-gray-900 dark:text-white">
-                {{ isMongoDB ? 'Collection Diff' : 'Schema Diff' }}
-              </h3>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
-                Comparing models with
-                {{ isMongoDB ? 'collections' : 'database' }}
-                <span
-                  v-if="diff.modelsSource === 'static'"
-                  class="text-gray-400 dark:text-gray-500"
-                  >(from source files)</span
-                >
-                <span v-else class="text-gray-400 dark:text-gray-500"
-                  >(from running app)</span
-                >
-              </p>
-            </div>
-            <button
-              @click="fetchDiff"
-              class="text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-            >
-              Refresh
-            </button>
-          </div>
 
           <Alert
             v-if="diff.state === 'unverified'"
@@ -2376,7 +2392,7 @@ onUnmounted(() => {
                 v-for="(item, index) in diff.verification?.unsupported"
                 :key="index"
               >
-                {{ item.tableName
+                {{ displayModel(item.tableName)
                 }}<template v-if="item.columnName"
                   >.{{ item.columnName }}</template
                 >: {{ item.reason }}
@@ -2387,28 +2403,36 @@ onUnmounted(() => {
           <!-- No changes -->
           <div
             v-else-if="!diff.hasPendingChanges"
-            class="rounded-lg border border-green-200 bg-green-50 px-6 py-8 text-center dark:border-green-900/50 dark:bg-green-950/30"
+            data-testid="dock-up-to-date"
+            role="status"
+            class="flex items-start gap-3 border-y border-gray-200 py-6 text-gray-950 dark:border-gray-800 dark:text-gray-100"
           >
             <CheckCircle
-              class="mx-auto h-10 w-10 text-green-500"
+              class="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400"
               stroke-width="2"
             />
-            <h3
-              class="mt-4 text-sm font-medium text-green-700 dark:text-green-400"
-            >
-              {{
-                isMongoDB
-                  ? 'Collections are up to date'
-                  : 'Schema is up to date'
-              }}
-            </h3>
-            <p class="mt-1 text-sm text-green-600/70 dark:text-green-500/70">
-              {{
-                isMongoDB
-                  ? 'All model collections exist.'
-                  : 'Managed database definitions match your models. Native definitions are preserved.'
-              }}
-            </p>
+            <div class="flex-1">
+              <h3 class="text-sm font-medium">
+                {{
+                  isMongoDB
+                    ? 'Collections are up to date'
+                    : 'Schema is up to date'
+                }}
+              </h3>
+              <p class="mt-1 max-w-lg text-sm text-gray-600 dark:text-gray-400">
+                {{
+                  isMongoDB
+                    ? 'All model collections exist.'
+                    : 'Managed definitions match the deployed models. Native objects are preserved.'
+                }}
+              </p>
+              <button
+                @click="activeTab = 'schema'"
+                class="mt-3 text-sm font-medium text-gray-950 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"
+              >
+                View schema
+              </button>
+            </div>
           </div>
 
           <!-- Has changes -->
@@ -2458,7 +2482,7 @@ onUnmounted(() => {
                     @change="toggleModel(model)"
                     class="sr-only"
                   />
-                  <span class="font-mono">{{ model }}</span>
+                  <span class="font-mono">{{ displayModel(model) }}</span>
                 </label>
               </div>
             </div>
@@ -2467,11 +2491,13 @@ onUnmounted(() => {
             <Alert
               role="status"
               v-if="filteredStatements.length > 0"
-              class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/30"
+              class="bg-transparent p-0 text-gray-600 dark:bg-transparent dark:text-gray-400"
             >
-              <p class="text-sm text-amber-700 dark:text-amber-400">
-                {{ filteredStatements.length }} change(s) for
-                {{ selectedModels.size }} model(s)
+              <p class="text-xs font-medium text-gray-600 dark:text-gray-400">
+                {{ filteredStatements.length }}
+                {{ filteredStatements.length === 1 ? 'change' : 'changes' }} ·
+                {{ selectedModels.size }}
+                {{ selectedModels.size === 1 ? 'model' : 'models' }}
               </p>
             </Alert>
             <div
@@ -2486,35 +2512,50 @@ onUnmounted(() => {
             <Alert
               v-if="diff.preflight?.verified"
               role="status"
-              class="rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300"
+              class="rounded-md border border-blue-200 bg-blue-50 px-3 py-2.5 text-blue-900 dark:border-blue-900/70 dark:bg-blue-950/20 dark:text-blue-200"
             >
-              <h3 class="text-sm font-medium">Preview validated</h3>
-              <p class="mt-1 text-sm">
-                Checked against your database engine. Applying these changes may
-                lock or rebuild affected tables.
-              </p>
-              <p class="mt-1 text-sm">
-                Existing rows in affected tables:
-                {{
-                  Object.values(diff.preflight.affectedRows || {})
-                    .reduce((total, count) => total + count, 0)
-                    .toLocaleString()
-                }}.
+              <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <h3 class="text-sm font-medium">Preview validated</h3>
+                <p class="text-xs">
+                  {{
+                    Object.values(diff.preflight.affectedRows || {})
+                      .reduce((total, count) => total + count, 0)
+                      .toLocaleString()
+                  }}
+                  {{
+                    Object.values(diff.preflight.affectedRows || {}).reduce(
+                      (total, count) => total + count,
+                      0
+                    ) === 1
+                      ? 'existing row'
+                      : 'existing rows'
+                  }}
+                </p>
+              </div>
+              <p class="mt-1 text-xs text-blue-800 dark:text-blue-300">
+                Checked against your database engine. Changes may lock or
+                rebuild affected tables.
               </p>
             </Alert>
             <dl
               v-if="diff.diff?.columnsToModify?.length"
-              class="divide-y divide-gray-200 rounded-lg border border-gray-200 px-4 dark:divide-gray-800 dark:border-gray-800"
+              data-testid="dock-change-list"
+              class="divide-y divide-gray-200 border-y border-gray-200 text-gray-950 dark:divide-gray-800 dark:border-gray-800 dark:text-gray-100"
             >
               <div
                 v-for="column in diff.diff.columnsToModify"
                 :key="`${column.tableName}.${column.columnName}`"
-                class="py-3 text-sm"
+                class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2 text-sm"
               >
-                <dt class="break-words font-medium">
-                  {{ column.tableName }}.{{ column.columnName }}
+                <dt
+                  :title="`${column.tableName}.${column.columnName}`"
+                  class="min-w-0 max-w-full break-words font-mono text-xs font-medium text-gray-950 dark:text-gray-100"
+                >
+                  {{ displayModel(column.tableName) }}.{{ column.columnName }}
                 </dt>
-                <dd class="mt-1 break-words text-gray-500 dark:text-gray-400">
+                <dd
+                  class="break-words text-xs text-gray-600 dark:text-gray-400"
+                >
                   {{ column.current.type }} → {{ column.expected.sqlType }}
                 </dd>
               </div>

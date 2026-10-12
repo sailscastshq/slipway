@@ -9,6 +9,29 @@ const generateDiff = require('../api/helpers/dock/generate-diff')
 const generateSql = require('../api/helpers/dock/generate-migration-sql')
 const preflight = require('../api/helpers/dock/preflight-native-migration')
 
+// Numeric timings only: disposable fixture, no SQL text or credentials logged.
+const { performance } = require('node:perf_hooks')
+const profile = []
+for (const [stage, helper] of [
+  ['catalog', getSchema],
+  ['diff', generateDiff],
+  ['sql', generateSql],
+  ['nativePreflight', preflight]
+]) {
+  const original = helper.fn
+  helper.fn = async function (...args) {
+    const started = performance.now()
+    try {
+      return await original.apply(this, args)
+    } finally {
+      profile.push({
+        stage,
+        durationMs: Number((performance.now() - started).toFixed(1))
+      })
+    }
+  }
+}
+
 async function main() {
   const type = process.env.SLIPWAY_SCHEMA_TEST_DIALECT || 'postgresql'
   assert.ok(['postgresql', 'mysql'].includes(type))
@@ -351,6 +374,10 @@ async function main() {
       await require('../tests/fixtures/verify-postgres-migration-plans')(
         service
       )
+    console.log(
+      'DOCK_SCHEMA_PROFILE ' +
+        JSON.stringify({ dialect: type, samples: profile })
+    )
     console.log(
       `${type}: catalog definitions, index semantics, stable round trip, and protected changes verified.`
     )
