@@ -879,7 +879,7 @@ onUnmounted(() => {
             <fieldset
               :disabled="Boolean(recoveredUpdate)"
               :inert="Boolean(recoveredUpdate)"
-              class="space-y-5"
+              class="min-w-0 space-y-5"
             >
               <div>
                 <div class="flex items-center justify-between gap-4">
@@ -983,7 +983,7 @@ onUnmounted(() => {
               >
                 {{ updateForm.errors.update || updateForm.errors.feedbackIds }}
               </Alert>
-              <fieldset v-if="feedback.length">
+              <fieldset v-if="feedback.length" class="min-w-0">
                 <legend class="text-xs font-medium text-gray-500">
                   Delivered feedback
                 </legend>
@@ -991,7 +991,7 @@ onUnmounted(() => {
                   <label
                     v-for="item in feedback"
                     :key="item.publicId"
-                    class="has-[:checked]:bg-gray-950 has-[:checked]:text-white dark:has-[:checked]:bg-white dark:has-[:checked]:text-gray-950 cursor-pointer rounded-full bg-gray-50 px-3 py-2 text-xs dark:bg-gray-900"
+                    class="has-[:checked]:bg-gray-950 has-[:checked]:text-white dark:has-[:checked]:bg-white dark:has-[:checked]:text-gray-950 relative max-w-full cursor-pointer break-words rounded-full bg-gray-50 px-3 py-2 text-xs focus-within:ring-2 focus-within:ring-gray-400 dark:bg-gray-900 dark:focus-within:ring-gray-600"
                   >
                     <Checkbox
                       v-model="updateForm.feedbackIds"
