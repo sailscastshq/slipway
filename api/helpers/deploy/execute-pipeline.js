@@ -112,6 +112,12 @@ module.exports = {
             isDefault: true
           })) || (await App.findOne({ environment: environment.id }))
       }
+      for (const [kind, record] of [
+        ['project', project],
+        ['environment', environment],
+        ['app', targetApp]
+      ])
+        sails.hooks?.secrets?.rememberPublicRecord?.(kind, record)
       const appSlug = targetApp ? targetApp.slug : undefined
       const isPubliclyRoutable = !targetApp || targetApp.routePath !== null
       const appBindHost = isPubliclyRoutable

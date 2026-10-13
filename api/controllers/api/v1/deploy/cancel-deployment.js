@@ -41,6 +41,7 @@ module.exports = {
 
   fn: async function ({ deploymentId }) {
     const user = await User.forRequest(this.req)
+    sails.hooks?.secrets?.rememberPublicRecord?.('user', user)
 
     const deployment = await Deployment.findOne({ id: deploymentId }).populate(
       'environment'

@@ -89,6 +89,8 @@ module.exports = {
         imageName: targetDeployment.imageName
       })
 
+      sails.hooks?.secrets?.rememberPublicRecord?.('environment', environment)
+
       await Deployment.appendBuildLog(
         rollbackId,
         `Rolling back to deployment ${targetDeployment.id}\n`
@@ -113,6 +115,11 @@ module.exports = {
         ? sails.config.custom.slipwayPortHost || '127.0.0.1'
         : '127.0.0.1'
       const healthPath = App.normalizeHealthPath(existingApp?.healthPath)
+      for (const [kind, record] of [
+        ['environment', environment],
+        ['app', existingApp]
+      ])
+        sails.hooks?.secrets?.rememberPublicRecord?.(kind, record)
       const oldContainerName = existingApp?.containerName
       candidateContainerName = await App.generateDeployContainerName(
         environment.id,
