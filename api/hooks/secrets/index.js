@@ -1,4 +1,5 @@
 const { createRedactor } = require('../../helpers/security/redact')._private
+const publicIdentity = require('../../lib/public-log-identifiers')
 
 module.exports = function secretsHook(sails) {
   const redact = createRedactor()
@@ -18,6 +19,9 @@ module.exports = function secretsHook(sails) {
   function remember(value) {
     redact.remember(value)
     credentials.remember(value)
+  }
+  function rememberPublicRecord(kind, record) {
+    redact.rememberPublicIdentifiers(publicIdentity.fromRecord(kind, record))
   }
   // Only intentional credential fields from successful, authenticated actions
   // bypass masking. Errors from the same actions still go through redaction.
@@ -87,6 +91,7 @@ module.exports = function secretsHook(sails) {
   }
   const hook = {
     remember,
+    rememberPublicRecord,
     protect: redact.protect,
     text: redact.text,
     stream: redact.stream,
@@ -97,6 +102,22 @@ module.exports = function secretsHook(sails) {
       sails.after('hook:orm:loaded', async () => {
         let section = 'instance configuration'
         try {
+          for (const [kind, fields] of Object.entries(publicIdentity.fields)) {
+            section = `${kind} public identity`
+            const model = sails.models[kind]
+            if (!model) continue
+            const selected = fields.filter((field) => model.attributes[field])
+            for (let offset = 0; ; offset += 100) {
+              const records = await model
+                .find()
+                .select(selected)
+                .sort('id ASC')
+                .skip(offset)
+                .limit(100)
+              records.forEach((record) => rememberPublicRecord(kind, record))
+              if (records.length < 100) break
+            }
+          }
           remember({ secret: sails.config.session?.secret })
           remember(sails.config.custom || {})
           remember({

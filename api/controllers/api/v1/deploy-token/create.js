@@ -54,6 +54,7 @@ module.exports = {
     expiresInDays
   }) {
     const user = await User.forRequest(this.req)
+    sails.hooks.secrets?.rememberPublicRecord?.('user', user)
 
     const problems = sails.helpers.setting.validate(
       { name, scopes, expiresInDays },

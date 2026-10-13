@@ -83,6 +83,10 @@ module.exports = {
       app
     })
     const { contextPath, repository: repo } = readiness
+    sails.hooks.secrets?.rememberPublicRecord?.('project', project)
+    sails.hooks.secrets?.rememberPublicRecord?.('environment', environment)
+    sails.hooks.secrets?.rememberPublicRecord?.('app', app)
+    sails.hooks.secrets?.rememberPublicRecord?.('gitrepository', repo)
 
     if (readiness.hasSource && (!refreshRepository || !readiness.canHydrate)) {
       return {

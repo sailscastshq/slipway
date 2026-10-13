@@ -206,13 +206,19 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
   if (!['diagnostic', 'response'].includes(context))
     throw new Error('Unknown redaction context.')
   const variants = new Set()
+  const credentialVariants = new Set()
+  const publicIdentifiers = new Set()
+  let publicBytes = 0
+  let publicMatcher = null
+  let publicDirty = false
+  let credentialMatcher = null
   let bytes = 0
   let overflow = false
   let matcher = null
   let dirty = false
   let deploymentLogRenderer
   function remember(record) {
-    function add(value) {
+    function add(value, credential = false) {
       if (typeof value !== 'string' || value.length < 8 || value === HIDDEN)
         return
       if (value.length > 128 * 1024) {
@@ -239,7 +245,13 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
         Buffer.from(value).toString('base64url'),
         Buffer.from(value).toString('hex')
       ]) {
-        if (variants.has(form)) continue
+        if (variants.has(form)) {
+          if (credential && !credentialVariants.has(form)) {
+            credentialVariants.add(form)
+            dirty = true
+          }
+          continue
+        }
         if (
           bytes + Buffer.byteLength(form) > 4 * 1024 * 1024 ||
           variants.size >= 10000
@@ -248,17 +260,18 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
           continue
         }
         variants.add(form)
+        if (credential) credentialVariants.add(form)
         bytes += Buffer.byteLength(form)
         dirty = true
       }
     }
-    function collect(value, force = false) {
+    function collect(value, force = false, credential = false) {
       if (!value || typeof value !== 'object') {
-        if (force) add(value)
+        if (force) add(value, credential)
         return
       }
       if (Array.isArray(value)) {
-        value.forEach((entry) => collect(entry, force))
+        value.forEach((entry) => collect(entry, force, credential))
         return
       }
       // Encryption is a storage property, not a classification of every word
@@ -277,24 +290,25 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
           try {
             const storage = JSON.parse(configured || '{}')
             collect(storage)
-            collect(storage.key, true)
-            collect(storage.accountKey, true)
+            collect(storage.key, true, true)
+            collect(storage.accountKey, true, true)
           } catch {}
-        } else if (isCredentialName(value.key)) collect(configured, true)
+        } else if (isCredentialName(value.key)) collect(configured, true, true)
         return
       }
       for (const [key, entry] of Object.entries(value)) {
         // Variable names in this map label public annotations, not values.
         if (configurationMetadata.has(key)) continue
-        if (key === 'env' && !presentation) collect(entry, true)
+        if (key === 'env' && !presentation) collect(entry, true, credential)
         else if (configurationMaps.has(key) || key === 'env') {
           const metadata = value[configurationMaps.get(key)] || {}
           if (entry && typeof entry === 'object')
             for (const [name, configured] of Object.entries(entry)) {
-              const credential = isCredentialProvenance(name, metadata[name])
+              const configuredCredential =
+                credential || isCredentialProvenance(name, metadata[name])
               const shouldCollect = presentation
-                ? credential
-                : credential || metadata[name]?.kind !== 'plain'
+                ? configuredCredential
+                : configuredCredential || metadata[name]?.kind !== 'plain'
               const publicRuntimeValue =
                 isPublicRuntimeValue(name, configured) ||
                 isPublicUploadOrigin(name, configured)
@@ -302,11 +316,16 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
                 shouldCollect &&
                 (!publicRuntimeValue ||
                   metadata[name]?.kind === 'secret' ||
-                  credential)
+                  configuredCredential)
               )
-                collect(configured, true)
+                collect(configured, true, configuredCredential)
             }
-        } else collect(entry, force || isCredentialName(key))
+        } else
+          collect(
+            entry,
+            force || isCredentialName(key),
+            credential || isCredentialName(key)
+          )
       }
       if (value.key === 'globalEnvVars') {
         try {
@@ -324,11 +343,12 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
           if (value.key === 'backupStorageConfig') {
             collect(configured)
             // These adapter credential names do not match the generic key test.
-            collect(configured.key, true)
-            collect(configured.accountKey, true)
-          } else collect(configured, true)
+            collect(configured.key, true, true)
+            collect(configured.accountKey, true, true)
+          } else
+            collect(configured, true, credential || isCredentialName(value.key))
         } catch {
-          add(value.encryptedValue)
+          add(value.encryptedValue, credential || isCredentialName(value.key))
         }
       }
       if (
@@ -336,10 +356,43 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
         (isCredentialName(value.key) ||
           /^(discordWebhookUrl|slackWebhookUrl|webhookUrl)$/.test(value.key))
       ) {
-        collect(value.value, true)
+        collect(value.value, true, true)
       }
     }
     collect(record)
+  }
+  function rememberPublicIdentifiers(values) {
+    if (presentation) return
+    for (const value of values) {
+      if (
+        typeof value !== 'string' ||
+        value.length < 8 ||
+        value.length > 253 ||
+        /[\r\n\u001e\u001f]/.test(value) ||
+        publicIdentifiers.has(value)
+      )
+        continue
+      // Exhausting public evidence only loses an exemption, never protection.
+      if (
+        publicIdentifiers.size >= 10000 ||
+        publicBytes + Buffer.byteLength(value) > 1024 * 1024
+      )
+        continue
+      publicIdentifiers.add(value)
+      publicBytes += Buffer.byteLength(value)
+      publicDirty = true
+    }
+  }
+  function pattern(values) {
+    return values.size
+      ? new RegExp(
+          [...values]
+            .sort((a, b) => b.length - a.length)
+            .map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+            .join('|'),
+          'g'
+        )
+      : null
   }
   function text(value, publicUrl = false) {
     if (overflow)
@@ -352,8 +405,37 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
           .join('|'),
         'g'
       )
+      credentialMatcher = pattern(credentialVariants)
       dirty = false
     }
+    if (publicDirty) {
+      publicMatcher = pattern(publicIdentifiers)
+      publicDirty = false
+    }
+    const publicSpans = publicMatcher
+      ? [...value.matchAll(publicMatcher)].map((match) => [
+          match.index,
+          match.index + match[0].length
+        ])
+      : []
+    function isPublicSpan(start, end) {
+      let low = 0,
+        high = publicSpans.length - 1
+      while (low <= high) {
+        const middle = (low + high) >>> 1
+        if (publicSpans[middle][0] > start) high = middle - 1
+        else low = middle + 1
+      }
+      return high >= 0 && publicSpans[high][1] >= end
+    }
+    const replace = (input, start = 0) =>
+      matcher
+        ? input.replace(matcher, (match, index) =>
+            isPublicSpan(start + index, start + index + match.length)
+              ? match
+              : HIDDEN
+          )
+        : input
     // Public access fields and Docker routing identifiers contain hostnames
     // already exposed by the control plane. Preserve their routing identity
     // without exempting userinfo, paths or query credentials. Raw diagnostics
@@ -366,7 +448,7 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
     for (const host of presentation || !hosts ? [] : value.matchAll(hosts)) {
       if (host.index < offset) continue
       const preceding = value.slice(offset, host.index)
-      result += matcher ? preceding.replace(matcher, HIDDEN) : preceding
+      result += replace(preceding, offset)
       if (matcher) matcher.lastIndex = host.index
       const credential = matcher?.exec(value)
       if (matcher) matcher.lastIndex = 0
@@ -383,7 +465,9 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
       }
     }
     const remaining = value.slice(offset)
-    result += matcher ? remaining.replace(matcher, HIDDEN) : remaining
+    result += replace(remaining, offset)
+    // A longer public/unclassified match must never shadow a shorter credential.
+    if (credentialMatcher) result = result.replace(credentialMatcher, HIDDEN)
     // Public prose and code examples are not diagnostics. A literal
     // `token=example` is not evidence of a credential. Registered credentials
     // are already masked above; only complete URLs receive syntax masking here.
@@ -622,6 +706,7 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
   }
   return {
     remember,
+    rememberPublicIdentifiers,
     protect,
     text,
     stream,
