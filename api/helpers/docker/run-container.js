@@ -161,8 +161,11 @@ module.exports = {
       deploymentCancellation.throwIfCancelled(signal, deploymentId)
 
       if (!portBinding.valid) {
-        throw new Error(
-          `Host binding verification failed: ${portBinding.diagnostic}`
+        throw Object.assign(
+          new Error(
+            `Host binding verification failed: ${portBinding.diagnostic}`
+          ),
+          { code: 'DEPLOYMENT_BINDING_FAILED' }
         )
       }
 
@@ -198,7 +201,14 @@ module.exports = {
       }
 
       const safeError = new Error(errorMessage)
-      if (error.code !== undefined) safeError.code = error.code
+      if (
+        /port.*already allocated|address already in use|failed to bind/i.test(
+          String(error.stderr || errorMessage)
+        )
+      )
+        safeError.code = 'DEPLOYMENT_BINDING_FAILED'
+      if (!safeError.code && error.code !== undefined)
+        safeError.code = error.code
       throw safeError
     }
   }

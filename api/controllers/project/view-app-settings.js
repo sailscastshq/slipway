@@ -94,7 +94,11 @@ module.exports = {
         environment,
         app,
         connectedRepo,
-        githubConnected
+        githubConnected,
+        startupWindowSeconds:
+          sails.helpers.docker.resolveStartupWindow({
+            resourceLimits: app.resourceLimits
+          }) / 1000
       }
     }
   }

@@ -56,6 +56,7 @@ module.exports = {
     let deployHostPort = null
     let deployHostPortReserved = false
     let deployBuildContextPath = null
+    let startupEnvVars = {}
     let currentStage = 'initialization'
 
     const recordStage = async (stage, resources = {}) => {
@@ -269,6 +270,7 @@ module.exports = {
           'Deployment configuration changed and now has readiness blockers. Refresh the report.'
         )
       const envVars = { ...runtimeConfig.values }
+      startupEnvVars = envVars
 
       if (targetApp?.id) {
         envVars.SLIPWAY_APP_ID = String(targetApp.id)
@@ -388,6 +390,10 @@ module.exports = {
           port: 1337,
           hostPort: deployHostPort,
           path: healthPath,
+          timeout: sails.helpers.docker.resolveStartupWindow.with({
+            resourceLimits
+          }),
+          inspectContainer: true,
           deploymentId,
           signal
         })
@@ -585,23 +591,16 @@ module.exports = {
         /* best-effort; the original failure still wins */
       }
 
-      // Capture container logs before removing — shows the actual crash reason
+      // Capture state and both bounded output channels before removing the candidate.
       if (deployContainerName && !cancelled) {
         try {
-          const containerLogs =
-            await sails.helpers.docker.getContainerLogs.with({
-              containerName: deployContainerName,
-              tail: 50,
-              timestamps: false
-            })
-          if (containerLogs && containerLogs.trim()) {
-            await Deployment.appendDeployLog(
-              deploymentId,
-              `\n--- Container logs ---\n${containerLogs.trim()}\n`
-            )
-          }
+          await sails.helpers.docker.captureStartupDiagnostics.with({
+            containerName: deployContainerName,
+            deploymentId,
+            envVars: startupEnvVars
+          })
         } catch {
-          // Container may not have started — no logs to capture
+          // Diagnostic capture cannot replace the original deployment failure.
         }
       }
 

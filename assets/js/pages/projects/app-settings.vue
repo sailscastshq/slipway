@@ -38,7 +38,8 @@ const props = defineProps({
   environment: Object,
   app: Object,
   connectedRepo: Object,
-  githubConnected: Boolean
+  githubConnected: Boolean,
+  startupWindowSeconds: { type: Number, default: 120 }
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -62,7 +63,8 @@ const form = useForm({
   routePath: props.app.routePath === null ? null : props.app.routePath || '/',
   resourceLimits: {
     cpus: props.app.resourceLimits?.cpus || '1',
-    memory: props.app.resourceLimits?.memory || '512m'
+    memory: props.app.resourceLimits?.memory || '512m',
+    startupTimeoutSeconds: props.startupWindowSeconds
   }
 })
   .withPrecognition('patch', settingsUrl)
@@ -86,7 +88,10 @@ const isDirty = computed(
     form.routePath !==
       (props.app.routePath === null ? null : props.app.routePath || '/') ||
     form.resourceLimits.cpus !== (props.app.resourceLimits?.cpus || '1') ||
-    form.resourceLimits.memory !== (props.app.resourceLimits?.memory || '512m')
+    form.resourceLimits.memory !==
+      (props.app.resourceLimits?.memory || '512m') ||
+    Number(form.resourceLimits.startupTimeoutSeconds) !==
+      props.startupWindowSeconds
 )
 
 async function saveSettings({ restart = false } = {}) {
@@ -425,6 +430,51 @@ async function deleteApp() {
             </p>
             <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
               Deployment waits for this path to return a 2xx response.
+            </p>
+          </div>
+
+          <div>
+            <label
+              for="startup-window"
+              class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >Startup window (seconds)</label
+            >
+            <Input
+              id="startup-window"
+              v-model.number="form.resourceLimits.startupTimeoutSeconds"
+              type="number"
+              min="5"
+              max="600"
+              step="1"
+              :aria-invalid="
+                form.invalid('resourceLimits.startupTimeoutSeconds')
+              "
+              :aria-describedby="
+                form.errors['resourceLimits.startupTimeoutSeconds']
+                  ? 'startup-window-error'
+                  : 'startup-window-help'
+              "
+              class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:text-white"
+              @blur="
+                validateOnBlur('resourceLimits.startupTimeoutSeconds', $event)
+              "
+              @input="
+                revalidateWhenInvalid('resourceLimits.startupTimeoutSeconds')
+              "
+            />
+            <p
+              v-if="form.errors['resourceLimits.startupTimeoutSeconds']"
+              id="startup-window-error"
+              class="mt-1 text-sm text-red-600 dark:text-red-400"
+            >
+              {{ form.errors['resourceLimits.startupTimeoutSeconds'] }}
+            </p>
+            <p
+              id="startup-window-help"
+              class="mt-1 text-xs text-gray-400 dark:text-gray-500"
+            >
+              Wait up to 5–600 seconds for the health path. A stopped candidate
+              fails immediately. Applies to the next deployment.
             </p>
           </div>
 

@@ -54,6 +54,9 @@ module.exports.custom = {
   // Docker network name for app containers
   slipwayNetwork: 'slipway',
 
+  // Candidate readiness deadline; per-app startup window may override (5-600s).
+  deploymentStartupTimeoutSeconds: 120,
+
   // Stable control-plane upstream used by same-origin Bridge ingress routes.
   slipwayContainerName: 'slipway',
 

@@ -196,10 +196,14 @@ module.exports = {
       updates.envVarMetadata = normalizedMetadata
     }
     if (resourceLimits !== undefined) {
-      updates.resourceLimits = resourceLimits
+      updates.resourceLimits = { ...app.resourceLimits, ...resourceLimits }
+      const limitsChanged = ['cpus', 'memory'].some(
+        (key) =>
+          String(resourceLimits[key]) !== String(app.resourceLimits?.[key])
+      )
 
       // Apply to running container via docker update (no restart needed)
-      if (app.status === 'running' && app.containerName) {
+      if (limitsChanged && app.status === 'running' && app.containerName) {
         try {
           const dockerPath = sails.config.docker?.binaryPath || 'docker'
           const args = ['update']

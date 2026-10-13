@@ -12,6 +12,8 @@ module.exports = {
       required: true,
       description: 'Name or ID of the container'
     },
+    timeout: { type: 'number', defaultsTo: 5000, min: 1, max: 5000 },
+    signal: { type: 'ref' },
     fresh: {
       type: 'boolean',
       defaultsTo: false,
@@ -28,7 +30,7 @@ module.exports = {
       description: 'Container not found'
     }
   },
-  fn: async function ({ containerName, fresh }) {
+  fn: async function ({ containerName, fresh, timeout = 5000, signal }) {
     // Check cache first
     const cacheKey = `container:status:v2:${containerName}`
     if (!fresh) {
@@ -46,17 +48,18 @@ module.exports = {
     }
 
     try {
-      const { stdout } = await execFileAsync('docker', [
-        'inspect',
-        '--format',
-        '{{json .State}}',
-        containerName
-      ])
+      const { stdout } = await execFileAsync(
+        sails.config.docker?.binaryPath || 'docker',
+        ['inspect', '--format', '{{json .State}}', containerName],
+        { timeout, signal, killSignal: 'SIGKILL', maxBuffer: 64 * 1024 }
+      )
 
       const state = JSON.parse(stdout.trim())
 
       const result = {
         running: state.Running,
+        restarting: Boolean(state.Restarting),
+        oomKilled: Boolean(state.OOMKilled),
         status: state.Status,
         startedAt: state.StartedAt,
         finishedAt: state.FinishedAt,
@@ -67,7 +70,7 @@ module.exports = {
 
       // Cache for 30 seconds
       try {
-        await sails.cache.set(cacheKey, result, 30)
+        if (!fresh) await sails.cache.set(cacheKey, result, 30)
       } catch (err) {
         /* best-effort */
       }

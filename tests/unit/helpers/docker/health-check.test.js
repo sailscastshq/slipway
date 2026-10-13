@@ -140,3 +140,39 @@ function close(server) {
     server.close((err) => (err ? reject(err) : resolve()))
   })
 }
+
+test('startup HTTP probe enforces a total deadline even while headers trickle in', async ({
+  sails
+}) => {
+  const assert = require('node:assert/strict')
+  const net = require('node:net')
+  const sockets = new Set()
+  const server = net.createServer((socket) => {
+    sockets.add(socket)
+    socket.on('error', () => {})
+    socket.write('HTTP/1.1 200 OK\r\nX-Synthetic: ')
+    const timer = setInterval(() => socket.write('x'), 10)
+    socket.on('close', () => {
+      clearInterval(timer)
+      sockets.delete(socket)
+    })
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const started = Date.now()
+  try {
+    await assert.rejects(
+      sails.helpers.docker.healthCheck.with({
+        containerName: '127.0.0.1',
+        port: server.address().port,
+        path: '/health',
+        timeout: 100,
+        interval: 10
+      }),
+      (error) => error.code === 'DEPLOYMENT_STARTUP_TIMEOUT'
+    )
+    assert(Date.now() - started < 1000)
+  } finally {
+    for (const socket of sockets) socket.destroy()
+    await new Promise((resolve) => server.close(resolve))
+  }
+})

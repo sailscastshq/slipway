@@ -180,6 +180,18 @@ module.exports = {
 
     if (values.resourceLimits !== undefined) {
       const resourceLimits = values.resourceLimits || {}
+      if (resourceLimits.startupTimeoutSeconds !== undefined) {
+        const value = resourceLimits.startupTimeoutSeconds
+        const seconds =
+          typeof value === 'number' || typeof value === 'string'
+            ? Number(value)
+            : NaN
+        if (!Number.isInteger(seconds) || seconds < 5 || seconds > 600)
+          add(
+            'resourceLimits.startupTimeoutSeconds',
+            'Startup window must be a whole number from 5 to 600 seconds.'
+          )
+      }
       const cpus = String(resourceLimits.cpus || '').trim()
       const cpuCount = Number(cpus)
 
