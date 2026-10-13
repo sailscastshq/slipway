@@ -1,4 +1,5 @@
 <script setup>
+import DockDiffState from '@/components/DockDiffState.vue'
 import DockBackups from '@/components/DockBackups.vue'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import { apiErrorMessage } from '@/lib/api-error'
@@ -16,7 +17,6 @@ import Copy from '@/components/ui/icons/Copy.vue'
 import ChevronDown from '@/components/ui/icons/ChevronDown.vue'
 import X from '@/components/ui/icons/X.vue'
 import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
-import CheckCircle from '@/components/ui/icons/CheckCircle.vue'
 import Input from '@/components/ui/input/Input.vue'
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import { Link, Head } from '@inertiajs/vue3'
@@ -298,6 +298,7 @@ const diff = ref(null)
 const diffLoading = ref(false)
 const diffError = ref(null)
 const migrationError = ref(null)
+const migrationApplied = ref(false)
 const migrateLoading = ref(false)
 const selectedModels = ref(new Set())
 const showMigrateConfirm = ref(false)
@@ -540,6 +541,7 @@ async function fetchDiff(refreshModels = false) {
   diffLoading.value = true
   diffError.value = null
   migrationError.value = null
+  migrationApplied.value = false
 
   try {
     const res = await fetch(
@@ -663,6 +665,7 @@ async function applyMigration() {
         'success'
       )
       await fetchDiff()
+      migrationApplied.value = !diffError.value
     }
   } catch (e) {
     migrationError.value =
@@ -2341,41 +2344,39 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <div
+        <DockDiffState
           v-if="diffLoading"
-          role="status"
-          class="flex items-center gap-3 border-y border-gray-200 py-6 text-gray-950 dark:border-gray-800 dark:text-gray-100"
-        >
-          <Spinner class="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
-          <div>
-            <p class="text-sm font-medium">Loading migration diff</p>
-            <p class="mt-1 text-xs text-gray-600 dark:text-gray-400">
-              Checking deployed models and database.
-            </p>
-          </div>
-        </div>
-
-        <Alert
-          role="alert"
+          title="Loading migration diff"
+          description="Checking deployed models and database."
+        />
+        <DockDiffState
           v-else-if="diffError"
-          class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30"
+          error
+          title="Could not load schema diff"
+          :description="diffError"
         >
-          <p class="text-sm text-red-600 dark:text-red-400">{{ diffError }}</p>
           <button
             @click="fetchDiff(true)"
-            class="mt-2 text-sm text-red-600 underline hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+            class="text-sm font-medium text-gray-950 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"
           >
             Try again
           </button>
-        </Alert>
+        </DockDiffState>
 
         <div v-else-if="diff" class="space-y-4">
-          <Alert
+          <DockDiffState
             v-if="migrationError"
-            role="alert"
-            class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
-            >{{ migrationError }}</Alert
+            error
+            title="Migration needs attention"
+            :description="migrationError"
           >
+            <button
+              @click="fetchDiff(true)"
+              class="text-sm font-medium text-gray-950 underline underline-offset-4 dark:text-gray-100"
+            >
+              Refresh schema
+            </button>
+          </DockDiffState>
 
           <Alert
             v-if="diff.state === 'unverified'"
@@ -2401,42 +2402,37 @@ onUnmounted(() => {
           </Alert>
 
           <!-- No changes -->
-          <div
+          <DockDiffState
             v-else-if="!diff.hasPendingChanges"
             data-testid="dock-up-to-date"
-            role="status"
-            class="flex items-start gap-3 border-y border-gray-200 py-6 text-gray-950 dark:border-gray-800 dark:text-gray-100"
+            :title="
+              migrationApplied
+                ? 'Migration applied'
+                : isMongoDB
+                ? 'Collections are up to date'
+                : 'Schema is up to date'
+            "
+            :description="
+              isMongoDB
+                ? 'All model collections exist.'
+                : 'Managed definitions match the deployed models. Native objects are preserved.'
+            "
           >
-            <CheckCircle
-              class="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400"
-              stroke-width="2"
-            />
-            <div class="flex-1">
-              <h3 class="text-sm font-medium">
-                {{
-                  isMongoDB
-                    ? 'Collections are up to date'
-                    : 'Schema is up to date'
-                }}
-              </h3>
-              <p class="mt-1 max-w-lg text-sm text-gray-600 dark:text-gray-400">
-                {{
-                  isMongoDB
-                    ? 'All model collections exist.'
-                    : 'Managed definitions match the deployed models. Native objects are preserved.'
-                }}
-              </p>
-              <button
-                @click="activeTab = 'schema'"
-                class="mt-3 text-sm font-medium text-gray-950 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"
-              >
-                View schema
-              </button>
-            </div>
-          </div>
+            <button
+              @click="activeTab = 'schema'"
+              class="text-sm font-medium text-gray-950 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"
+            >
+              View schema
+            </button>
+          </DockDiffState>
 
           <!-- Has changes -->
           <div v-else class="space-y-4">
+            <DockDiffState
+              v-if="migrationApplied"
+              title="Migration applied"
+              description="Selected changes were applied. Review the remaining changes below."
+            />
             <!-- Model selection -->
             <div
               class="rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900/30"
