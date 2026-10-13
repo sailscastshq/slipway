@@ -135,13 +135,28 @@ test(
             has: page.raw.getByRole('heading', { name: title, exact: true })
           })
           await expect(panel).toBeVisible()
-          const geometry = await panel.evaluate((node) => {
+          const expectedToken =
+            name === 'loading'
+              ? 'text-amber-600 dark:text-amber-400'
+              : name === 'error'
+              ? 'text-red-500 dark:text-red-400'
+              : 'text-green-500 dark:text-green-400'
+          const geometry = await panel.evaluate((node, token) => {
             const style = getComputedStyle(node)
             const icon = node.querySelector('svg')
             const rect = node.getBoundingClientRect()
             const iconRect = icon.getBoundingClientRect()
+            const probe = document.createElement('span')
+            probe.className = token
+            node.appendChild(probe)
+            const expectedColor = getComputedStyle(probe).color
+            probe.remove()
             return {
               height: rect.height,
+              iconColor: getComputedStyle(icon).color,
+              titleColor: getComputedStyle(node.querySelector('h3')).color,
+              descriptionColor: getComputedStyle(node.querySelector('p')).color,
+              expectedColor,
               textAlign: style.textAlign,
               borderTop: style.borderTopWidth,
               borderBottom: style.borderBottomWidth,
@@ -153,7 +168,12 @@ test(
                 .animationName,
               overflow: document.documentElement.scrollWidth > innerWidth
             }
-          })
+          }, expectedToken)
+          expect(geometry.iconColor).toBe(geometry.expectedColor)
+          expect(geometry.titleColor).toBe(geometry.expectedColor)
+          expect(geometry.descriptionColor === geometry.expectedColor).toBe(
+            false
+          )
           expect(geometry.height <= 300).toBe(true)
           expect(geometry.textAlign).toBe('center')
           expect(geometry.borderTop).toBe('0px')

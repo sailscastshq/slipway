@@ -2346,6 +2346,7 @@ onUnmounted(() => {
 
         <DockDiffState
           v-if="diffLoading"
+          loading
           title="Loading migration diff"
           description="Checking deployed models and database."
         />
