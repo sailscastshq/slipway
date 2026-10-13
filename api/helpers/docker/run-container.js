@@ -105,12 +105,22 @@ module.exports = {
 
     // Add environment variables. PORT comes from Slipway's actual container
     // contract, so references cannot drift from the mapped internal port.
-    args.push(
-      ...sails.helpers.docker.buildEnvArguments.with({
-        envVars,
-        runtimeValues: { PORT: port }
-      })
-    )
+    const environmentArguments = sails.helpers.docker.buildEnvArguments.with({
+      envVars,
+      runtimeValues: { PORT: port }
+    })
+    // Register the values Docker actually receives, including template
+    // expansions, before any startup output can contain them.
+    const resolvedEnvironment = {}
+    for (let index = 1; index < environmentArguments.length; index += 2) {
+      const assignment = environmentArguments[index]
+      const separator = assignment.indexOf('=')
+      resolvedEnvironment[assignment.slice(0, separator)] = assignment.slice(
+        separator + 1
+      )
+    }
+    sails.hooks?.secrets?.remember({ env: resolvedEnvironment })
+    args.push(...environmentArguments)
 
     // Add resource limits
     if (resourceLimits && resourceLimits.cpus) {

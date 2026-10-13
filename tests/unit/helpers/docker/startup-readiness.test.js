@@ -435,3 +435,69 @@ for (const invalidBinding of [false, true])
       (error) => error.code === 'DEPLOYMENT_BINDING_FAILED'
     )
   })
+
+test('startup: resolved credential templates are registered before container launch and diagnostic capture', async () => {
+  const redactor =
+    require('../../../../api/helpers/security/redact')._private.createRedactor()
+  redactor.rememberPublicIdentifiers(['public-synthetic-project'])
+  const inputs = {
+    containerName: 'candidate-synthetic',
+    imageName: 'synthetic:770',
+    port: 1337,
+    hostPort: 1402,
+    resourceLimits: {},
+    envVars: {
+      API_TOKEN: 'synthetic-${TOKEN_LEFT}${TOKEN_RIGHT}-770',
+      TOKEN_LEFT: 'cred',
+      TOKEN_RIGHT: 'ential',
+      APP_NAME: 'public-synthetic-project'
+    }
+  }
+  const helper = loadHelper(
+    'helpers/docker/run-container.js',
+    {
+      sails: {
+        hooks: { secrets: redactor },
+        config: { custom: {} },
+        log: { info() {}, error() {} },
+        helpers: {
+          docker: {
+            formatPortBinding: { with: async () => '127.0.0.1:1402:1337' },
+            buildEnvArguments: {
+              with: (value) =>
+                require('../../../../api/helpers/docker/build-env-arguments').fn(
+                  value
+                )
+            },
+            getPortBinding: {
+              with: async () => ({ valid: true, diagnostic: 'verified' })
+            },
+            formatError: {
+              with: (value) =>
+                require('../../../../api/helpers/docker/format-error').fn(value)
+            }
+          }
+        }
+      }
+    },
+    {
+      child_process: {
+        execFile(binary, args, options, done) {
+          assert(
+            Array.from(args).includes('API_TOKEN=synthetic-credential-770')
+          )
+          assert.equal(
+            redactor.text('Crash contains synthetic-credential-770'),
+            'Crash contains [REDACTED]'
+          )
+          assert.equal(
+            redactor.text('Image: public-synthetic-project'),
+            'Image: public-synthetic-project'
+          )
+          done(null, 'synthetic-container-id', '')
+        }
+      }
+    }
+  )
+  await helper.fn(inputs)
+})

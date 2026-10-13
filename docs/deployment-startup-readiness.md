@@ -22,7 +22,8 @@ and OOM status) and the last 100 timestamped lines from both stdout and stderr.
 Each diagnostic command has a five-second limit and a 64 KiB bound per output
 channel. Partial output is retained with an incomplete marker. Output passes
 through the shared secret redactor and deployment-log persistence. Runtime
-configuration is registered conservatively; no plaintext configuration map is
+configuration, including resolved template values passed to Docker, is
+registered conservatively; no plaintext configuration map is
 written to logs. Diagnostic capture cannot replace the original failure.
 
 A longer window only accommodates slow startup. It does not fix application
