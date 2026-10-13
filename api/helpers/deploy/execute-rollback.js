@@ -43,6 +43,7 @@ module.exports = {
     let candidateContainerName = null
     let hostPort = null
     let hostPortReserved = false
+    let startupEnvVars = {}
     let currentStage = 'initialization'
 
     const recordStage = async (stage, resources = {}) => {
@@ -175,6 +176,7 @@ module.exports = {
           ...(existingApp?.id ? { appId: String(existingApp.id) } : {})
         })
       const envVars = { ...runtimeConfig.values }
+      startupEnvVars = envVars
       if (existingApp?.id) {
         envVars.SLIPWAY_APP_ID = String(existingApp.id)
         envVars.SLIPWAY_DEPLOYMENT_ID = String(rollbackId)
@@ -271,6 +273,10 @@ module.exports = {
         port: 1337,
         hostPort,
         path: healthPath,
+        timeout: sails.helpers.docker.resolveStartupWindow.with({
+          resourceLimits: existingApp?.resourceLimits
+        }),
+        inspectContainer: true,
         deploymentId: rollbackId,
         signal
       })
@@ -402,6 +408,18 @@ module.exports = {
         )
       } catch {
         /* preserve the original failure */
+      }
+
+      if (candidateContainerName && !cancelled) {
+        try {
+          await sails.helpers.docker.captureStartupDiagnostics.with({
+            containerName: candidateContainerName,
+            deploymentId: rollbackId,
+            envVars: startupEnvVars
+          })
+        } catch {
+          /* Preserve original rollback failure. */
+        }
       }
 
       if (candidateContainerName) {

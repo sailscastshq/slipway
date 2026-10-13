@@ -461,6 +461,7 @@ test(
       allocatePort: sails.helpers.docker.allocatePort,
       runContainer: sails.helpers.docker.runContainer,
       healthCheck: sails.helpers.docker.healthCheck,
+      captureStartupDiagnostics: sails.helpers.docker.captureStartupDiagnostics,
       cutoverTraffic: sails.helpers.deploy.cutoverTraffic,
       releasePort: sails.helpers.docker.releasePort,
       stopContainer: sails.helpers.docker.stopContainer,
@@ -473,6 +474,9 @@ test(
     let candidateName
     let candidateImage
 
+    sails.helpers.docker.captureStartupDiagnostics = machineStub(async () => ({
+      captured: true
+    }))
     sails.helpers.docker.ensureNetwork = machineStub(async () => {})
     sails.helpers.deploy.prepareCandidateContainer = machineStub(async () => ({
       action: 'ready'
@@ -562,6 +566,8 @@ test(
       sails.helpers.docker.allocatePort = originals.allocatePort
       sails.helpers.docker.runContainer = originals.runContainer
       sails.helpers.docker.healthCheck = originals.healthCheck
+      sails.helpers.docker.captureStartupDiagnostics =
+        originals.captureStartupDiagnostics
       sails.helpers.deploy.cutoverTraffic = originals.cutoverTraffic
       sails.helpers.docker.releasePort = originals.releasePort
       sails.helpers.docker.stopContainer = originals.stopContainer
@@ -584,6 +590,7 @@ test(
       allocatePort: sails.helpers.docker.allocatePort,
       runContainer: sails.helpers.docker.runContainer,
       healthCheck: sails.helpers.docker.healthCheck,
+      captureStartupDiagnostics: sails.helpers.docker.captureStartupDiagnostics,
       releasePort: sails.helpers.docker.releasePort,
       stopContainer: sails.helpers.docker.stopContainer,
       getServerIp: sails.helpers.getServerIp,
@@ -594,6 +601,9 @@ test(
     const sequence = []
     let candidateName
 
+    sails.helpers.docker.captureStartupDiagnostics = machineStub(async () => ({
+      captured: true
+    }))
     sails.helpers.docker.ensureNetwork = machineStub(async () => {})
     sails.helpers.deploy.prepareCandidateContainer = machineStub(async () => ({
       action: 'ready'
@@ -673,6 +683,8 @@ test(
       sails.helpers.docker.allocatePort = originals.allocatePort
       sails.helpers.docker.runContainer = originals.runContainer
       sails.helpers.docker.healthCheck = originals.healthCheck
+      sails.helpers.docker.captureStartupDiagnostics =
+        originals.captureStartupDiagnostics
       sails.helpers.docker.releasePort = originals.releasePort
       sails.helpers.docker.stopContainer = originals.stopContainer
       sails.helpers.getServerIp = originals.getServerIp
@@ -697,6 +709,7 @@ test(
       allocatePort: sails.helpers.docker.allocatePort,
       runContainer: sails.helpers.docker.runContainer,
       healthCheck: sails.helpers.docker.healthCheck,
+      captureStartupDiagnostics: sails.helpers.docker.captureStartupDiagnostics,
       releasePort: sails.helpers.docker.releasePort,
       stopContainer: sails.helpers.docker.stopContainer,
       updateRoute: sails.helpers.caddy.updateRoute
@@ -706,6 +719,9 @@ test(
     const originalLogError = sails.log.error
     sails.log.error = () => {}
 
+    sails.helpers.docker.captureStartupDiagnostics = machineStub(async () => ({
+      captured: true
+    }))
     sails.helpers.docker.ensureNetwork = machineStub(async () => {})
     sails.helpers.deploy.prepareCandidateContainer = machineStub(async () => ({
       action: 'ready'
@@ -772,6 +788,8 @@ test(
       sails.helpers.docker.allocatePort = originals.allocatePort
       sails.helpers.docker.runContainer = originals.runContainer
       sails.helpers.docker.healthCheck = originals.healthCheck
+      sails.helpers.docker.captureStartupDiagnostics =
+        originals.captureStartupDiagnostics
       sails.helpers.docker.releasePort = originals.releasePort
       sails.helpers.docker.stopContainer = originals.stopContainer
       sails.helpers.caddy.updateRoute = originals.updateRoute
@@ -789,3 +807,142 @@ async function captureError(promise) {
 
   throw new Error('Expected operation to fail.')
 }
+
+test(
+  'startup failure captures diagnostics before removing the candidate and preserves the live app',
+  { world: cutoverWorld('startup-failure-capture') },
+  async ({ sails, world, expect }) => {
+    const setup = await prepareCutover({ sails, world })
+    const originals = {
+      ensureNetwork: sails.helpers.docker.ensureNetwork,
+      prepareCandidateContainer: sails.helpers.deploy.prepareCandidateContainer,
+      ensureBuildContext: sails.helpers.deploy.ensureBuildContext,
+      buildImage: sails.helpers.docker.buildImage,
+      detectFeatures: sails.helpers.sails.detectFeatures,
+      allocatePort: sails.helpers.docker.allocatePort,
+      runContainer: sails.helpers.docker.runContainer,
+      healthCheck: sails.helpers.docker.healthCheck,
+      captureStartupDiagnostics: sails.helpers.docker.captureStartupDiagnostics,
+      cutoverTraffic: sails.helpers.deploy.cutoverTraffic,
+      releasePort: sails.helpers.docker.releasePort,
+      stopContainer: sails.helpers.docker.stopContainer,
+      removeImage: sails.helpers.docker.removeImage,
+      sendDeploymentNotification:
+        sails.helpers.notification.sendDeploymentNotification
+    }
+    const originalLogError = sails.log.error
+    sails.log.error = () => {}
+    sails.helpers.notification.sendDeploymentNotification = machineStub(
+      async () => {}
+    )
+    const controller = new AbortController()
+    const cancellation = new Error('Cancelled by Builder')
+    cancellation.code = 'DEPLOYMENT_CANCELLED'
+    const sequence = []
+    let candidateName
+    let candidateImage
+
+    sails.helpers.docker.captureStartupDiagnostics = machineStub(
+      async (inputs) => {
+        expect(inputs.containerName).toBe(candidateName)
+        expect(String(inputs.deploymentId)).toBe(String(setup.deployment.id))
+        sequence.push('diagnostics-captured')
+        return { captured: true }
+      }
+    )
+    sails.helpers.docker.ensureNetwork = machineStub(async () => {})
+    sails.helpers.deploy.prepareCandidateContainer = machineStub(async () => ({
+      action: 'ready'
+    }))
+    sails.helpers.deploy.ensureBuildContext = machineStub(async () => ({
+      contextPath: '/tmp/slipway-cancel-before-cutover'
+    }))
+    sails.helpers.docker.buildImage = machineStub(async ({ imageName }) => {
+      candidateImage = imageName
+      sequence.push('image-built')
+    })
+    sails.helpers.sails.detectFeatures = machineStub(async () => ({}))
+    sails.helpers.docker.allocatePort = machineStub(async () => 1405)
+    sails.helpers.docker.runContainer = machineStub(async (inputs) => {
+      candidateName = inputs.containerName
+      sequence.push(`started:${candidateName}`)
+      return {
+        containerId: 'cancelled-candidate-id',
+        containerName: candidateName,
+        hostPort: inputs.hostPort,
+        portBinding: { diagnostic: 'verified' }
+      }
+    })
+    sails.helpers.docker.healthCheck = machineStub(async ({ signal }) => {
+      sequence.push('health-check-started')
+      throw Object.assign(new Error('Synthetic candidate startup failed'), {
+        code: 'DEPLOYMENT_STARTUP_EXITED'
+      })
+    })
+    sails.helpers.deploy.cutoverTraffic = machineStub(async () => {
+      sequence.push('cutover')
+    })
+    sails.helpers.docker.stopContainer = machineStub(
+      async ({ containerName }) => {
+        sequence.push(`stopped:${containerName}`)
+      }
+    )
+    sails.helpers.docker.releasePort = machineStub(async () => {
+      sequence.push('port-released')
+      return { released: 1 }
+    })
+    sails.helpers.docker.removeImage = machineStub(async ({ imageName }) => {
+      sequence.push(`removed:${imageName}`)
+    })
+
+    try {
+      const error = await captureError(
+        sails.helpers.deploy.executePipeline.with({
+          deploymentId: setup.deployment.id,
+          project: world.current.projects.deploymentTarget,
+          environment: setup.environment,
+          app: setup.app,
+          signal: controller.signal
+        })
+      )
+      const [app, deployment] = await Promise.all([
+        sails.models.app.findOne({ id: setup.app.id }),
+        sails.models.deployment.findOne({ id: setup.deployment.id })
+      ])
+
+      expect(error.code).toBe('DEPLOYMENT_STARTUP_EXITED')
+      expect(deployment.status).toBe('failed')
+      expect(app.containerName).toBe('slipway-web-previous')
+      expect(app.hostPort).toBe(1401)
+      expect(sequence).toEqual([
+        'image-built',
+        `started:${candidateName}`,
+        'health-check-started',
+        'diagnostics-captured',
+        `stopped:${candidateName}`,
+        'port-released',
+        `removed:${candidateImage}`
+      ])
+      expect(deployment.deployLogs).toContain('ERROR [health check]')
+    } finally {
+      sails.helpers.docker.ensureNetwork = originals.ensureNetwork
+      sails.helpers.deploy.prepareCandidateContainer =
+        originals.prepareCandidateContainer
+      sails.helpers.deploy.ensureBuildContext = originals.ensureBuildContext
+      sails.helpers.docker.buildImage = originals.buildImage
+      sails.helpers.sails.detectFeatures = originals.detectFeatures
+      sails.helpers.docker.allocatePort = originals.allocatePort
+      sails.helpers.docker.runContainer = originals.runContainer
+      sails.helpers.docker.healthCheck = originals.healthCheck
+      sails.helpers.docker.captureStartupDiagnostics =
+        originals.captureStartupDiagnostics
+      sails.helpers.deploy.cutoverTraffic = originals.cutoverTraffic
+      sails.helpers.docker.releasePort = originals.releasePort
+      sails.helpers.docker.stopContainer = originals.stopContainer
+      sails.helpers.docker.removeImage = originals.removeImage
+      sails.helpers.notification.sendDeploymentNotification =
+        originals.sendDeploymentNotification
+      sails.log.error = originalLogError
+    }
+  }
+)
