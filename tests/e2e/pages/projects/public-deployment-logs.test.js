@@ -22,7 +22,7 @@ test(
     const values = {
       APP_NAME: 'acaciaco',
       NODE_ENV: 'production',
-      BRAND: 'publicowner',
+      PROJECT_NAME: 'publicowner',
       API_TOKEN: 'synthetic-ui-secret-768',
       ODD_NAME: 'unknown-ui-canary-768'
     }

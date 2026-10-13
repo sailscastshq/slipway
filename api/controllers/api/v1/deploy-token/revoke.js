@@ -27,7 +27,7 @@ module.exports = {
 
   fn: async function ({ id }) {
     const user = await User.forRequest(this.req)
-    sails.hooks.secrets?.rememberPublicRecord?.('user', user)
+    sails.hooks?.secrets?.rememberPublicRecord?.('user', user)
 
     const token = await DeployToken.findOne({ id })
 

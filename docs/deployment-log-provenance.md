@@ -32,14 +32,12 @@ this catalogue at startup. Deployment/source preparation and actor logging also
 register freshly resolved records before logging. Configuration maps and log
 output never establish public identity.
 
-Only a matched span contained inside one of these public identifiers is preserved.
-For example, an unclassified brand can no longer erase part of the actual
+Only known public runtime-coordinate values matched inside one of these public identifiers may be preserved; arbitrary unclassified hidden values remain mandatory even if they equal a public name.
+For example, a recognized project/app coordinate can no longer erase part of the actual
 repository owner or a public app name in an image reference or asset filename.
 This applies before build chunk capture, instance logger output, persistence,
 HTTP responses and live stream rendering, so later masking boundaries agree.
-Unknown hidden values remain masked, including reversible encodings. Credential
-names, structured secrets and explicit credential metadata populate an overriding
-matcher: a longer public match cannot shadow a shorter genuine credential.
+Unknown hidden values remain masked, including reversible encodings. Credential names, structured secrets and explicit credential metadata remain mandatory. Every overlapping mandatory match is collected against the original input and their union is masked, so neither public matches nor earlier replacements can expose a private suffix.
 URL userinfo, credential assignments, Bearer/Basic material and signed/query
 credentials retain syntax masking. The authenticated deployment-event mechanism
 and its replay checks remain in place.
@@ -50,3 +48,12 @@ identity evidence survives record deletion until restart. Historical strings
 already containing `[REDACTED]` cannot be recovered. Browser proof uses only a
 synthetic deployment fixture; it does not claim a production rollout or repair
 of a separate application failure.
+
+Unknown variable names such as `BRAND` remain conservatively masked, even inside
+public identity. They need explicit plain classification to become diagnostic
+public values; the fix does not infer that every brand-like variable is harmless.
+The preexisting minimum registered-value length is eight characters; syntax-based
+credential masking still applies below that threshold, but arbitrary shorter
+canaries are not comprehensively substring-masked. Typed diagnostic identifier
+fields also apply credential-only masking so logger object arguments cannot
+bypass a registered genuine credential.

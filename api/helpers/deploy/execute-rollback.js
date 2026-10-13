@@ -89,8 +89,7 @@ module.exports = {
         imageName: targetDeployment.imageName
       })
 
-      sails.hooks.secrets?.rememberPublicRecord?.('project', project)
-      sails.hooks.secrets?.rememberPublicRecord?.('environment', environment)
+      sails.hooks?.secrets?.rememberPublicRecord?.('environment', environment)
 
       await Deployment.appendBuildLog(
         rollbackId,
@@ -117,11 +116,10 @@ module.exports = {
         : '127.0.0.1'
       const healthPath = App.normalizeHealthPath(existingApp?.healthPath)
       for (const [kind, record] of [
-        ['project', project],
         ['environment', environment],
         ['app', existingApp]
       ])
-        sails.hooks.secrets?.rememberPublicRecord?.(kind, record)
+        sails.hooks?.secrets?.rememberPublicRecord?.(kind, record)
       const oldContainerName = existingApp?.containerName
       candidateContainerName = await App.generateDeployContainerName(
         environment.id,

@@ -117,7 +117,7 @@ module.exports = {
         ['environment', environment],
         ['app', targetApp]
       ])
-        sails.hooks.secrets?.rememberPublicRecord?.(kind, record)
+        sails.hooks?.secrets?.rememberPublicRecord?.(kind, record)
       const appSlug = targetApp ? targetApp.slug : undefined
       const isPubliclyRoutable = !targetApp || targetApp.routePath !== null
       const appBindHost = isPubliclyRoutable

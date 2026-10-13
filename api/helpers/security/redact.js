@@ -67,6 +67,27 @@ function isPublicRuntimeValue(name, value) {
   }
   return false
 }
+function isPublicIdentityCoordinate(name, value) {
+  if (isPublicRuntimeValue(name, value)) return true
+  if (typeof value !== 'string') return false
+  const normalized = String(name)
+    .replace(/^SAILS_CUSTOM_+/i, '')
+    .replace(/([a-z])([A-Z])/g, '$1_$2')
+    .toUpperCase()
+  if (
+    ['EMAIL_DOMAIN', 'SMTP_HOST', 'MAIL_HOST', 'APP_DOMAIN'].includes(
+      normalized
+    )
+  )
+    return /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}$/i.test(
+      value
+    )
+  if (['SMTP_USERNAME', 'OWNER_EMAIL', 'CONTACT_EMAIL'].includes(normalized))
+    return /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}$/i.test(
+      value
+    )
+  return false
+}
 function isPublicUploadOrigin(name, value) {
   if (!/^(R2|S3|SPACES)_PUBLIC_URL$/.test(name)) return false
   try {
@@ -207,6 +228,8 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
     throw new Error('Unknown redaction context.')
   const variants = new Set()
   const credentialVariants = new Set()
+  const mandatoryVariants = new Set()
+  let mandatoryMatcher = null
   const publicIdentifiers = new Set()
   let publicBytes = 0
   let publicMatcher = null
@@ -218,7 +241,7 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
   let dirty = false
   let deploymentLogRenderer
   function remember(record) {
-    function add(value, credential = false) {
+    function add(value, credential = false, publicCoordinate = false) {
       if (typeof value !== 'string' || value.length < 8 || value === HIDDEN)
         return
       if (value.length > 128 * 1024) {
@@ -246,6 +269,10 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
         Buffer.from(value).toString('hex')
       ]) {
         if (variants.has(form)) {
+          if (!publicCoordinate && !mandatoryVariants.has(form)) {
+            mandatoryVariants.add(form)
+            dirty = true
+          }
           if (credential && !credentialVariants.has(form)) {
             credentialVariants.add(form)
             dirty = true
@@ -260,18 +287,26 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
           continue
         }
         variants.add(form)
+        if (!publicCoordinate) mandatoryVariants.add(form)
         if (credential) credentialVariants.add(form)
         bytes += Buffer.byteLength(form)
         dirty = true
       }
     }
-    function collect(value, force = false, credential = false) {
+    function collect(
+      value,
+      force = false,
+      credential = false,
+      publicCoordinate = false
+    ) {
       if (!value || typeof value !== 'object') {
-        if (force) add(value, credential)
+        if (force) add(value, credential, publicCoordinate)
         return
       }
       if (Array.isArray(value)) {
-        value.forEach((entry) => collect(entry, force, credential))
+        value.forEach((entry) =>
+          collect(entry, force, credential, publicCoordinate)
+        )
         return
       }
       // Encryption is a storage property, not a classification of every word
@@ -299,8 +334,7 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
       for (const [key, entry] of Object.entries(value)) {
         // Variable names in this map label public annotations, not values.
         if (configurationMetadata.has(key)) continue
-        if (key === 'env' && !presentation) collect(entry, true, credential)
-        else if (configurationMaps.has(key) || key === 'env') {
+        if (configurationMaps.has(key) || key === 'env') {
           const metadata = value[configurationMaps.get(key)] || {}
           if (entry && typeof entry === 'object')
             for (const [name, configured] of Object.entries(entry)) {
@@ -308,17 +342,26 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
                 credential || isCredentialProvenance(name, metadata[name])
               const shouldCollect = presentation
                 ? configuredCredential
-                : configuredCredential || metadata[name]?.kind !== 'plain'
+                : key === 'env' ||
+                  configuredCredential ||
+                  metadata[name]?.kind !== 'plain'
               const publicRuntimeValue =
                 isPublicRuntimeValue(name, configured) ||
                 isPublicUploadOrigin(name, configured)
               if (
                 shouldCollect &&
                 (!publicRuntimeValue ||
+                  key === 'env' ||
                   metadata[name]?.kind === 'secret' ||
                   configuredCredential)
               )
-                collect(configured, true, configuredCredential)
+                collect(
+                  configured,
+                  true,
+                  configuredCredential,
+                  isPublicIdentityCoordinate(name, configured) &&
+                    !configuredCredential
+                )
             }
         } else
           collect(
@@ -346,9 +389,22 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
             collect(configured.key, true, true)
             collect(configured.accountKey, true, true)
           } else
-            collect(configured, true, credential || isCredentialName(value.key))
+            collect(
+              configured,
+              true,
+              credential || isCredentialName(value.key),
+              isPublicIdentityCoordinate(value.key, configured) &&
+                !credential &&
+                !isCredentialName(value.key)
+            )
         } catch {
-          add(value.encryptedValue, credential || isCredentialName(value.key))
+          add(
+            value.encryptedValue,
+            credential || isCredentialName(value.key),
+            isPublicIdentityCoordinate(value.key, value.encryptedValue) &&
+              !credential &&
+              !isCredentialName(value.key)
+          )
         }
       }
       if (
@@ -383,29 +439,56 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
       publicDirty = true
     }
   }
-  function pattern(values) {
+  function pattern(values, overlapping = false) {
     return values.size
       ? new RegExp(
-          [...values]
-            .sort((a, b) => b.length - a.length)
-            .map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-            .join('|'),
+          (overlapping ? '(?=(' : '') +
+            [...values]
+              .sort((a, b) => b.length - a.length)
+              .map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+              .join('|') +
+            (overlapping ? '))' : ''),
           'g'
         )
       : null
+  }
+  function credentialText(value) {
+    if (overflow)
+      return '[Diagnostic output withheld: redaction capacity exceeded]'
+    const required = pattern(credentialVariants, true)
+    if (!required) return value
+    return maskRanges(
+      value,
+      [...value.matchAll(required)].map((match) => [
+        match.index,
+        match.index + match[1].length
+      ])
+    )
+  }
+  function maskRanges(value, ranges) {
+    ranges.sort((a, b) => a[0] - b[0] || b[1] - a[1])
+    const merged = []
+    for (const [start, end] of ranges) {
+      const previous = merged.at(-1)
+      if (previous && start < previous[1])
+        previous[1] = Math.max(previous[1], end)
+      else merged.push([start, end])
+    }
+    let result = '',
+      offset = 0
+    for (const [start, end] of merged) {
+      result += value.slice(offset, start) + HIDDEN
+      offset = end
+    }
+    return result + value.slice(offset)
   }
   function text(value, publicUrl = false) {
     if (overflow)
       return '[Diagnostic output withheld: redaction capacity exceeded]'
     if (dirty) {
-      matcher = new RegExp(
-        [...variants]
-          .sort((a, b) => b.length - a.length)
-          .map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-          .join('|'),
-        'g'
-      )
-      credentialMatcher = pattern(credentialVariants)
+      matcher = pattern(variants, true)
+      mandatoryMatcher = pattern(mandatoryVariants, true)
+      credentialMatcher = pattern(credentialVariants, true)
       dirty = false
     }
     if (publicDirty) {
@@ -418,56 +501,49 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
           match.index + match[0].length
         ])
       : []
-    function isPublicSpan(start, end) {
+    function contained(spans, start, end) {
       let low = 0,
-        high = publicSpans.length - 1
+        high = spans.length - 1
       while (low <= high) {
         const middle = (low + high) >>> 1
-        if (publicSpans[middle][0] > start) high = middle - 1
+        if (spans[middle][0] > start) high = middle - 1
         else low = middle + 1
       }
-      return high >= 0 && publicSpans[high][1] >= end
+      return high >= 0 && spans[high][1] >= end
     }
-    const replace = (input, start = 0) =>
-      matcher
-        ? input.replace(matcher, (match, index) =>
-            isPublicSpan(start + index, start + index + match.length)
-              ? match
-              : HIDDEN
+    // Structured public access fields retain their existing hostname grant.
+    // Raw output has no host grant. A registered full URL is never exempt.
+    const hosts =
+      !presentation && publicUrl
+        ? [...value.matchAll(/^https?:\/\/[a-z0-9.[\]:-]+(?=[/\s?#]|$)/gi)].map(
+            (match) => [match.index, match.index + match[0].length]
           )
-        : input
-    // Public access fields and Docker routing identifiers contain hostnames
-    // already exposed by the control plane. Preserve their routing identity
-    // without exempting userinfo, paths or query credentials. Raw diagnostics
-    // receive no hostname exception; deployment events carry scoped provenance.
-    const hosts = publicUrl
-      ? /^https?:\/\/[a-z0-9.[\]:-]+(?=[/\s?#]|$)/gi
-      : null
-    let result = ''
-    let offset = 0
-    for (const host of presentation || !hosts ? [] : value.matchAll(hosts)) {
-      if (host.index < offset) continue
-      const preceding = value.slice(offset, host.index)
-      result += replace(preceding, offset)
-      if (matcher) matcher.lastIndex = host.index
-      const credential = matcher?.exec(value)
-      if (matcher) matcher.lastIndex = 0
-      // A whole URL registered as a credential is never a public-host grant.
-      if (
-        credential?.index === host.index &&
-        credential[0].length >= host[0].length
-      ) {
-        result += HIDDEN
-        offset = host.index + credential[0].length
-      } else {
-        result += host[0]
-        offset = host.index + host[0].length
+        : []
+    function routingGrant(start, end) {
+      return hosts.some(
+        ([from, to]) =>
+          from <= start && end <= to && !(start === from && end >= to)
+      )
+    }
+    const ranges = []
+    function collectMatches(regex, shouldMask) {
+      if (!regex) return
+      for (const match of value.matchAll(regex)) {
+        const start = match.index,
+          end = start + match[1].length
+        if (shouldMask(start, end)) ranges.push([start, end])
       }
     }
-    const remaining = value.slice(offset)
-    result += replace(remaining, offset)
-    // A longer public/unclassified match must never shadow a shorter credential.
-    if (credentialMatcher) result = result.replace(credentialMatcher, HIDDEN)
+    collectMatches(
+      matcher,
+      (start, end) =>
+        !contained(publicSpans, start, end) && !routingGrant(start, end)
+    )
+    // Unknown hidden values stay mandatory even when equal to public identity.
+    collectMatches(mandatoryMatcher, (start, end) => !routingGrant(start, end))
+    collectMatches(credentialMatcher, () => true)
+    // Mask original-input unions; no replacement can destroy a later match.
+    const result = maskRanges(value, ranges)
     // Public prose and code examples are not diagnostics. A literal
     // `token=example` is not evidence of a credential. Registered credentials
     // are already masked above; only complete URLs receive syntax masking here.
@@ -514,7 +590,7 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
       /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(
         value
       )
-      ? value
+      ? credentialText(value)
       : protect(value, seen, depth + 1)
   }
   function protect(value, seen = new WeakSet(), depth = 0) {
@@ -619,14 +695,16 @@ function createRedactor({ context = 'diagnostic', diagnostics } = {}) {
           identifiers.has(key) &&
           typeof entry === 'string'
         )
-          result[key] = entry
+          result[key] = credentialText(entry)
         else if (
           !presentation &&
           repositoryIdentity &&
           ['owner', 'fullName', 'htmlUrl'].includes(key)
         )
           result[key] =
-            key === 'htmlUrl' && variants.has(entry) ? HIDDEN : entry
+            key === 'htmlUrl' && variants.has(entry)
+              ? HIDDEN
+              : credentialText(entry)
         else if (
           !presentation &&
           ['domain', 'fullDomain', 'generatedDomain'].includes(key)

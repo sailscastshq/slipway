@@ -7,7 +7,7 @@ function fixture() {
   const values = {
     APP_NAME: 'acaciaco',
     NODE_ENV: 'production',
-    BRAND: 'publicowner',
+    PROJECT_NAME: 'publicowner',
     EMAIL_DOMAIN: 'example.test',
     ODD_NAME: 'unknown-private-canary-768',
     API_TOKEN: 'confirmed-secret-canary-768'

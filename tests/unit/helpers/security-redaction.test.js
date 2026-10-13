@@ -368,6 +368,9 @@ test('redaction catalogue has a bounded fail-closed capacity', ({ expect }) => {
   expect(redact.text('any diagnostic')).toBe(
     '[Diagnostic output withheld: redaction capacity exceeded]'
   )
+  expect(redact.protect({ slug: 'publicproject' }).slug).toBe(
+    '[Diagnostic output withheld: redaction capacity exceeded]'
+  )
 })
 
 test('command streams mask secrets split across chunks and withhold overlong lines', ({
