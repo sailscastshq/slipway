@@ -7,7 +7,13 @@ module.exports = {
     'Consume a host-issued code and establish an app-scoped participant session.',
 
   inputs: {
-    code: { type: 'string', required: true }
+    code: { type: 'string', required: true },
+    surface: {
+      type: 'string',
+      isIn: ['feedback', 'updates'],
+      defaultsTo: 'feedback'
+    },
+    embedded: { type: 'boolean', defaultsTo: false }
   },
 
   exits: {
@@ -15,7 +21,7 @@ module.exports = {
     forbidden: { responseType: 'redirect' }
   },
 
-  fn: async function ({ code }) {
+  fn: async function ({ code, surface, embedded }) {
     const tokenHash = crypto.createHash('sha256').update(code).digest('hex')
     const launchCode = await sails.helpers.bearing.consumeLaunchCode(tokenHash)
     if (!launchCode) {
@@ -49,7 +55,9 @@ module.exports = {
     this.req.session.bearingAuthenticatedAt = Date.now()
     this.req.session.bearingCredentialHash = hashCredential(app.bearingSecret)
 
-    return `${safeRoutePrefix(app.routePath)}/bearing/feedback`
+    return `${safeRoutePrefix(app.routePath)}/bearing/${surface}${
+      embedded ? '?embedded=1' : ''
+    }`
   }
 }
 

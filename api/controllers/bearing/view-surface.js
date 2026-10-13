@@ -96,6 +96,10 @@ module.exports = {
         app: {
           name: resolved.project.name,
           homeUrl: resolved.homeUrl,
+          identityPath: `${resolved.identityPath}?surface=updates${
+            embedded ? '&embedded=1' : ''
+          }`,
+          emailPreferencePath: `${resolved.publicBasePath}/update-email-preference`,
           feedbackPath: `${resolved.publicBasePath}/feedback`,
           roadmapPath: `${resolved.publicBasePath}/roadmap`,
           updatesPath: `${resolved.publicBasePath}/updates`,
@@ -106,6 +110,15 @@ module.exports = {
           showPublicRoadmap: resolved.space.showPublicRoadmap,
           showPublicUpdates: resolved.space.showPublicUpdates
         },
+        participant: resolved.participant
+          ? { displayName: resolved.participant.displayName }
+          : null,
+        emailSubscribed:
+          surface === 'updates'
+            ? await require('../../lib/bearing-update-mail').preference(
+                resolved.participant
+              )
+            : false,
         realtime: buildRealtimeConfig({
           req: this.req,
           resolved,
