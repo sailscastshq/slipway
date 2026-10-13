@@ -4,6 +4,7 @@ import { twMerge } from 'tailwind-merge'
 
 defineOptions({ inheritAttrs: false })
 
+const props = defineProps({ quiet: Boolean })
 const attrs = useAttrs()
 
 const forwardedAttrs = computed(() => {
@@ -16,7 +17,13 @@ const forwardedAttrs = computed(() => {
   <svg
     v-bind="forwardedAttrs"
     aria-hidden="true"
-    :class="twMerge('slippy-loader h-5 w-5', attrs.class)"
+    :class="
+      twMerge(
+        'slippy-loader h-5 w-5',
+        props.quiet && 'slippy-quiet',
+        attrs.class
+      )
+    "
     viewBox="0 0 32 32"
     fill="none"
   >
@@ -147,7 +154,30 @@ const forwardedAttrs = computed(() => {
   }
 }
 
+.slippy-loader.slippy-quiet {
+  animation: slippy-quiet-bob 2.8s ease-in-out infinite;
+}
+.slippy-quiet .slippy-t1,
+.slippy-quiet .slippy-t2,
+.slippy-quiet .slippy-t3,
+.slippy-quiet .slippy-t4,
+.slippy-quiet .slippy-wink {
+  animation: none;
+}
+@keyframes slippy-quiet-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .slippy-loader.slippy-quiet {
+    animation: none;
+  }
   .slippy-loader,
   .slippy-t1,
   .slippy-t2,
