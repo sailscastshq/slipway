@@ -1,11 +1,25 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const path = require('node:path')
+const fs = require('node:fs')
 const { loadJobs } = require('sails-hook-quest/lib/core/loader')
 const job = require('../../../scripts/run-scheduled-backups')
 
 test('the real scripts directory registers every scheduled job without executing command tools', async () => {
-  const jobs = await loadJobs({ appPath: path.resolve(__dirname, '../../..') })
+  const appPath = path.resolve(__dirname, '../../..')
+  const scripts = path.join(appPath, 'scripts')
+  // Fail before importing an accidentally added command-only entry point.
+  for (const name of fs
+    .readdirSync(scripts)
+    .filter((name) => name.endsWith('.js'))) {
+    if (name === 'quest-preload-manifest.js') continue // Pure build plugin.
+    assert.match(
+      fs.readFileSync(path.join(scripts, name), 'utf8'),
+      /\bquest\s*:/,
+      `${name} must declare a Quest job; command-only tools use .cjs`
+    )
+  }
+  const jobs = await loadJobs({ appPath })
   assert.deepEqual([...jobs.keys()].sort(), [
     'check-for-updates',
     'check-system-databases',
