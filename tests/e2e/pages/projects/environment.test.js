@@ -69,7 +69,19 @@ test(
     await page.goto(
       '/projects/backup-feedback/environments/production?services'
     )
-    const button = page.raw.getByRole('button', {
+    const menuTrigger = page.raw.getByRole('button', {
+      name: 'Backup actions for Customer database',
+      exact: true
+    })
+    const menu = page.raw.getByRole('menu', {
+      name: 'Backup actions for Customer database',
+      exact: true
+    })
+    const openMenu = async () => {
+      if (!(await menu.isVisible())) await menuTrigger.click()
+    }
+    await openMenu()
+    const button = page.raw.getByRole('menuitem', {
       name: 'Backup now',
       exact: true
     })
@@ -81,7 +93,6 @@ test(
     await page.resize(1280, 1000)
     await button.scrollIntoViewIfNeeded()
     await expect(button).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
-    expect((await button.boundingBox()).height <= 28).toBe(true)
     await button.screenshot({
       path: path.join(output, 'label-idle.png'),
       animations: 'disabled'
@@ -94,9 +105,11 @@ test(
       streamReady = new Promise((resolve) => {
         streamStarted = resolve
       })
+      await openMenu()
       await button.click()
-      const busy = page.raw.getByRole('button', {
-        name: 'Backing up…',
+      await openMenu()
+      const busy = page.raw.getByRole('menuitem', {
+        name: 'Backup now',
         exact: true
       })
       await expect(busy).toBeDisabled()
@@ -117,6 +130,7 @@ test(
       await expect(toast).toContainText(
         terminal === 'completed' ? 'Backup completed' : 'Backup failed.'
       )
+      await openMenu()
       await expect(button).toBeEnabled()
       await toast.screenshot({
         path: path.join(output, `label-${terminal}.png`),
@@ -132,12 +146,14 @@ test(
     await page.raw.route('**/api/v1/backups/fixture-backup-*/stream', (route) =>
       route.fulfill({ status: 503, body: 'Status stream unavailable' })
     )
+    await openMenu()
     await button.click()
     await expect(toast).toContainText('Backup status connection interrupted')
     await toast.screenshot({
       path: path.join(output, 'label-interrupted.png'),
       animations: 'disabled'
     })
+    await openMenu()
     await expect(button).toBeEnabled()
     await page.screenshot(path.join(output, 'backup-interrupted.png'), {
       animations: 'disabled'
@@ -147,12 +163,14 @@ test(
     await page.raw.route(`**/api/v1/services/${service.id}/backups`, (route) =>
       route.fulfill({ status: 403, json: { message: 'Denied' } })
     )
+    await openMenu()
     await button.click()
     await expect(toast).toContainText('You no longer have permission')
     await toast.screenshot({
       path: path.join(output, 'label-denied.png'),
       animations: 'disabled'
     })
+    await openMenu()
     await expect(button).toBeEnabled()
     await page.screenshot(path.join(output, 'backup-denied.png'), {
       animations: 'disabled'
@@ -241,6 +259,7 @@ test(
       service: service.id,
       status: 'completed',
       type: 'manual',
+      createdAt: Date.now() - 14 * 86400000,
       completedAt: Date.now() - 14 * 86400000,
       sizeBytes: 76698
     })
@@ -261,9 +280,22 @@ test(
     await expect(row).toContainText('Last successful backup')
     await expect(row).toContainText('74.9 KB')
     await expect(row).toContainText('Latest attempt failed')
+    const trigger = row.getByRole('button', {
+      name: 'Backup actions for FLOSSAfrica database',
+      exact: true
+    })
+    await trigger.click()
+    const menu = page.raw.getByRole('menu', {
+      name: 'Backup actions for FLOSSAfrica database',
+      exact: true
+    })
     await expect(
-      row.getByRole('button', { name: 'Backup now', exact: true })
+      menu.getByRole('menuitem', { name: 'Backup now', exact: true })
     ).toBeEnabled()
+    await expect(
+      menu.getByRole('menuitem', { name: 'Backups', exact: true })
+    ).toBeVisible()
+    await page.raw.keyboard.press('Escape')
     const output = path.resolve('.tmp/screenshots/780')
     await fs.mkdir(output, { recursive: true })
     for (const [theme, width] of [
@@ -283,13 +315,31 @@ test(
           (element) => element.scrollWidth <= element.clientWidth
         )
       ).toBe(true)
-      const link = await row
-        .getByRole('link', { name: 'Backups', exact: true })
-        .boundingBox()
-      const button = await row
-        .getByRole('button', { name: 'Backup now', exact: true })
-        .boundingBox()
-      expect(button.x - (link.x + link.width) < 24).toBe(true)
+      await trigger.click()
+      await expect(menu).toBeVisible()
+      await page.raw.waitForFunction((id) => {
+        const rect = document.getElementById(id)?.getBoundingClientRect()
+        return rect && rect.x >= 0 && rect.right <= window.innerWidth
+      }, `backup-actions-${service.id}`)
+      const rowBox = await row.boundingBox()
+      const menuBox = await menu.boundingBox()
+      expect(menuBox.x >= 0 && menuBox.x + menuBox.width <= width).toBe(true)
+      await page.raw.screenshot({
+        path: path.join(output, `menu-${theme}-${width}.png`),
+        animations: 'disabled',
+        clip: {
+          x: Math.min(rowBox.x, menuBox.x),
+          y: Math.min(rowBox.y, menuBox.y),
+          width:
+            Math.max(rowBox.x + rowBox.width, menuBox.x + menuBox.width) -
+            Math.min(rowBox.x, menuBox.x),
+          height:
+            Math.max(rowBox.y + rowBox.height, menuBox.y + menuBox.height) -
+            Math.min(rowBox.y, menuBox.y)
+        }
+      })
+      await page.raw.keyboard.press('Escape')
+      await expect(trigger).toBeFocused()
     }
     expect(page).toHaveNoJavascriptErrors()
   }
