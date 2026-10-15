@@ -319,7 +319,16 @@ test(
       await expect(menu).toBeVisible()
       await page.raw.waitForFunction((id) => {
         const rect = document.getElementById(id)?.getBoundingClientRect()
-        return rect && rect.x >= 0 && rect.right <= window.innerWidth
+        const anchor = document
+          .querySelector(`[popovertarget="${id}"]`)
+          ?.getBoundingClientRect()
+        return (
+          rect &&
+          anchor &&
+          rect.x >= 0 &&
+          rect.right <= window.innerWidth &&
+          Math.abs(rect.right - anchor.right) < 2
+        )
       }, `backup-actions-${service.id}`)
       const rowBox = await row.boundingBox()
       const menuBox = await menu.boundingBox()
