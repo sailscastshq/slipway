@@ -70,11 +70,11 @@ test(
       '/projects/backup-feedback/environments/production?services'
     )
     const menuTrigger = page.raw.getByRole('button', {
-      name: 'Backup actions for Customer database',
+      name: 'Backup options for Customer database',
       exact: true
     })
     const menu = page.raw.getByRole('menu', {
-      name: 'Backup actions for Customer database',
+      name: 'Backup options for Customer database',
       exact: true
     })
     const openMenu = async () => {
@@ -281,12 +281,12 @@ test(
     await expect(row).toContainText('74.9 KB')
     await expect(row).toContainText('Latest attempt failed')
     const trigger = row.getByRole('button', {
-      name: 'Backup actions for FLOSSAfrica database',
+      name: 'Backup options for FLOSSAfrica database',
       exact: true
     })
     await trigger.click()
     const menu = page.raw.getByRole('menu', {
-      name: 'Backup actions for FLOSSAfrica database',
+      name: 'Backup options for FLOSSAfrica database',
       exact: true
     })
     await expect(

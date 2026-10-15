@@ -2073,7 +2073,7 @@ onBeforeUnmount(() => {
                     <div class="relative shrink-0">
                       <button
                         type="button"
-                        :aria-label="`Backup actions for ${service.name}`"
+                        :aria-label="`Backup options for ${service.name}`"
                         :popovertarget="`backup-actions-${service.id}`"
                         :aria-busy="
                           backingUpServiceId === service.id ||
@@ -2096,7 +2096,7 @@ onBeforeUnmount(() => {
                       </button>
                       <Menu
                         :id="`backup-actions-${service.id}`"
-                        :aria-label="`Backup actions for ${service.name}`"
+                        :aria-label="`Backup options for ${service.name}`"
                         placement="bottom-end"
                         :offset="4"
                         class="w-40 rounded-lg border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-800 dark:bg-gray-900"
