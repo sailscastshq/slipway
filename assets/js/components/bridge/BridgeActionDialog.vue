@@ -10,6 +10,7 @@ import {
   validateBridgeFieldValue
 } from '@/lib/bridge/fields.mjs'
 import { bridgeActionSubmitCaption } from '@/lib/bridge/action-submit.mjs'
+import { visibleBridgeActionFields } from '@/lib/bridge/action-fields.mjs'
 import { containsRawHtml } from '@/lib/content/markdown.mjs'
 
 const props = defineProps({
@@ -50,13 +51,23 @@ const submitCaption = computed(() =>
 let bodyOverflow = ''
 let scrollLocked = false
 
-const fields = computed(() =>
+const allFields = computed(() =>
   Object.entries(props.action?.fields || {}).map(([name, attr]) => ({
     name,
     attr,
     readOnly: false
   }))
 )
+const fields = computed(() =>
+  visibleBridgeActionFields(props.action, formValues.value)
+)
+watch(fields, (visible) => {
+  const names = new Set(visible.map((field) => field.name))
+  for (const name of Object.keys(localErrors.value))
+    if (!names.has(name)) delete localErrors.value[name]
+  for (const name of Object.keys(form.errors))
+    if (name !== 'error' && !names.has(name)) form.clearErrors(name)
+})
 const titleId = computed(
   () => `bridge-action-${props.action?.name || 'dialog'}-title`
 )
@@ -86,7 +97,7 @@ watch(
     form.clearErrors()
     localErrors.value = {}
     formValues.value = Object.fromEntries(
-      fields.value.map((field) => [
+      allFields.value.map((field) => [
         field.name,
         toBridgeFieldInputValue(field.attr, undefined)
       ])

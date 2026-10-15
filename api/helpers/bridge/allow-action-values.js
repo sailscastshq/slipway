@@ -1,3 +1,5 @@
+const conditions = require('../../lib/bridge-action-conditions')
+
 module.exports = {
   friendlyName: 'Allow Bridge action values',
 
@@ -53,13 +55,55 @@ module.exports = {
       ...values
     }
 
+    const drivers = [
+      ...new Set(
+        Object.values(action.fields).flatMap((attribute) =>
+          Object.keys(attribute.visibleWhen || {})
+            .filter((path) => path.startsWith('form.'))
+            .map((path) => path.slice(5))
+        )
+      )
+    ]
+    let typedDrivers = {}
+    if (drivers.length) {
+      typedDrivers = await sails.helpers.bridge.allowResourceValues.with({
+        values: Object.fromEntries(
+          drivers
+            .filter((name) => Object.hasOwn(submittedValues, name))
+            .map((name) => [name, submittedValues[name]])
+        ),
+        resource: {
+          identity: `${resource.identity}.${action.name}`,
+          primaryKey: '__bridgeActionPrimaryKey',
+          create: drivers,
+          attributes: action.fields,
+          associations: []
+        },
+        surface: 'create'
+      })
+    }
+    const visibleFields = Object.fromEntries(
+      Object.entries(action.fields).filter(([, attribute]) =>
+        conditions.matches(
+          attribute.visibleWhen,
+          undefined,
+          typedDrivers,
+          'form'
+        )
+      )
+    )
+    const visibleValues = Object.fromEntries(
+      Object.entries(submittedValues).filter(
+        ([name]) => !action.fields[name] || Object.hasOwn(visibleFields, name)
+      )
+    )
     return sails.helpers.bridge.allowResourceValues.with({
-      values: submittedValues,
+      values: visibleValues,
       resource: {
         identity: `${resource.identity}.${action.name}`,
         primaryKey: '__bridgeActionPrimaryKey',
-        create: Object.keys(action.fields),
-        attributes: action.fields,
+        create: Object.keys(visibleFields),
+        attributes: visibleFields,
         associations: []
       },
       surface: 'create'

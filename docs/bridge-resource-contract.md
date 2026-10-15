@@ -1400,7 +1400,34 @@ membership (`'record.status': { in: ['accepted', 'rejected'] }`). Multiple entri
 are combined using AND. Comparisons do not coerce types: `1` and `'1'` differ.
 A missing field does not match, even when the expected value is `null`.
 
-References must be `record.<field>` and point to non-sensitive scalar fields on
+Field `visibleWhen` conditions can also reference declared sibling form inputs:
+
+```js
+send: { type: 'boolean', default: false },
+confirmRecipients: {
+  type: 'number',
+  label: 'Confirm recipient count',
+  required: true,
+  min: 1,
+  visibleWhen: { 'form.send': true }
+}
+```
+
+The dialog reacts immediately in both toggle directions. Hidden fields do not
+participate in client required validation or submission, and their local errors
+are cleared. The server validates condition drivers first, then independently
+omits hidden values (including injected values/defaults) and validates visible
+required fields. A hidden draft value may reappear if its field is shown again.
+Domain helpers must still enforce audience counts and authorization.
+
+Form references must target unconditional sibling boolean, number, text or select
+fields, with matching scalar comparison types. Self references, conditional
+drivers, nested paths and unknown fields are rejected. No expressions or coercing
+comparisons are supported. Action-level visibility remains saved-record only.
+Form-only conditions also work on resource and bulk actions. Mixed form/record
+conditions use AND; record conditions keep their signed state verification.
+
+Saved-record references must be `record.<field>` and point to non-sensitive scalar fields on
 the resource's `show` surface. Nested paths, relationships, JSON, currency
 fields, private fields, and unsupported operators are rejected. Conditions
 currently require `scope: 'record'`; resource and bulk actions cannot use them.
