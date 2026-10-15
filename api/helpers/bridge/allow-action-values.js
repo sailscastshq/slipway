@@ -1,5 +1,3 @@
-const conditions = require('../../lib/bridge-action-conditions')
-
 module.exports = {
   friendlyName: 'Allow Bridge action values',
 
@@ -84,12 +82,11 @@ module.exports = {
     }
     const visibleFields = Object.fromEntries(
       Object.entries(action.fields).filter(([, attribute]) =>
-        conditions.matches(
-          attribute.visibleWhen,
-          undefined,
-          typedDrivers,
-          'form'
-        )
+        sails.helpers.bridge.matchesActionConditions.with({
+          condition: attribute.visibleWhen,
+          form: typedDrivers,
+          scope: 'form'
+        })
       )
     )
     const visibleValues = Object.fromEntries(

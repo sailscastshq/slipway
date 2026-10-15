@@ -1,5 +1,4 @@
 const tokens = require('../../lib/bridge-action-context-token')
-const conditions = require('../../lib/bridge-action-conditions')
 
 module.exports = {
   friendlyName: 'Load Bridge action context',
@@ -36,9 +35,11 @@ module.exports = {
       error.code = `BRIDGE_ACTION_CONTEXT_${reason.toUpperCase()}`
       throw error
     }
-    const fields = conditions.fields(action)
+    const fields = sails.helpers.bridge.getActionConditionFields.with({
+      action
+    })
     if (!fields.length && !conditionToken) return { action }
-    conditions.validate(action, resource)
+    sails.helpers.bridge.validateActionConditions.with({ action, resource })
     if (resource.actions.view !== true)
       fail('forbidden', 'You no longer have permission to view this record.')
     const secret = sails.config.session?.secret
@@ -121,14 +122,28 @@ module.exports = {
       )
     const state = fields.map((field) => record[field])
     if (verify && original.state !== tokens.hash(state))
-      fail('state_changed', conditions.changedMessage(resource, fields))
-    if (!conditions.matches(action.visibleWhen, record))
+      fail(
+        'state_changed',
+        sails.helpers.bridge.describeActionConditionChange.with({
+          resource,
+          fields
+        })
+      )
+    if (
+      !sails.helpers.bridge.matchesActionConditions.with({
+        condition: action.visibleWhen,
+        record
+      })
+    )
       fail(
         'not_visible',
         'This action is not available for the record’s current state. Refresh the record to review it.'
       )
     return {
-      action: conditions.effective(action, record),
+      action: sails.helpers.bridge.resolveActionRecordFields.with({
+        action,
+        record
+      }),
       conditionToken: verify
         ? conditionToken
         : tokens.create(binding, action, state, secret),

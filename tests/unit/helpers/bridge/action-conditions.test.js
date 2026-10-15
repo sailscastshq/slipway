@@ -3,7 +3,19 @@ const {
   models,
   config
 } = require('../../../support/bridge-conditional-actions')
-const conditions = require('../../../../api/lib/bridge-action-conditions')
+const conditions = {
+  matches: (condition, record, form, scope) =>
+    sails.helpers.bridge.matchesActionConditions.with({
+      condition,
+      record,
+      form,
+      scope
+    }),
+  fields: (action) =>
+    sails.helpers.bridge.getActionConditionFields.with({ action }),
+  effective: (action, record) =>
+    sails.helpers.bridge.resolveActionRecordFields.with({ action, record })
+}
 
 test('Bridge normalizes record action conditions and matches equality, in and AND without coercion', async ({
   sails,
