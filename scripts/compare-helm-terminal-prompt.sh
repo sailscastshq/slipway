@@ -41,4 +41,4 @@ HELM_PROMPT_VARIANT=current HELM_PROMPT_SOURCE_REVISION="$current" \
   node_modules/.bin/sounding test --file tests/contracts/helm-terminal-prompt.test.js \
   --test-concurrency=1 --test-timeout=600000 | tee "$artifact/current.log"
 
-node scripts/summarize-helm-terminal-prompt.js "$artifact"
+node scripts/summarize-helm-terminal-prompt.cjs "$artifact"

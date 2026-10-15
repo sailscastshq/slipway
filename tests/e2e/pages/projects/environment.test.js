@@ -205,3 +205,92 @@ test(
     expect(page).toHaveNoJavascriptErrors()
   }
 )
+
+test(
+  'backup row groups actions and retains the last success after a failed attempt',
+  {
+    browser: true,
+    world: {
+      name: 'configured-slipway',
+      context: { deploymentTarget: { slug: 'backup-row-review' } }
+    }
+  },
+  async ({ sails, world, login, page, expect }) => {
+    const service = await world.create('service').with({
+      environment: world.current.environments.production.id,
+      name: 'FLOSSAfrica database',
+      status: 'running',
+      containerName: 'fixture-backup-row',
+      internalHost: 'fixture-backup-row',
+      internalPort: 5432,
+      database: 'db',
+      username: 'postgres'
+    })
+    await sails.helpers.setting.set(
+      'backupStorageConfig',
+      JSON.stringify({
+        provider: 's3',
+        bucket: 'fixture-private',
+        region: 'auto',
+        endpoint: 'https://fixture.invalid',
+        key: 'fixture',
+        secret: 'fixture'
+      })
+    )
+    await Backup.create({
+      service: service.id,
+      status: 'completed',
+      type: 'manual',
+      completedAt: Date.now() - 14 * 86400000,
+      sizeBytes: 76698
+    })
+    await Backup.create({
+      service: service.id,
+      status: 'failed',
+      type: 'scheduled',
+      completedAt: Date.now(),
+      errorMessage: 'Fixture failure'
+    })
+    await login.withPassword('genesisUser', page, {
+      password: world.current.auth.genesisUserPassword
+    })
+    await page.goto(
+      '/projects/backup-row-review/environments/production?services'
+    )
+    const row = page.raw.locator('[data-backup-row]')
+    await expect(row).toContainText('Last successful backup')
+    await expect(row).toContainText('74.9 KB')
+    await expect(row).toContainText('Latest attempt failed')
+    await expect(
+      row.getByRole('button', { name: 'Backup now', exact: true })
+    ).toBeEnabled()
+    const output = path.resolve('.tmp/screenshots/780')
+    await fs.mkdir(output, { recursive: true })
+    for (const [theme, width] of [
+      ['dark', 1280],
+      ['light', 1280],
+      ['dark', 390]
+    ]) {
+      await page.resize(width, 900)
+      await page.raw.emulateMedia({ colorScheme: theme })
+      await row.scrollIntoViewIfNeeded()
+      await row.screenshot({
+        path: path.join(output, `after-${theme}-${width}.png`),
+        animations: 'disabled'
+      })
+      expect(
+        await row.evaluate(
+          (element) => element.scrollWidth <= element.clientWidth
+        )
+      ).toBe(true)
+      const link = await row
+        .getByRole('link', { name: 'Backups', exact: true })
+        .boundingBox()
+      const button = await row
+        .getByRole('button', { name: 'Backup now', exact: true })
+        .boundingBox()
+      expect(button.x - (link.x + link.width) < 24).toBe(true)
+    }
+    expect(page).toHaveNoJavascriptErrors()
+  }
+)

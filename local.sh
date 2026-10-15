@@ -390,7 +390,7 @@ benchmark_bridge_runtime() {
     "$IMAGE_NAME" sleep infinity >/dev/null
 
   docker exec "$CONTAINER_NAME" \
-    node scripts/benchmark-bridge-runtime.js "$benchmark_container" --assert
+    node scripts/benchmark-bridge-runtime.cjs "$benchmark_container" --assert
 
   echo -e "${GREEN}Bridge warm-runtime benchmark passed${NC}"
   cleanup_bridge_benchmark

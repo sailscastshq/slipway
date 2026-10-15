@@ -31,13 +31,13 @@ From the repository root, with dependencies installed:
 ```sh
 # Before: the last main revision before this change.
 git show 88c53d23fe2149cede8eea30a0051badc3d13aec:api/helpers/dock/get-schema.js > /tmp/slipway-schema-before.cjs
-NODE_PATH="$PWD/node_modules" CATALOG_HELPER=/tmp/slipway-schema-before.cjs node scripts/benchmark-migration-catalog.js
+NODE_PATH="$PWD/node_modules" CATALOG_HELPER=/tmp/slipway-schema-before.cjs node scripts/benchmark-migration-catalog.cjs
 
 # After: current helper, identical fixture and injected transport latency.
-node scripts/benchmark-migration-catalog.js
+node scripts/benchmark-migration-catalog.cjs
 
 # No injected transport latency: isolate local JavaScript work.
-CATALOG_LATENCY_MS=0 node scripts/benchmark-migration-catalog.js
+CATALOG_LATENCY_MS=0 node scripts/benchmark-migration-catalog.cjs
 ```
 
 `CATALOG_TABLES`, `CATALOG_SAMPLES` and `CATALOG_LATENCY_MS` configure the fixture.
@@ -91,9 +91,9 @@ Reproduce with a disposable local Sails/SQLite app (no Docker or existing data):
 
 ```sh
 git show 88c53d23fe2149cede8eea30a0051badc3d13aec:api/helpers/dock/get-models.js > /tmp/slipway-models-before.cjs
-MODEL_HELPER=/tmp/slipway-models-before.cjs node scripts/benchmark-migration-models.js
-node scripts/benchmark-migration-models.js
-MODEL_BENCH_GLOBALS=off node scripts/benchmark-migration-models.js
+MODEL_HELPER=/tmp/slipway-models-before.cjs node scripts/benchmark-migration-models.cjs
+node scripts/benchmark-migration-models.cjs
+MODEL_BENCH_GLOBALS=off node scripts/benchmark-migration-models.cjs
 ```
 
 On Node 24.19.0, one warmup plus seven measured inspections produced five

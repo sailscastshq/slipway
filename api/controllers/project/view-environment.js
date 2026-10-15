@@ -85,11 +85,29 @@ module.exports = {
               ? null
               : Service.getPublicConnectionUrl(service)
           let lastBackup = null
+          let lastSuccessfulBackup = null
           if (Service.isBackupSupported(service.type)) {
             const backups = await Backup.find({ service: service.id })
               .sort('createdAt DESC')
               .limit(1)
             const latest = backups[0]
+            const completed =
+              latest?.status === 'completed'
+                ? latest
+                : (
+                    await Backup.find({
+                      service: service.id,
+                      status: 'completed'
+                    })
+                      .sort('completedAt DESC')
+                      .limit(1)
+                  )[0]
+            lastSuccessfulBackup = completed
+              ? {
+                  completedAt: completed.completedAt,
+                  sizeBytes: completed.sizeBytes
+                }
+              : null
             lastBackup = latest
               ? {
                   id: latest.id,
@@ -103,6 +121,7 @@ module.exports = {
             ...Service.toPublic(service),
             connectionUrl,
             lastBackup,
+            lastSuccessfulBackup,
             backupSupported: Service.isBackupSupported(service.type),
             versionSupport: getVersionSupport(service)
           }

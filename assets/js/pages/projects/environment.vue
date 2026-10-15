@@ -2030,87 +2030,99 @@ onBeforeUnmount(() => {
                   </div>
                   <div
                     v-if="service.backupSupported"
-                    class="mt-2 flex items-center justify-between"
+                    class="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2"
+                    data-backup-row
                   >
                     <div
-                      class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500"
+                      class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400"
                     >
-                      <Upload class="h-3.5 w-3.5" stroke-width="2" />
-                      <template v-if="service.lastBackup">
-                        <span v-if="service.lastBackup.status === 'completed'">
-                          Last backup
-                          {{ timeAgo(service.lastBackup.completedAt) }} ({{
-                            formatBytes(service.lastBackup.sizeBytes)
-                          }})
-                        </span>
-                        <span
-                          v-else-if="service.lastBackup.status === 'running'"
-                          class="text-blue-500"
-                        >
-                          Backup in progress...
-                        </span>
-                        <span
-                          v-else-if="service.lastBackup.status === 'failed'"
-                          class="text-red-500"
-                        >
-                          Last backup failed
-                        </span>
-                        <span v-else> Backup pending... </span>
-                      </template>
-                      <template v-else> No backups yet </template>
-                    </div>
-                    <Link
-                      v-if="service.managementMode !== 'external'"
-                      :href="`/projects/${project.slug}/environments/${environment.slug}/dock/${service.id}?tab=backups`"
-                      class="mr-2 text-xs font-medium text-gray-500 hover:text-gray-900 dark:hover:text-white"
-                      >Backups</Link
-                    >
-                    <Button
-                      v-if="
-                        backupConfigured &&
-                        ['running', 'reachable'].includes(service.status)
-                      "
-                      type="button"
-                      @click="triggerBackup(service)"
-                      :disabled="
-                        !!backingUpServiceId ||
-                        ['pending', 'running'].includes(
-                          service.lastBackup?.status
-                        )
-                      "
-                      :aria-busy="
-                        backingUpServiceId === service.id ||
-                        ['pending', 'running'].includes(
-                          service.lastBackup?.status
-                        )
-                      "
-                      class="inline-flex min-h-0 min-w-0 items-center gap-1.5 rounded bg-transparent px-1.5 py-1 text-xs font-medium text-gray-500 hover:bg-transparent hover:text-gray-900 active:bg-transparent disabled:cursor-wait disabled:opacity-100 dark:bg-transparent dark:text-gray-400 dark:hover:bg-transparent dark:hover:text-gray-100 dark:active:bg-transparent"
-                    >
-                      <Spinner
+                      <Upload class="h-3.5 w-3.5 shrink-0" stroke-width="2" />
+                      <span
                         v-if="
+                          service.lastSuccessfulBackup ||
+                          service.lastBackup?.status === 'completed'
+                        "
+                      >
+                        Last successful backup
+                        {{
+                          timeAgo(
+                            (service.lastSuccessfulBackup || service.lastBackup)
+                              .completedAt
+                          )
+                        }}
+                        <span class="text-gray-400 dark:text-gray-500"
+                          >·
+                          {{
+                            formatBytes(
+                              (
+                                service.lastSuccessfulBackup ||
+                                service.lastBackup
+                              ).sizeBytes
+                            )
+                          }}</span
+                        >
+                      </span>
+                      <span v-else>No successful backups yet</span>
+                      <span
+                        v-if="service.lastBackup?.status === 'failed'"
+                        class="text-red-500"
+                        >Latest attempt failed</span
+                      >
+                    </div>
+                    <div class="ml-auto flex shrink-0 items-center gap-3">
+                      <Link
+                        v-if="service.managementMode !== 'external'"
+                        :href="`/projects/${project.slug}/environments/${environment.slug}/dock/${service.id}?tab=backups`"
+                        class="rounded text-xs font-medium text-gray-500 transition-colors hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-4 dark:text-gray-400 dark:hover:text-white"
+                        >Backups</Link
+                      >
+                      <Button
+                        v-if="
+                          backupConfigured &&
+                          ['running', 'reachable'].includes(service.status)
+                        "
+                        type="button"
+                        @click="triggerBackup(service)"
+                        :disabled="
+                          !!backingUpServiceId ||
+                          ['pending', 'running'].includes(
+                            service.lastBackup?.status
+                          )
+                        "
+                        :aria-busy="
                           backingUpServiceId === service.id ||
                           ['pending', 'running'].includes(
                             service.lastBackup?.status
                           )
                         "
-                        class="h-3.5 w-3.5"
-                      />
-                      {{
-                        backingUpServiceId === service.id ||
-                        ['pending', 'running'].includes(
-                          service.lastBackup?.status
-                        )
-                          ? 'Backing up…'
-                          : 'Backup now'
-                      }}
-                    </Button>
-                    <Link
-                      v-else-if="!backupConfigured"
-                      href="/settings/uploads"
-                      class="rounded px-2 py-0.5 text-xs font-medium text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                    >
-                      Configure storage
-                    </Link>
+                        class="inline-flex min-h-0 min-w-0 items-center gap-1.5 rounded bg-transparent px-1.5 py-1 text-xs font-medium text-gray-500 hover:bg-transparent hover:text-gray-900 active:bg-transparent disabled:cursor-wait disabled:opacity-100 dark:bg-transparent dark:text-gray-400 dark:hover:bg-transparent dark:hover:text-gray-100 dark:active:bg-transparent"
+                      >
+                        <Spinner
+                          v-if="
+                            backingUpServiceId === service.id ||
+                            ['pending', 'running'].includes(
+                              service.lastBackup?.status
+                            )
+                          "
+                          class="h-3.5 w-3.5"
+                        />
+                        {{
+                          backingUpServiceId === service.id ||
+                          ['pending', 'running'].includes(
+                            service.lastBackup?.status
+                          )
+                            ? 'Backing up…'
+                            : 'Backup now'
+                        }}
+                      </Button>
+                      <Link
+                        v-else-if="!backupConfigured"
+                        href="/settings/uploads"
+                        class="rounded px-2 py-0.5 text-xs font-medium text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                      >
+                        Configure storage
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </div>

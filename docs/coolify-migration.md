@@ -279,7 +279,7 @@ Use a clean repository checkout and test dependencies from its lockfile. No real
 credentials, production Docker context, customer source or backup is needed.
 
 ```sh
-node scripts/rehearse-coolify-migration.js
+node scripts/rehearse-coolify-migration.cjs
 ```
 
 This runs three isolated **source/configuration fixtures** plus existing
@@ -293,7 +293,7 @@ For container evidence, on a dedicated disposable Docker runner with the pinned
 local storage emulators and all required images already prepared:
 
 ```sh
-SLIPWAY_MIGRATION_DISPOSABLE=1 node scripts/rehearse-coolify-migration.js --docker
+SLIPWAY_MIGRATION_DISPOSABLE=1 node scripts/rehearse-coolify-migration.cjs --docker
 ```
 
 The Docker stage reuses the real

@@ -10,7 +10,7 @@ if (
   !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(containerName)
 ) {
   throw new Error(
-    'Usage: node scripts/benchmark-bridge-runtime.js <container-name> [--assert]'
+    'Usage: node scripts/benchmark-bridge-runtime.cjs <container-name> [--assert]'
   )
 }
 
