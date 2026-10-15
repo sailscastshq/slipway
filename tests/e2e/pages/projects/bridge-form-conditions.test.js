@@ -1,3 +1,5 @@
+const fs = require('node:fs')
+const path = require('node:path')
 const { test } = require('sounding')
 const { setup } = require('../../../support/bridge-conditional-actions')
 
@@ -11,6 +13,10 @@ test(
     }
   },
   async ({ sails, world, login, page, expect }) => {
+    const screenshotRoot = path.resolve(
+      '.tmp/sounding/artifacts/bridge-form-conditions'
+    )
+    fs.mkdirSync(screenshotRoot, { recursive: true })
     const state = await setup(sails, world)
     const action =
       state.contract.resources.proposal.actionDefinitions.sendDecision
@@ -87,14 +93,14 @@ test(
       await expect(count).toBeHidden()
       await expect(previewButton).toBeEnabled()
       await dialog.screenshot({
-        path: '/Users/koo/Documents/Codex/2026-10-15/task-5/caption-screenshots/form-count-preview.png'
+        path: path.join(screenshotRoot, 'form-count-preview.png')
       })
       await toggle.click()
       await expect(count).toBeVisible()
       await expect(dialog.getByText('Optional', { exact: true })).toBeHidden()
       await expect(sendButton).toBeDisabled()
       await dialog.screenshot({
-        path: '/Users/koo/Documents/Codex/2026-10-15/task-5/caption-screenshots/form-count-send-required.png'
+        path: path.join(screenshotRoot, 'form-count-send-required.png')
       })
       await count.fill('18')
       await expect(sendButton).toBeEnabled()
