@@ -1,4 +1,4 @@
-// Deliberately limited to saved scalar fields: no expressions or nested traversal.
+// Scalar saved-record and declared sibling form conditions; no expressions.
 function normalize(condition, path) {
   if (condition === undefined) return undefined
   if (
@@ -12,10 +12,12 @@ function normalize(condition, path) {
   const result = {}
   for (const [key, value] of Object.entries(condition)) {
     if (
-      !/^record\.[A-Za-z][A-Za-z0-9]*$/.test(key) ||
-      ['constructor', 'prototype'].includes(key.slice(7))
+      !/^(record|form)\.[A-Za-z][A-Za-z0-9]*$/.test(key) ||
+      ['constructor', 'prototype'].includes(key.split('.')[1])
     )
-      throw new Error(`${path}.visibleWhen must reference record.field.`)
+      throw new Error(
+        `${path}.visibleWhen must reference record.field or form.field.`
+      )
     if (scalar(value)) result[key] = value
     else if (
       value &&
@@ -43,14 +45,16 @@ function scalar(value) {
     (typeof value === 'number' && Number.isFinite(value))
   )
 }
-function matches(condition, record) {
+function matches(condition, record, form, scope) {
   return Object.entries(condition || {}).every(([path, expected]) => {
-    const field = path.slice(7)
-    if (!record || !Object.prototype.hasOwnProperty.call(record, field))
+    const [source, field] = path.split('.')
+    if (scope && source !== scope) return true
+    const values = source === 'form' ? form : record
+    if (!values || !Object.prototype.hasOwnProperty.call(values, field))
       return false
     return expected && typeof expected === 'object'
-      ? expected.in.includes(record[field])
-      : record[field] === expected
+      ? expected.in.includes(values[field])
+      : values[field] === expected
   })
 }
 function fields(action) {
@@ -60,12 +64,49 @@ function fields(action) {
         action.visibleWhen,
         ...Object.values(action.fields || {}).map((field) => field.visibleWhen)
       ].flatMap((condition) =>
-        Object.keys(condition || {}).map((path) => path.slice(7))
+        Object.keys(condition || {})
+          .filter((path) => path.startsWith('record.'))
+          .map((path) => path.slice(7))
       )
     )
   ].sort()
 }
 function validate(action, resource) {
+  if (
+    Object.keys(action.visibleWhen || {}).some((path) =>
+      path.startsWith('form.')
+    )
+  )
+    throw new Error('Action visibility may only reference record fields.')
+  for (const [name, attribute] of Object.entries(action.fields || {})) {
+    for (const [path, expected] of Object.entries(
+      attribute.visibleWhen || {}
+    )) {
+      if (!path.startsWith('form.')) continue
+      const driverName = path.slice(5)
+      const driver = action.fields[driverName]
+      if (
+        driverName === name ||
+        !driver ||
+        driver.visibleWhen ||
+        driver.sensitive ||
+        !['boolean', 'number', 'text', 'select'].includes(driver.field?.type)
+      )
+        throw new Error(
+          `Bridge action "${action.name}" form condition must reference an unconditional scalar sibling field.`
+        )
+      const expectedValues =
+        expected && typeof expected === 'object' ? expected.in : [expected]
+      if (
+        !expectedValues.every(
+          (value) => value === null || typeof value === driver.type
+        )
+      )
+        throw new Error(
+          `Bridge action "${action.name}" form condition must match its sibling field type.`
+        )
+    }
+  }
   const references = fields(action)
   if (references.length && action.scope !== 'record')
     throw new Error(
@@ -92,7 +133,7 @@ function effective(action, record) {
     ...action,
     fields: Object.fromEntries(
       Object.entries(action.fields || {}).filter(([, field]) =>
-        matches(field.visibleWhen, record)
+        matches(field.visibleWhen, record, undefined, 'record')
       )
     )
   }

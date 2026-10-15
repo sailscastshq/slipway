@@ -228,3 +228,69 @@ test(
     }
   }
 )
+
+test(
+  'form visibility strips hidden input and enforces required values through authorized HTTP execution',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: { deploymentTarget: { slug: 'form-actions' } }
+    }
+  },
+  async ({ sails, world, request, expect }) => {
+    const state = await setup(sails, world)
+    const action =
+      state.contract.resources.proposal.actionDefinitions.sendDecision
+    action.fields.send = {
+      type: 'boolean',
+      label: 'Send',
+      required: false,
+      field: { type: 'boolean', default: false }
+    }
+    action.fields.count = {
+      type: 'number',
+      label: 'Count',
+      required: true,
+      min: 1,
+      visibleWhen: { 'form.send': true },
+      field: { type: 'number' }
+    }
+    try {
+      const browser = await withCsrfFromPage(
+        request,
+        '/projects/new',
+        'genesisUser'
+      )
+      const path =
+        '/projects/form-actions/environments/production/bridge/submission/actions/send-decision'
+      const context = await request
+        .as('genesisUser')
+        .withHeaders({ accept: 'application/json' })
+        .get(`${path}/context?recordId=1`)
+      expect(context).toHaveStatus(200)
+      const post = (values) =>
+        browser.request.post(path, {
+          recordId: 1,
+          conditionToken: context.data.conditionToken,
+          values
+        })
+      expect(
+        await post({ send: false, count: 'injected hidden value' })
+      ).toHaveStatus(302)
+      expect(state.calls.at(-1).values).toEqual({ send: false })
+      for (const count of [undefined, null, '']) {
+        expect(
+          await post({ send: true, ...(count === undefined ? {} : { count }) })
+        ).toHaveStatus(303)
+      }
+      expect(state.calls.length).toBe(1)
+      expect(await post({ send: true, count: 18 })).toHaveStatus(302)
+      expect(state.calls.at(-1).values).toEqual({ send: true, count: 18 })
+      state.denied = true
+      expect(await post({ send: true, count: 18 })).toHaveStatus(303)
+      expect(state.calls.length).toBe(2)
+    } finally {
+      state.restore()
+    }
+  }
+)
