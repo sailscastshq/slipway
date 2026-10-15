@@ -24,8 +24,6 @@ navigation appeared to stop responding while earlier work completed.
   recover with a new one.
 - Record searches use an Inertia partial reload and do not repeat unchanged
   dashboard work.
-- A new `local.sh bridge-benchmark` command compares the old lifecycle with
-  the resident runtime and fails when any warm operation reaches 500 ms.
 
 The resident worker intentionally remains separate from the application's web
 process. This preserves the existing execution boundary, so an expensive or
@@ -121,14 +119,7 @@ complete user-visible latency.
 
 ### Verification
 
-Start the local Docker stack and run the latency assertion:
-
-```bash
-bash ./local.sh
-bash ./local.sh bridge-benchmark
-```
-
-Then run the regression lanes:
+The one-off Bridge benchmark has been retired. Run the regression lanes:
 
 ```bash
 npm run test:unit

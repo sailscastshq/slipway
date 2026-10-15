@@ -2,7 +2,7 @@
 
 Quest loads `scripts/*.js` using `include-all`. Its loader catches an import failure around the whole directory and returns an empty registry. `benchmark-bridge-runtime.js` (introduced in `f169ce12`, 2026-08-03) throws on import when no valid container argument is supplied. Several other command-only scripts also execute work during import. Local reproduction at baseline `670d09a5`: **zero jobs**; after separating command tools as `.cjs`: **seven jobs**, including `run-scheduled-backups` every minute with overlap prevention.
 
-Command tools retain their entry points with a `.cjs` extension, following the existing command-script convention. Callers in package scripts, local tooling, tests, CI and docs follow those paths. The scheduled Sails scripts remain in `scripts/`; no new `lib/` directory or scheduling abstraction is introduced.
+The one-off Bridge benchmark is deleted along with its optional `local.sh bridge-benchmark` wrapper, help entries and obsolete release-note instructions. It had no CI or application caller. Other command tools retain their entry points with a `.cjs` extension, following the existing command-script convention. Callers in package scripts, local tooling, tests, CI and docs follow those paths. The scheduled Sails scripts remain in `scripts/`; no new `lib/` directory or scheduling abstraction is introduced.
 
 The schedule is persisted as the `backupSchedule` setting. The backup script checks configured storage, enabled state, interval and last-run watermark before selecting running managed/reachable external services. Existing schedule-update code preserves `lastRunAt`. The repair does not change schedule values or invoke backups.
 
@@ -33,12 +33,12 @@ The existing `~/.slipway/config.json` connection resolved `https://slipway.sails
 
 ## Verification
 
-- `node --test tests/unit/scripts/scheduled-backups.test.js`: 5 passed; actual directory registration plus mocked due, disabled, not-due and unavailable-storage behavior.
+- `node --test tests/unit/scripts/scheduled-backups.test.js`: 5 passed; command-script exclusion before imports, actual directory registration plus mocked due, disabled, not-due and unavailable-storage behavior.
 - Sounding targeted command-path and scheduler tests: 8 passed.
 - `node --test tests/contracts/quest-registry-initialization.cjs`: 2 passed.
 - Existing mocked manual-backup browser trial: passed.
 - New backup-row browser trial: passed, including last success after failure, enabled retry, grouped actions, desktop/mobile overflow and dark/light screenshots.
-- Normal CLI invocation: `npm run check:consistency`, `node scripts/rehearse-coolify-migration.cjs --help`, and the synthetic `node scripts/benchmark-migration-catalog.cjs` completed successfully. The Bridge benchmark’s missing-argument usage failure remains intact. Repository search found no stale executable `.js` references to renamed tools.
+- Normal CLI invocation: `npm run check:consistency`, `node scripts/rehearse-coolify-migration.cjs --help`, and the synthetic `node scripts/benchmark-migration-catalog.cjs` completed successfully. The deleted Bridge benchmark has no remaining executable references. Repository search found no stale executable `.js` references to renamed tools.
 - Prettier on changed source and command scripts, and `git diff --check`: passed.
 
 Direct live resident-registry inspection is not exposed by the read endpoints used; the production evidence above is deliberately limited. No live database backup, restore, schedule mutation, migration, deployment, merge or release was performed.
