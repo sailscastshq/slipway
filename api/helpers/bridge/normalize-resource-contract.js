@@ -92,6 +92,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'description',
     'confirm',
     'success',
+    'submit',
     'destructive',
     'fields'
   ]
@@ -1341,6 +1342,9 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
         ? { invocation: normalizedHelper.invocation }
         : {}),
       label,
+      ...(rawAction.submit === undefined
+        ? {}
+        : { submit: normalizeSubmitCaptions(rawAction.submit, fields, path) }),
       description: readString(rawAction.description),
       confirm:
         readString(rawAction.confirm) ||
@@ -1352,6 +1356,42 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       destructive,
       fields
     }
+  }
+
+  function normalizeSubmitCaptions(raw, fields, actionPath) {
+    const path = `${actionPath}.submit`
+    if (!isPlainObject(raw)) throw new Error(`${path} must be an object.`)
+    rejectUnknownKeys(raw, ['field', 'whenFalse', 'whenTrue'], path)
+    if (!isSafeIdentifier(raw.field) || fields[raw.field]?.type !== 'boolean') {
+      throw new Error(
+        `${path}.field must name a declared boolean action field.`
+      )
+    }
+    const normalized = { field: raw.field }
+    for (const intent of ['whenFalse', 'whenTrue']) {
+      const captions = raw[intent]
+      if (!isPlainObject(captions))
+        throw new Error(`${path}.${intent} must be an object.`)
+      rejectUnknownKeys(
+        captions,
+        ['label', 'processingLabel'],
+        `${path}.${intent}`
+      )
+      normalized[intent] = {}
+      for (const key of ['label', 'processingLabel']) {
+        if (
+          typeof captions[key] !== 'string' ||
+          !captions[key].trim() ||
+          captions[key].trim().length > 80
+        ) {
+          throw new Error(
+            `${path}.${intent}.${key} must be a non-empty string of at most 80 characters.`
+          )
+        }
+        normalized[intent][key] = captions[key].trim()
+      }
+    }
+    return normalized
   }
 
   function normalizeCustomActionField(

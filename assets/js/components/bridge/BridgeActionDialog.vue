@@ -9,6 +9,7 @@ import {
   toBridgeFieldInputValue,
   validateBridgeFieldValue
 } from '@/lib/bridge/fields.mjs'
+import { bridgeActionSubmitCaption } from '@/lib/bridge/action-submit.mjs'
 import { containsRawHtml } from '@/lib/content/markdown.mjs'
 
 const props = defineProps({
@@ -42,6 +43,10 @@ const formValues = ref({})
 const localErrors = ref({})
 const returnFocus = ref(null)
 const form = useForm({})
+const submittedCaption = ref(null)
+const submitCaption = computed(() =>
+  bridgeActionSubmitCaption(props.action, formValues.value)
+)
 let bodyOverflow = ''
 let scrollLocked = false
 
@@ -77,6 +82,7 @@ watch(
     }
     lockPageScroll()
     returnFocus.value = document.activeElement
+    submittedCaption.value = null
     form.clearErrors()
     localErrors.value = {}
     formValues.value = Object.fromEntries(
@@ -159,6 +165,8 @@ function submit() {
     if (prepared.include) values[field.name] = prepared.value
   }
 
+  // Freeze the submitted intent; fields may still change while the request runs.
+  submittedCaption.value = { ...submitCaption.value }
   form
     .transform(() => ({
       values,
@@ -168,6 +176,9 @@ function submit() {
     }))
     .post(props.submitUrl, {
       preserveScroll: true,
+      onFinish: () => {
+        submittedCaption.value = null
+      },
       onSuccess: () => {
         emit('complete')
         nextTick(() => returnFocus.value?.focus?.())
@@ -312,9 +323,12 @@ function handleKeydown(event) {
               >
                 <span v-if="form.processing" class="flex items-center gap-2">
                   <Spinner class="h-4 w-4" />
-                  Running…
+                  {{
+                    submittedCaption?.processingLabel ||
+                    submitCaption.processingLabel
+                  }}
                 </span>
-                <span v-else>{{ action.label }}</span>
+                <span v-else>{{ submitCaption.label }}</span>
               </button>
             </div>
           </form>

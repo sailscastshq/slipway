@@ -706,6 +706,38 @@ normalized. Rich text supports the explicit Markdown format and repeats the
 raw-HTML denial on the server. Relationship and upload fields are not action
 inputs; use record forms for those workflows.
 
+### Submit captions for a boolean intent field
+
+An action may keep its menu/dialog `label` while changing its submit button for a
+boolean field, such as a preview/send toggle:
+
+```js
+submit: {
+  field: 'send',
+  whenFalse: {
+    label: 'Preview recipients',
+    processingLabel: 'Previewing recipients…'
+  },
+  whenTrue: {
+    label: 'Send email',
+    processingLabel: 'Sending email…'
+  }
+}
+```
+
+`field` must name a declared boolean action field. Both caption pairs are required;
+each plain-text caption must contain 1–80 characters. Unknown keys fail contract
+validation. Without `submit`, the button retains the action label and `Running…`.
+Only explicit boolean `true` selects `whenTrue`; the form still submits the same
+validated values. The processing caption is frozen to the submitted intent until
+the request finishes, even if the toggle changes while it is pending. Captions do
+not authorize sending or replace the target helper's confirmation checks. A
+“Preview recipients” caption can refer to a count-only preview; the action's help
+text should describe what its helper actually returns.
+
+Deploy Slipway support before adding this optional contract key to a target app;
+older contract validators reject unrecognized action options.
+
 The legacy string helper form remains available for Bridge-envelope adapters
 and runs inside the target Sails application:
 
