@@ -10,7 +10,7 @@ if (
   args.some((arg) => !['--docker', '--help'].includes(arg))
 ) {
   console.error(
-    'Usage: node scripts/rehearse-coolify-migration.js [--docker|--help]'
+    'Usage: node scripts/rehearse-coolify-migration.cjs [--docker|--help]'
   )
   process.exit(1)
 }
@@ -136,7 +136,7 @@ try {
       'Install the checkout lockfile dependencies before this rehearsal.'
     )
   run(process.execPath, [
-    'scripts/check-docs-config-consistency.js',
+    'scripts/check-docs-config-consistency.cjs',
     'docs/coolify-migration.md'
   ])
   console.log(
