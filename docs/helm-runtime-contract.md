@@ -50,7 +50,7 @@ output, and auditing still apply.
 
 ## Reproduce the performance comparison
 
-`scripts/benchmark-helm-runtime.js` uses a small Sails/SQLite fixture. It
+`scripts/benchmark-helm-runtime.cjs` uses a small Sails/SQLite fixture. It
 reports p50/p95 wall time and peak _child-process_ RSS for metadata-only
 retrieval versus a cold Sails lift. It does not represent a specific
 customer app, the parent app's memory, or total container memory.
@@ -66,7 +66,7 @@ docker run --rm --memory=512m --entrypoint node \
   -v "$PWD/api/lib:/host/api/lib:ro" \
   -v "$PWD/packages/hook:/host/packages/hook:ro" \
   -v "$PWD/scripts:/host/scripts:ro" \
-  IMAGE /host/scripts/benchmark-helm-runtime.js
+  IMAGE /host/scripts/benchmark-helm-runtime.cjs
 ```
 
 Use `--memory=1g` for the larger comparison. Observe `docker stats` while

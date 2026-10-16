@@ -101,7 +101,7 @@
     "lint": "prettier --check .",
     "lint:fix": "prettier --write .",
     "audit:icons": "node scripts/audit-inline-icons.mjs",
-    "check:consistency": "node scripts/check-docs-config-consistency.js",
+    "check:consistency": "node scripts/check-docs-config-consistency.cjs",
     "test:unit": "sounding test --lane unit --test-concurrency=1",
     "test:functional": "sounding test --lane functional --test-concurrency=1",
     "test:e2e": "sounding test --lane e2e --test-concurrency=1 --test-timeout=600000",

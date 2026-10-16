@@ -234,7 +234,7 @@ jobs:
           cache: 'npm'
       - run: npm ci --no-audit
       - run: docker pull '${{ matrix.image }}'
-      - run: node scripts/verify-schema-diff-containers.js
+      - run: node scripts/verify-schema-diff-containers.cjs
         env:
           SLIPWAY_SCHEMA_TEST_DIALECT: ${{ matrix.dialect }}
 
