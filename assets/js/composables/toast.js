@@ -17,7 +17,15 @@ export function createToast(options = {}) {
         ? { ...toastOptions, message: input }
         : { ...input }
 
-    if (max > 0 && item.kind !== 'bridge-action-result') {
+    const existing =
+      item.id !== undefined &&
+      controller
+        .getSnapshot()
+        .some(
+          (candidate) =>
+            candidate.id === item.id && candidate.state !== 'closing'
+        )
+    if (max > 0 && item.kind !== 'bridge-action-result' && !existing) {
       const ordinary = controller
         .getSnapshot()
         .filter(
