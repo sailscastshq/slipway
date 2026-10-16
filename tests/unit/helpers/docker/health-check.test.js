@@ -1,6 +1,7 @@
 const http = require('http')
 
 const { test } = require('sounding')
+const readiness = require('../../../../api/lib/startup-readiness')
 
 test('docker health check passes when the configured path returns a 2xx response', async ({
   sails,
@@ -57,14 +58,17 @@ test('docker health check rejects non-2xx responses from the configured path', a
   sails,
   expect
 }) => {
+  const requestedPaths = []
   const server = http.createServer((req, res) => {
+    requestedPaths.push(req.url)
     if (req.url === '/login') {
       res.writeHead(302, { Location: '/dashboard' })
       res.end()
       return
     }
 
-    res.writeHead(404)
+    // Following the redirect would incorrectly turn this into a healthy probe.
+    res.writeHead(200)
     res.end()
   })
 
@@ -77,20 +81,64 @@ test('docker health check rejects non-2xx responses from the configured path', a
         containerName: '127.0.0.1',
         port,
         path: '/login',
-        timeout: 80,
-        interval: 10
+        // This trial checks real HTTP semantics, not an 80 ms scheduling race.
+        // Exact deadline/diagnostic behavior is checked with a controlled clock.
+        timeout: 1000,
+        interval: 1000
       })
     } catch (err) {
       error = err
     }
 
     expect(error).toBeDefined()
-    expect(error.message).toMatch(
-      /127\.0\.0\.1:[0-9]+\/login returned HTTP 302/
-    )
+    expect(error.code).toBe('DEPLOYMENT_STARTUP_TIMEOUT')
+    expect(requestedPaths.length > 0).toBe(true)
+    expect([...new Set(requestedPaths)]).toEqual(['/login'])
   } finally {
     await close(server)
   }
+})
+
+test('startup polling retains the configured HTTP 302 diagnostic at its deadline', async ({
+  expect
+}) => {
+  let now = 0
+  const requests = []
+  let error
+  try {
+    await readiness.poll(
+      {
+        containerName: '127.0.0.1',
+        port: 43210,
+        path: '/login',
+        timeout: 80,
+        interval: 10
+      },
+      {
+        now: () => now,
+        request: async (host, port, path) => {
+          requests.push({ host, port, path })
+          return 302
+        },
+        delay: async (duration) => {
+          now += duration
+        }
+      }
+    )
+  } catch (failure) {
+    error = failure
+  }
+  expect(error).toBeDefined()
+  expect(error.code).toBe('DEPLOYMENT_STARTUP_TIMEOUT')
+  expect(error.message).toMatch(/127\.0\.0\.1:43210\/login returned HTTP 302/)
+  expect(now).toBe(80)
+  expect(requests.length).toBe(8)
+  expect(
+    requests.every(
+      ({ host, port, path }) =>
+        host === '127.0.0.1' && port === 43210 && path === '/login'
+    )
+  ).toBe(true)
 })
 
 test('docker health check stops polling when its deployment is cancelled', async ({
