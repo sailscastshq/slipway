@@ -172,10 +172,8 @@ const initials = computed(() => {
         </div>
 
         <!-- Logo section -->
-        <div
-          class="mb-6 rounded-lg border border-gray-200 dark:border-gray-800"
-        >
-          <div class="px-4 py-3">
+        <div class="mb-8 space-y-3">
+          <div class="space-y-1">
             <h2 class="text-sm font-medium text-gray-900 dark:text-white">
               Team Logo
             </h2>
@@ -184,7 +182,7 @@ const initials = computed(() => {
               128x128px.
             </p>
           </div>
-          <div class="border-t border-gray-200 px-4 py-4 dark:border-gray-800">
+          <div class="space-y-2">
             <FileUpload
               v-model="logoForm.logo"
               accept="image/*"
@@ -277,9 +275,9 @@ const initials = computed(() => {
         </div>
 
         <!-- Team name form -->
-        <form @submit.prevent="save" class="space-y-6">
-          <div class="rounded-lg border border-gray-200 dark:border-gray-800">
-            <div class="px-4 py-3">
+        <form @submit.prevent="save" class="space-y-8">
+          <div class="space-y-2">
+            <div class="space-y-1">
               <label
                 for="teamName"
                 class="text-sm font-medium text-gray-900 dark:text-white"
@@ -289,9 +287,7 @@ const initials = computed(() => {
                 The name of your team. This will also update the team slug.
               </p>
             </div>
-            <div
-              class="border-t border-gray-200 px-4 py-3 dark:border-gray-800"
-            >
+            <div class="space-y-1">
               <Input
                 id="teamName"
                 v-model="form.name"

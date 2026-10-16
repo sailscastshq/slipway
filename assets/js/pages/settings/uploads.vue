@@ -227,22 +227,18 @@ const providers = [
         </p>
 
         <!-- Provider selection -->
-        <div
-          class="mb-6 rounded-lg border border-gray-200 dark:border-gray-800"
-        >
-          <div class="px-4 py-3">
+        <div class="mb-8 space-y-3">
+          <div class="space-y-1">
             <h2 class="text-sm font-medium text-gray-900 dark:text-white">
               Storage Provider
             </h2>
           </div>
-          <div
-            class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800"
-          >
+          <div class="space-y-1">
             <label
               v-for="p in providers"
               :key="p.id"
               :class="[
-                'flex cursor-pointer items-center justify-between px-4 py-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900/50',
+                'flex cursor-pointer items-center justify-between gap-4 rounded-lg px-4 py-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900/50',
                 selectedProvider === p.id
                   ? 'bg-gray-50/50 dark:bg-gray-900/30'
                   : ''
@@ -278,8 +274,8 @@ const providers = [
 
         <!-- Configuration form -->
         <form @submit.prevent="save" class="space-y-6">
-          <div class="rounded-lg border border-gray-200 dark:border-gray-800">
-            <div class="px-4 py-3">
+          <div class="space-y-3">
+            <div class="space-y-1">
               <h2 class="text-sm font-medium text-gray-900 dark:text-white">
                 {{
                   selectedProvider === 'r2'
@@ -300,9 +296,7 @@ const providers = [
               </p>
             </div>
 
-            <div
-              class="space-y-4 border-t border-gray-200 px-4 py-4 dark:border-gray-800"
-            >
+            <div class="space-y-4">
               <!-- Access Key -->
               <div>
                 <label
