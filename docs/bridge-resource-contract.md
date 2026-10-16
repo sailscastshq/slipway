@@ -1457,3 +1457,43 @@ If a decision helper must atomically claim a record or avoid duplicate emails,
 keep that domain-specific transaction/idempotency logic in the application's
 helper. Unconditional actions and existing camelCase identifiers/URL slugs keep
 their current behavior.
+
+### Searchable multiselects in record actions
+
+A record action can declare an authorized, read-only options provider. Use this
+for selecting people from a domain audience, rather than exposing a global user
+relationship or accepting freeform addresses:
+
+```js
+fields: {
+  selectionMode: {
+    type: 'select', required: true, default: 'everyone',
+    options: ['everyone', 'selected']
+  },
+  audience: { type: 'select', required: true, default: 'attendees', options: ['attendees', 'speakers'] },
+  recipientIds: {
+    type: 'multiselect', required: true, default: [],
+    visibleWhen: { 'form.selectionMode': 'selected' },
+    optionsProvider: { helper: 'bridge.recipientOptions', dependsOn: ['audience'] }
+  }
+}
+```
+
+Slipway calls only the configured helper with `{ actor, recordId, values, q,
+selectedIds }`; `values` contains only declared scalar dependencies. Search is
+bounded to 100 characters. Return `{ options: [{ value, label, description? }],
+hasMore }`, with string IDs (up to 200 characters), labels up to 200, descriptions
+up to 320 and no more than 100 options. Return a smaller first page with
+`hasMore: true` when the user should refine their search. For nonempty
+`selectedIds`, resolve those exact IDs under the same eligibility rules instead
+of applying the search filter. Unknown IDs must be omitted. Slipway rejects a
+submission if any selected ID cannot be resolved; required empty selections fail
+before invocation. Changing a declared dependency clears the selection.
+
+The provider must verify the actor, record/event and domain audience itself;
+Bridge's action authorization is an additional boundary. Never return unrelated
+users, secrets or arbitrary helper output. The mutation helper must independently
+recheck selected-ID eligibility at execution time and fail closed on an empty
+selected audience. A provider must have no side effects. Do not send emails from
+an options helper. This contract supports record actions only and keeps existing
+static select fields unchanged.
