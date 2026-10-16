@@ -13,6 +13,8 @@
  * https://sailsjs.com/config/datastores
  */
 
+// Avoid the adapter's opt-in mmap optimization while investigating SIGBUS #807.
+// This is a connection policy, not a migration; keep WAL and durability settings.
 module.exports.datastores = {
   /***************************************************************************
    *                                                                          *
@@ -32,18 +34,25 @@ module.exports.datastores = {
 
   default: {
     adapter: 'sails-sqlite',
-    url: './db/app.db'
+    url: './db/app.db',
+    pragmas: { mmap_size: 0 }
   },
 
   observability: {
     adapter: 'sails-sqlite',
-    url: './db/observability.db'
+    url: './db/observability.db',
+    pragmas: { mmap_size: 0 }
   },
 
-  analytics: { adapter: 'sails-sqlite', url: './db/analytics.db' },
+  analytics: {
+    adapter: 'sails-sqlite',
+    url: './db/analytics.db',
+    pragmas: { mmap_size: 0 }
+  },
 
   cache: {
     adapter: 'sails-sqlite',
-    url: './db/stash.db'
+    url: './db/stash.db',
+    pragmas: { mmap_size: 0 }
   }
 }
