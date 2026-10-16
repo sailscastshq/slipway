@@ -48,6 +48,12 @@ test(
       ).toBeVisible()
       await expect(submit).toBeEnabled()
       expect(
+        await search.evaluate((el) => getComputedStyle(el).borderBottomStyle)
+      ).toBe('dashed')
+      expect(
+        await search.evaluate((el) => getComputedStyle(el).borderTopWidth)
+      ).toBe('0px')
+      expect(
         state.optionCalls.some((call) => call.q === 'alex@example.com')
       ).toBe(true)
       await page.raw.setViewportSize({ width: 390, height: 844 })
