@@ -32,12 +32,10 @@ test(
     const foreignTeam = await world
       .create('team')
       .with({ name: 'Other team', owner: world.current.users.genesisUser.id })
-    const foreignProject = await world
-      .create('project')
-      .with({
-        team: foreignTeam.id,
-        createdBy: world.current.users.genesisUser.id
-      })
+    const foreignProject = await world.create('project').with({
+      team: foreignTeam.id,
+      createdBy: world.current.users.genesisUser.id
+    })
     const cookie = await createSessionCookie(sails, {
       userId: world.current.users.genesisUser.id
     })
