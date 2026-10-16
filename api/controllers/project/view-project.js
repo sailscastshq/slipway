@@ -58,7 +58,11 @@ module.exports = {
       environment: project.environments.map((environment) => environment.id)
     })
 
-    // Enrich each environment with its apps and resolved domain.
+    // Reuse the authorized project/environment records. Resolving by ID here
+    // would reload each environment and its project just to build a hostname.
+    const wildcardDomain = project.environments.length
+      ? await sails.helpers.setting.get('wildcardDomain')
+      : null
     const environments = await Promise.all(
       project.environments.map(async (env) => {
         const apps = allApps.filter(
@@ -66,7 +70,11 @@ module.exports = {
         )
         const app = apps.find((a) => a.isDefault) || apps[0] || null
 
-        const fullDomain = await Environment.getFullDomain(env.id)
+        const { fullDomain } = await Environment.resolveDomains(env, {
+          project,
+          wildcardDomain,
+          slipwayDomain: sails.config.custom.slipwayDomain
+        })
 
         return {
           ...env,
