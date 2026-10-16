@@ -242,7 +242,9 @@ test(
     }
     fs.mkdirSync('.tmp/audit', { recursive: true })
     fs.writeFileSync(
-      `.tmp/audit/793-${process.env.BACKUP_METADATA_BASELINE ? 'before' : 'after'}.json`,
+      `.tmp/audit/793-${
+        process.env.BACKUP_METADATA_BASELINE ? 'before' : 'after'
+      }.json`,
       JSON.stringify(measurements, null, 2)
     )
   }
