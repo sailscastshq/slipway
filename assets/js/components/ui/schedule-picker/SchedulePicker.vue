@@ -469,12 +469,12 @@ defineExpose({
                 :aria-labelledby="timeHeadingId"
                 :aria-describedby="`${inputId}-time-zone`"
                 dir="ltr"
-                class="shadow-xs inline-flex shrink-0 items-center rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-sm font-medium tabular-nums dark:border-gray-700 dark:bg-gray-900"
+                class="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium tabular-nums"
               >
                 <select
                   data-slot="schedule-picker-hour"
                   aria-label="Hour"
-                  class="h-11 w-11 cursor-pointer appearance-none rounded-md bg-transparent text-center text-gray-950 hover:bg-gray-200/60 focus-visible:bg-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-gray-950 disabled:cursor-not-allowed disabled:opacity-40 dark:text-white dark:hover:bg-gray-800 dark:focus-visible:bg-gray-800 dark:focus-visible:outline-white"
+                  class="h-11 w-11 cursor-pointer appearance-none rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent text-center text-gray-950 hover:bg-gray-200/60 focus-visible:bg-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-gray-950 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800 dark:focus-visible:bg-gray-800 dark:focus-visible:outline-white"
                   :value="fields.hour"
                   :disabled="disabled || readonly"
                   @change="chooseTimeField('hour', $event.target.value)"
@@ -491,7 +491,7 @@ defineExpose({
                 <select
                   data-slot="schedule-picker-minute"
                   aria-label="Minute"
-                  class="h-11 w-11 cursor-pointer appearance-none rounded-md bg-transparent text-center text-gray-950 hover:bg-gray-200/60 focus-visible:bg-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-gray-950 disabled:cursor-not-allowed disabled:opacity-40 dark:text-white dark:hover:bg-gray-800 dark:focus-visible:bg-gray-800 dark:focus-visible:outline-white"
+                  class="h-11 w-11 cursor-pointer appearance-none rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent text-center text-gray-950 hover:bg-gray-200/60 focus-visible:bg-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-gray-950 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800 dark:focus-visible:bg-gray-800 dark:focus-visible:outline-white"
                   :value="fields.minute"
                   :disabled="disabled || readonly"
                   @change="chooseTimeField('minute', $event.target.value)"
@@ -504,14 +504,11 @@ defineExpose({
                     {{ minute }}
                   </option>
                 </select>
-                <div
-                  v-if="fields.hour12"
-                  class="relative ms-1 border-s border-gray-200 ps-1 dark:border-gray-700"
-                >
+                <div v-if="fields.hour12" class="relative ms-1 ps-1">
                   <select
                     data-slot="schedule-picker-period"
                     aria-label="Period"
-                    class="min-w-16 h-11 cursor-pointer appearance-none rounded-md bg-transparent pe-6 ps-2 text-gray-950 hover:bg-gray-200/60 focus-visible:bg-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-gray-950 disabled:cursor-not-allowed disabled:opacity-40 dark:text-white dark:hover:bg-gray-800 dark:focus-visible:bg-gray-800 dark:focus-visible:outline-white"
+                    class="min-w-16 h-11 cursor-pointer appearance-none rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent pe-6 ps-2 text-gray-950 hover:bg-gray-200/60 focus-visible:bg-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-gray-950 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:text-white dark:hover:bg-gray-800 dark:focus-visible:bg-gray-800 dark:focus-visible:outline-white"
                     :value="fields.period"
                     :disabled="disabled || readonly"
                     @change="chooseTimeField('period', $event.target.value)"

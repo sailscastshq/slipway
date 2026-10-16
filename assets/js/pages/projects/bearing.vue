@@ -797,7 +797,7 @@ onUnmounted(() => {
                         { value: 'shipped', label: 'Shipped' },
                         { value: 'closed', label: 'Closed' }
                       ]"
-                      class="min-h-10 rounded-lg border-0 bg-gray-50 px-3 text-sm focus:ring-2 focus:ring-gray-400 dark:bg-gray-900"
+                      class="focus:border-brand dark:focus:border-brand min-h-10 rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 text-sm text-gray-900 shadow-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-transparent dark:text-white"
                       @change="moveFeedback(item, $event)"
                     />
                   </label>

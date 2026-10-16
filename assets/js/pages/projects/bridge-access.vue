@@ -380,7 +380,7 @@ function timeAgo(timestamp) {
                   { value: 'administrator', label: 'Administrator' }
                 ]"
                 :disabled="!app.bridgeEnabled || inviteForm.processing"
-                class="min-h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 disabled:cursor-not-allowed disabled:bg-gray-50 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200 dark:focus:border-gray-600 dark:focus:ring-gray-900 dark:disabled:bg-gray-900"
+                class="focus:border-brand dark:focus:border-brand min-h-10 w-full rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 text-sm text-gray-900 shadow-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-transparent dark:text-white"
               />
             </div>
             <button
