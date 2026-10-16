@@ -10,6 +10,8 @@ module.exports = {
     'Wait for the expected generated route, then require Caddy to accept it as active configuration.',
 
   inputs: {
+    expectedDecoys: { type: 'ref', defaultsTo: [] },
+    excludedDecoys: { type: 'ref', defaultsTo: [] },
     expectedDomains: { type: 'ref', defaultsTo: [] },
     excludedDomains: { type: 'ref', defaultsTo: [] },
     expectedUpstreams: {
@@ -40,6 +42,8 @@ module.exports = {
   fn: async function ({
     expectedUpstreams,
     excludedUpstreams,
+    expectedDecoys = [],
+    excludedDecoys = [],
     expectedDomains = [],
     excludedDomains = [],
     timeoutMs
@@ -96,7 +100,20 @@ module.exports = {
           stdout.includes(upstream)
         )
 
+        const markers = []
+        const collectMarkers = (node) => {
+          if (!node || typeof node !== 'object') return
+          if (node.handler === 'log_append' && node.key === 'slipway_decoy')
+            markers.push(node.value)
+          Object.values(node).forEach(collectMarkers)
+        }
+        if (expectedDecoys.length || excludedDecoys.length)
+          collectMarkers(JSON.parse(stdout))
+        const decoyMismatch =
+          expectedDecoys.some((v) => !markers.includes(v)) ||
+          excludedDecoys.some((v) => markers.includes(v))
         if (
+          decoyMismatch ||
           missingUpstreams.length > 0 ||
           staleUpstreams.length > 0 ||
           missingDomains.length > 0 ||
@@ -104,6 +121,7 @@ module.exports = {
         ) {
           lastError = new Error(
             [
+              decoyMismatch ? 'decoy handler revision mismatch' : null,
               missingDomains.length
                 ? `missing hosts ${missingDomains.join(', ')}`
                 : null,

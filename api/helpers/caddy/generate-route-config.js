@@ -38,9 +38,17 @@ module.exports = {
     }
 
     // Fetch all apps in this environment
-    const environmentApps = Array.isArray(apps)
+    let environmentApps = Array.isArray(apps)
       ? apps
       : await App.find({ environment: environmentId })
+    environmentApps = await sails.helpers.lookout.decoyConfig(environmentApps)
+    for (const app of environmentApps) {
+      const conflict = require('../lookout/decoy-config')._private.validate(
+        app,
+        environmentApps
+      )
+      if (conflict) throw new Error(conflict)
+    }
 
     // Filter to apps with a hostPort (deployed) and a routePath (not workers)
     const routableApps = environmentApps.filter(
@@ -74,7 +82,8 @@ module.exports = {
       routableApps.length === 1 &&
       routableApps[0].routePath === '/' &&
       !routableApps[0].bridgeEnabled &&
-      !routableApps[0].bearingEnabled
+      !routableApps[0].bearingEnabled &&
+      !routableApps[0].lookoutDecoys?.enabled
     ) {
       const app = routableApps[0]
       return {
@@ -135,6 +144,8 @@ module.exports = {
         })
       )
     }
+
+    handlers.push(...require('./decoy-handlers')._private.handlers(sorted))
 
     for (const app of sorted) {
       if (app.routePath === '/') {

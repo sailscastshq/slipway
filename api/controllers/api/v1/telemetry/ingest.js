@@ -238,15 +238,18 @@ module.exports = {
 
     // Ingest metrics
     if (Array.isArray(metrics) && metrics.length > 0) {
-      const metricRecords = metrics.slice(0, 1000).map((m) => ({
-        name: String(m.name || 'unknown'),
-        value: typeof m.value === 'number' ? m.value : 0,
-        unit: String(m.unit || 'ms'),
-        attributes: (typeof m.attributes === 'object' && m.attributes) || {},
-        recordedAt: eventTime(m.recordedAt),
-        createdAt: now,
-        environment: environmentId
-      }))
+      const metricRecords = metrics
+        .slice(0, 1000)
+        .filter((m) => !String(m.name).startsWith('lookout.'))
+        .map((m) => ({
+          name: String(m.name || 'unknown'),
+          value: typeof m.value === 'number' ? m.value : 0,
+          unit: String(m.unit || 'ms'),
+          attributes: (typeof m.attributes === 'object' && m.attributes) || {},
+          recordedAt: eventTime(m.recordedAt),
+          createdAt: now,
+          environment: environmentId
+        }))
       // Correlated Quest events are an app-scoped ledger, not legacy metrics.
       // Verify the app/deployment inside this token's environment before writes.
       const questLedger = require('../../../../lib/quest-run-ledger')

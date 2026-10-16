@@ -93,6 +93,11 @@ module.exports = {
         project,
         environment,
         app,
+        decoys: (await sails.helpers.lookout.decoyConfig([app]))[0]
+          .lookoutDecoys,
+        decoyPaths: require('../../helpers/lookout/decoy-config')._private
+          .PATHS,
+        canManageDecoys: ['owner', 'admin'].includes(user.teamRole),
         connectedRepo,
         githubConnected,
         startupWindowSeconds:
