@@ -59,6 +59,9 @@ test(
     )
     const result = page.raw.locator('[data-test=bridge-action-result-toast]')
     await expect(result).toBeVisible()
+    expect(
+      await result.evaluate((el) => getComputedStyle(el.parentElement).padding)
+    ).toBe('0px')
     await page.raw.waitForTimeout(4500)
     await expect(result).toBeVisible()
     for (let i = 1; i <= 5; i++) {

@@ -30,7 +30,14 @@ export function createToast(options = {}) {
     return controller({
       type: 'success',
       ...item,
-      class: [item.kind ? '' : ORDINARY_TOAST_CLASS, item.class]
+      class: [
+        item.kind === 'bridge-action-result'
+          ? 'block overflow-visible bg-transparent p-0 shadow-none ring-0 dark:bg-transparent'
+          : item.kind
+          ? ''
+          : ORDINARY_TOAST_CLASS,
+        item.class
+      ]
         .filter(Boolean)
         .join(' ')
     })
