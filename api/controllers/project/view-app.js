@@ -163,36 +163,29 @@ module.exports = {
     }
 
     // Enrich services with connection URLs and last backup
-    const loadServices = () =>
-      Promise.all(
-        (environment.services || []).map(async (service) => {
-          const connectionUrl =
-            service.managementMode === 'external'
-              ? null
-              : Service.getPublicConnectionUrl(service)
-          let lastBackup = null
-          if (Service.isBackupSupported(service.type)) {
-            const backups = await Backup.find({ service: service.id })
-              .sort('createdAt DESC')
-              .limit(1)
-            const latest = backups[0]
-            lastBackup = latest
-              ? {
-                  id: latest.id,
-                  status: latest.status,
-                  completedAt: latest.completedAt,
-                  sizeBytes: latest.sizeBytes
-                }
-              : null
-          }
-          return {
-            ...Service.toPublic(service),
-            connectionUrl,
-            lastBackup,
-            backupSupported: Service.isBackupSupported(service.type)
-          }
-        })
+    const loadServices = async () => {
+      const metadata = await sails.helpers.backup.getLatestMetadata(
+        (environment.services || [])
+          .filter((service) => Service.isBackupSupported(service.type))
+          .map((service) => service.id)
       )
+      return (environment.services || []).map((service) => {
+        const connectionUrl =
+          service.managementMode === 'external'
+            ? null
+            : Service.getPublicConnectionUrl(service)
+        const { lastBackup } = metadata[service.id] || {
+          lastBackup: null,
+          lastSuccessfulBackup: null
+        }
+        return {
+          ...Service.toPublic(service),
+          connectionUrl,
+          lastBackup,
+          backupSupported: Service.isBackupSupported(service.type)
+        }
+      })
+    }
 
     // Check if backup storage is configured
     // Inertia resolves only requested props on partial reloads. Keep unrelated
