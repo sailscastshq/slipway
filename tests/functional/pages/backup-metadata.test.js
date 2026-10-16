@@ -154,9 +154,26 @@ test(
       const unsupported = await world
         .create('service')
         .with({ environment: env.id, type: 'redis' })
+      await sails.models.backup.create({
+        service: unsupported.id,
+        status: 'completed',
+        sizeBytes: 999
+      })
+      const pendingOnly = await world
+        .create('service')
+        .with({ environment: env.id })
+      await sails.models.backup.create({
+        service: pendingOnly.id,
+        status: 'pending'
+      })
       const response = await browser.request.get(
         `/projects/${project.slug}/environments/${env.slug}`
       )
+      const pendingMetadata = response.data.props.environment.services.find(
+        (item) => item.id === pendingOnly.id
+      )
+      assert.equal(pendingMetadata.lastBackup.status, 'pending')
+      assert.equal(pendingMetadata.lastSuccessfulBackup, null)
       for (const id of [empty.id, unsupported.id]) {
         const actual = response.data.props.environment.services.find(
           (item) => item.id === id
@@ -167,12 +184,10 @@ test(
       const foreignTeam = await world
         .create('team')
         .with({ owner: world.current.users.genesisUser.id })
-      const foreignProject = await world
-        .create('project')
-        .with({
-          team: foreignTeam.id,
-          createdBy: world.current.users.genesisUser.id
-        })
+      const foreignProject = await world.create('project').with({
+        team: foreignTeam.id,
+        createdBy: world.current.users.genesisUser.id
+      })
       const foreignEnv = await world
         .create('environment')
         .with({ project: foreignProject.id })
