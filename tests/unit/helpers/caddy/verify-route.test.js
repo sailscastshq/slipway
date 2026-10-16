@@ -150,3 +150,23 @@ test('a matching upstream on the old hostname cannot verify a new domain', async
   )
   expect(error.message).toContain('missing hosts new.example.com')
 })
+
+test('matching upstreams cannot confirm an absent decoy revision', async ({
+  expect
+}) => {
+  const helper = loadHelperWithExec(async () => ({
+    stdout:
+      '{"dial":"app:1337","handler":"log_append","key":"slipway_decoy","value":"old"}',
+    stderr: ''
+  }))
+  const error = await captureError(
+    helper.fn({
+      expectedUpstreams: ['app:1337'],
+      expectedDecoys: ['new'],
+      excludedDecoys: ['old'],
+      timeoutMs: 1
+    })
+  )
+  expect(error.code).toBe('CADDY_ROUTE_VERIFICATION_FAILED')
+  expect(error.message).toContain('decoy handler revision mismatch')
+})

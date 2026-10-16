@@ -180,6 +180,23 @@ jobs:
       - run: docker pull lucaslorentz/caddy-docker-proxy@sha256:f3ebe7e762bccf17ce38b88420f80ce63f69dc548eea0cd6e5f29db2ae2ea062
       - run: node_modules/.bin/sounding test --file tests/contracts/custom-services.test.js --file tests/contracts/custom-service-routes.test.js --file tests/contracts/custom-service-updates.test.js --test-concurrency=1
 
+  lookout-decoys-contract:
+    name: Lookout Decoys proxy contract
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci --no-audit
+      - run: docker pull node:22-alpine
+      - run: docker pull alpine
+      - run: docker pull lucaslorentz/caddy-docker-proxy:2.13.1
+      - run: docker pull lucaslorentz/caddy-docker-proxy@sha256:f3ebe7e762bccf17ce38b88420f80ce63f69dc548eea0cd6e5f29db2ae2ea062
+      - run: node_modules/.bin/sounding test --file tests/contracts/lookout-decoys.test.js --test-concurrency=1 --test-timeout=600000
+
   external-postgresql-contract:
     name: External PostgreSQL contract
     timeout-minutes: 10

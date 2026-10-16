@@ -276,6 +276,9 @@ module.exports.routes = {
   'DELETE /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug':
     'api/v1/app/destroy-app',
 
+  'PATCH /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/decoys':
+    'api/v1/app/update-decoys',
+
   // Sails-native release flags
   'GET /api/v1/flags/apps/:appId': 'api/v1/flag/get-config',
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/flags':
