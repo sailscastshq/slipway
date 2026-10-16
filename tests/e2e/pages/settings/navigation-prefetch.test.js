@@ -14,6 +14,7 @@ test(
     await login.withPassword('genesisUser', page, {
       password: world.current.auth.genesisUserPassword
     })
+    await page.raw.waitForURL('**/')
     const requests = []
     page.raw.on('request', (request) => {
       if (
