@@ -1,5 +1,3 @@
-const conditions = require('../../lib/bridge-action-conditions')
-
 module.exports = {
   friendlyName: 'Execute Bridge custom action',
 
@@ -136,7 +134,10 @@ module.exports = {
         const error = new Error('Record conditions changed.');
         error.code = 'BRIDGE_ACTION_VALIDATION_FAILED';
         error.publicMessage = ${JSON.stringify(
-          conditions.changedMessage(resource, conditionState.fields)
+          sails.helpers.bridge.describeActionConditionChange.with({
+            resource,
+            fields: conditionState.fields
+          })
         )};
         throw error;
       }

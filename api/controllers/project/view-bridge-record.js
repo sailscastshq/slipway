@@ -1,4 +1,3 @@
-const conditions = require('../../lib/bridge-action-conditions')
 module.exports = {
   friendlyName: 'View Bridge record',
 
@@ -187,7 +186,12 @@ module.exports = {
       for (const [name, action] of Object.entries(
         modelMeta.actionDefinitions || {}
       )) {
-        if (!conditions.matches(action.visibleWhen, record)) {
+        if (
+          !sails.helpers.bridge.matchesActionConditions.with({
+            condition: action.visibleWhen,
+            record
+          })
+        ) {
           delete modelMeta.actionDefinitions[name]
         }
       }

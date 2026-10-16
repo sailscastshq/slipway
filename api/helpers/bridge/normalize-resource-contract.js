@@ -1,7 +1,5 @@
 'use strict'
 
-const conditions = require('../../lib/bridge-action-conditions')
-
 const { slugFor, assertUnique } = require('../../lib/bridge-url-slugs')
 
 module.exports = {
@@ -473,7 +471,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     }
 
     for (const action of Object.values(resource.actionDefinitions))
-      conditions.validate(action, resource)
+      sails.helpers.bridge.validateActionConditions.with({ action, resource })
 
     if (!resource.list.includes(primaryKey)) {
       resource.list.unshift(primaryKey)
@@ -1333,7 +1331,12 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     return {
       name,
       ...(rawAction.visibleWhen !== undefined
-        ? { visibleWhen: conditions.normalize(rawAction.visibleWhen, path) }
+        ? {
+            visibleWhen: sails.helpers.bridge.normalizeActionConditions.with({
+              condition: rawAction.visibleWhen,
+              path
+            })
+          }
         : {}),
       ...(slug !== name ? { slug } : {}),
       scope: rawAction.scope,
@@ -1535,7 +1538,12 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       label: readString(rawField.label) || humanize(fieldName),
       required: rawField.required === true,
       ...(rawField.visibleWhen !== undefined
-        ? { visibleWhen: conditions.normalize(rawField.visibleWhen, path) }
+        ? {
+            visibleWhen: sails.helpers.bridge.normalizeActionConditions.with({
+              condition: rawField.visibleWhen,
+              path
+            })
+          }
         : {}),
       ...(rawField.min !== undefined ? { min: rawField.min } : {}),
       ...(rawField.max !== undefined ? { max: rawField.max } : {}),

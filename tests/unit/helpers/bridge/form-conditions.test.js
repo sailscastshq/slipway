@@ -1,6 +1,18 @@
 const { test } = require('sounding')
 const assert = require('node:assert/strict')
-const conditions = require('../../../../api/lib/bridge-action-conditions')
+const conditions = {
+  matches: (condition, record, form, scope) =>
+    sails.helpers.bridge.matchesActionConditions.with({
+      condition,
+      record,
+      form,
+      scope
+    }),
+  fields: (action) =>
+    sails.helpers.bridge.getActionConditionFields.with({ action }),
+  effective: (action, record) =>
+    sails.helpers.bridge.resolveActionRecordFields.with({ action, record })
+}
 const models = {
   event: {
     identity: 'event',
