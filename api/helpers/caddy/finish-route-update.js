@@ -92,6 +92,11 @@ async function commitRoute(transaction) {
     if (transaction.previousWasRunning) {
       await execFileAsync(dockerPath, ['stop', transaction.routeId])
       await sails.helpers.caddy.verifyRoute.with({
+        expectedDecoys: transaction.candidateDecoys || [],
+        excludedDecoys: difference(
+          transaction.previousDecoys || [],
+          transaction.candidateDecoys || []
+        ),
         expectedDomains: transaction.candidateDomains || [],
         excludedDomains: difference(
           transaction.previousDomains || [],
@@ -175,6 +180,11 @@ async function rollbackRoute(transaction) {
     }
     if (transaction.previousUpstreams.length > 0) {
       await sails.helpers.caddy.verifyRoute.with({
+        expectedDecoys: transaction.previousDecoys || [],
+        excludedDecoys: difference(
+          transaction.candidateDecoys || [],
+          transaction.previousDecoys || []
+        ),
         expectedDomains: transaction.previousDomains || [],
         excludedDomains: difference(
           transaction.candidateDomains || [],

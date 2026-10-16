@@ -146,6 +146,11 @@ module.exports = function defineLookoutHook(sails) {
    */
   async function collectLogs() {
     try {
+      await sails.helpers.lookout.collectDecoys()
+    } catch {
+      sails.log.verbose('Lookout Decoys: collection unavailable')
+    }
+    try {
       const apps = await App.find({ status: 'running' }).populate('environment')
       const now = Date.now()
 

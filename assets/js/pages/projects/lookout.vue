@@ -1,4 +1,5 @@
 <script setup>
+import LookoutDecoyHits from '@/components/LookoutDecoyHits.vue'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
@@ -35,6 +36,10 @@ const props = defineProps({
   project: Object,
   environment: Object,
   appName: String,
+  decoys: {
+    type: Object,
+    default: () => ({ groups: [], window: 'Last hour' })
+  },
   containers: {
     type: Array,
     default: () => []
@@ -184,6 +189,7 @@ const tabs = computed(() => {
   } else {
     list.push({ id: 'setup', label: 'Set up telemetry' })
   }
+  list.push({ id: 'decoys', label: 'Decoys' })
   return list
 })
 
@@ -1060,6 +1066,8 @@ async function copyToken() {
         </div>
 
         <!-- REQUESTS TAB -->
+        <LookoutDecoyHits v-if="activeTab === 'decoys'" :summary="decoys" />
+
         <div
           v-if="activeTab === 'requests'"
           data-slot="tab-panel"

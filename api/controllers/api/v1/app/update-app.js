@@ -162,6 +162,37 @@ module.exports = {
         )
       )
     }
+    if (routePath !== undefined || healthPath !== undefined) {
+      const siblings = await sails.helpers.lookout.decoyConfig(
+        await App.find({ environment: environment.id })
+      )
+      if (
+        routePath !== undefined &&
+        routePath !== app.routePath &&
+        siblings.find((a) => a.id === app.id)?.lookoutDecoys.enabled
+      )
+        problems.push({
+          routePath:
+            'Disable Lookout Decoys before changing this app mount, then verify the new paths before enabling them again.'
+        })
+      const next = siblings.map((a) =>
+        a.id === app.id
+          ? {
+              ...a,
+              ...(routePath !== undefined ? { routePath } : {}),
+              ...(healthPath !== undefined ? { healthPath } : {})
+            }
+          : a
+      )
+      for (const candidate of next) {
+        const conflict =
+          require('../../../../helpers/lookout/decoy-config')._private.validate(
+            candidate,
+            next
+          )
+        if (conflict) problems.push({ routePath: conflict })
+      }
+    }
     if (problems.length) {
       throw { badRequest: { problems } }
     }
