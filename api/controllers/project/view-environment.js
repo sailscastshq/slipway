@@ -77,57 +77,31 @@ module.exports = {
     const loadAllApps = once(() => App.find({ environment: environment.id }))
     const loadDomains = once(() => Environment.resolveDomains(environment.id))
     const loadServerIp = once(() => sails.helpers.getServerIp())
-    const loadServices = once(() =>
-      Promise.all(
-        (environment.services || []).map(async (service) => {
-          const connectionUrl =
-            service.managementMode === 'external'
-              ? null
-              : Service.getPublicConnectionUrl(service)
-          let lastBackup = null
-          let lastSuccessfulBackup = null
-          if (Service.isBackupSupported(service.type)) {
-            const backups = await Backup.find({ service: service.id })
-              .sort('createdAt DESC')
-              .limit(1)
-            const latest = backups[0]
-            const completed =
-              latest?.status === 'completed'
-                ? latest
-                : (
-                    await Backup.find({
-                      service: service.id,
-                      status: 'completed'
-                    })
-                      .sort('completedAt DESC')
-                      .limit(1)
-                  )[0]
-            lastSuccessfulBackup = completed
-              ? {
-                  completedAt: completed.completedAt,
-                  sizeBytes: completed.sizeBytes
-                }
-              : null
-            lastBackup = latest
-              ? {
-                  id: latest.id,
-                  status: latest.status,
-                  completedAt: latest.completedAt,
-                  sizeBytes: latest.sizeBytes
-                }
-              : null
-          }
-          return {
-            ...Service.toPublic(service),
-            connectionUrl,
-            lastBackup,
-            lastSuccessfulBackup,
-            backupSupported: Service.isBackupSupported(service.type),
-            versionSupport: getVersionSupport(service)
-          }
-        })
+    const loadServices = once(async () => {
+      const metadata = await sails.helpers.backup.getLatestMetadata(
+        (environment.services || [])
+          .filter((service) => Service.isBackupSupported(service.type))
+          .map((service) => service.id)
       )
-    )
+      return (environment.services || []).map((service) => {
+        const connectionUrl =
+          service.managementMode === 'external'
+            ? null
+            : Service.getPublicConnectionUrl(service)
+        const { lastBackup, lastSuccessfulBackup } = metadata[service.id] || {
+          lastBackup: null,
+          lastSuccessfulBackup: null
+        }
+        return {
+          ...Service.toPublic(service),
+          connectionUrl,
+          lastBackup,
+          lastSuccessfulBackup,
+          backupSupported: Service.isBackupSupported(service.type),
+          versionSupport: getVersionSupport(service)
+        }
+      })
+    })
     const loadAppsWithHealth = once(async () => {
       const allApps = await loadAllApps()
       const appsWithHealth = []
