@@ -15,6 +15,7 @@ test(
     await login.withPassword('genesisUser', page, {
       password: world.current.auth.genesisUserPassword
     })
+    await page.raw.waitForURL('**/')
     for (const width of [1440, 390]) {
       await page.resize(width, 1000)
       for (const scheme of ['light', 'dark']) {
