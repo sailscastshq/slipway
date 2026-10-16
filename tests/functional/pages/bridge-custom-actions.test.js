@@ -42,6 +42,16 @@ test(
           : new Error(publishError)
       return {
         message: 'Course published for 12 students.',
+        notification: {
+          title: 'Publish result',
+          type: 'warning',
+          counts: [
+            { label: 'accepted', value: 11 },
+            { label: 'failed', value: 1 }
+          ],
+          items: ['recipient@example.com'],
+          detailsLabel: 'View failed recipient'
+        },
         internalReceipt: 'must not enter Slipway audit details'
       }
     }
@@ -115,6 +125,13 @@ test(
       })
 
       expect(response).toHaveStatus(302)
+      expect(response.session._inertiaFlash.bridgeActionResult.title).toBe(
+        'Publish result'
+      )
+      expect(response.session._inertiaFlash.bridgeActionResult.type).toBe(
+        'warning'
+      )
+      expect(response.session._inertiaFlash.success).toBe(undefined)
       expect(actionExecutionCount).toBe(1)
       expect(helperInputs.recordId).toBe(courseId)
       expect(helperInputs.values).toEqual({
@@ -137,6 +154,9 @@ test(
       expect(auditLog.details.recordId).toBe(courseId)
       expect(auditLog.details.values).toBe(undefined)
       expect(auditLog.details.internalReceipt).toBe(undefined)
+      expect(
+        JSON.stringify(auditLog.details).includes('recipient@example.com')
+      ).toBe(false)
 
       allowPublish = false
       const denied = await browser.request.post(actionPath, {
@@ -288,6 +308,9 @@ test(
           recordId: courseId,
           values: { note: 'Draft note' }
         }
+      )
+      expect(hostSuccess.session._inertiaFlash.bridgeActionResult.type).toBe(
+        'warning'
       )
       expect(hostSuccess).toHaveStatus(302)
       expect(hostSuccess).toRedirectTo(`/bridge/learning-path/${courseId}`)
