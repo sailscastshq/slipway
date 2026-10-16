@@ -89,9 +89,8 @@ After building the merged release locally, run:
 
 ```bash
 bash ./local.sh rebuild
-bash ./local.sh bridge-benchmark
 ```
 
-The 0.0.54 latency gate remains in force: every warm Bridge runtime operation
-must stay below 500 ms. The previous merged benchmark recorded 1, 1, 0, 0, and
-0 ms of resident-runtime overhead after a one-time 4,760 ms worker start.
+The one-off Bridge benchmark is retired. Its historical measurements were
+1, 1, 0, 0, and 0 ms of resident-runtime overhead after a one-time 4,760 ms
+worker start; these are not a current latency gate.

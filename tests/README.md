@@ -62,7 +62,7 @@ Generated artifacts live in
 
 ## Coolify migration rehearsal
 
-Run `node scripts/rehearse-coolify-migration.js` from a clean checkout with its
+Run `node scripts/rehearse-coolify-migration.cjs` from a clean checkout with its
 lockfile dependencies installed. It composes existing offline contracts with
 `tests/functional/api/coolify-migration.test.js`, which inspects three isolated
 source/configuration inventories. The generated sources intentionally refuse

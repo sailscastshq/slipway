@@ -104,7 +104,7 @@ function save() {
           </p>
         </div>
 
-        <form @submit.prevent="save" class="space-y-6">
+        <form @submit.prevent="save" class="space-y-8">
           <Alert
             v-if="form.errors.routing"
             role="alert"
@@ -114,8 +114,8 @@ function save() {
             <p class="mt-1 leading-6">{{ form.errors.routing }}</p>
           </Alert>
           <!-- Instance Name -->
-          <div class="rounded-lg border border-gray-200 dark:border-gray-800">
-            <div class="px-4 py-3">
+          <div class="space-y-2">
+            <div class="space-y-1">
               <label
                 for="instanceName"
                 class="text-sm font-medium text-gray-900 dark:text-white"
@@ -125,9 +125,7 @@ function save() {
                 The name displayed in the browser tab and emails
               </p>
             </div>
-            <div
-              class="border-t border-gray-200 px-4 py-3 dark:border-gray-800"
-            >
+            <div class="space-y-1">
               <Input
                 id="instanceName"
                 v-model="form.instanceName"
@@ -152,8 +150,8 @@ function save() {
           </div>
 
           <!-- Instance Domain -->
-          <div class="rounded-lg border border-gray-200 dark:border-gray-800">
-            <div class="px-4 py-3">
+          <div class="space-y-2">
+            <div class="space-y-1">
               <label
                 for="instanceDomain"
                 class="text-sm font-medium text-gray-900 dark:text-white"
@@ -164,9 +162,7 @@ function save() {
                 generating callback URLs and links.
               </p>
             </div>
-            <div
-              class="border-t border-gray-200 px-4 py-3 dark:border-gray-800"
-            >
+            <div class="space-y-1">
               <div class="flex items-center">
                 <span class="text-sm text-gray-400 dark:text-gray-500"
                   >https://</span
@@ -196,8 +192,8 @@ function save() {
           </div>
 
           <!-- SSL / Let's Encrypt -->
-          <div class="rounded-lg border border-gray-200 dark:border-gray-800">
-            <div class="px-4 py-3">
+          <div class="space-y-2">
+            <div class="space-y-1">
               <label
                 for="acmeEmail"
                 class="text-sm font-medium text-gray-900 dark:text-white"
@@ -209,9 +205,7 @@ function save() {
                 configured domains.
               </p>
             </div>
-            <div
-              class="border-t border-gray-200 px-4 py-3 dark:border-gray-800"
-            >
+            <div class="space-y-1">
               <Input
                 id="acmeEmail"
                 v-model="form.acmeEmail"

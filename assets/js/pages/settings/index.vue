@@ -36,6 +36,8 @@ const canManageInstance = computed(
   () => page.props.loggedInUser?.isGenesisUser === true
 )
 
+// Prefetch is opt-in: keep secret-heavy, audit and external update reads
+// behind an explicit visit. Do not turn new settings entries on by default.
 const rawCategories = [
   {
     name: 'Instance',
@@ -45,6 +47,7 @@ const rawCategories = [
         title: 'Instance',
         description: 'Configure your Slipway instance domain and branding.',
         href: '/settings/instance',
+        prefetch: true,
         icon: 'server'
       },
       {
@@ -52,12 +55,14 @@ const rawCategories = [
         description:
           'S3-compatible storage for team logos and database backups.',
         href: '/settings/uploads',
+        prefetch: true,
         icon: 'cloud'
       },
       {
         title: 'Notifications',
         description: 'Deployment alerts via Telegram and email.',
         href: '/settings/notifications',
+        prefetch: true,
         icon: 'bell'
       },
       {
@@ -76,12 +81,14 @@ const rawCategories = [
         title: 'Team Profile',
         description: 'Customize your team name and logo.',
         href: '/settings/team-profile',
+        prefetch: true,
         icon: 'building'
       },
       {
         title: 'Team Members',
         description: 'Invite and manage who has access to your team.',
         href: '/settings/team',
+        prefetch: true,
         icon: 'users'
       }
     ]
@@ -94,6 +101,7 @@ const rawCategories = [
         description:
           'Connect GitHub for push-to-deploy and manage deploy tokens.',
         href: '/settings/git',
+        prefetch: true,
         icon: 'git'
       },
       {
@@ -161,7 +169,7 @@ const filteredCategories = computed(() => {
     <div
       class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8"
     >
-      <div class="flex items-center space-x-3">
+      <div class="flex min-w-0 items-center space-x-3">
         <!-- Mobile menu button -->
         <button
           @click="toggleMobileMenu"
@@ -215,32 +223,23 @@ const filteredCategories = computed(() => {
         </div>
 
         <!-- Settings list by category -->
-        <div v-if="filteredCategories.length > 0" class="space-y-6">
+        <div v-if="filteredCategories.length > 0" class="space-y-8">
           <div v-for="category in filteredCategories" :key="category.name">
             <h2
               class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400"
             >
               {{ category.name }}
             </h2>
-            <div class="rounded-lg border border-gray-200 dark:border-gray-800">
+            <div class="space-y-1">
               <Link
-                v-for="(item, i) in category.items"
+                v-for="item in category.items"
                 :key="item.href"
                 :href="item.href"
-                :prefetch="
-                  ![
-                    '/settings/global-env',
-                    '/settings/cli-tokens',
-                    '/settings/audit-log'
-                  ].includes(item.href)
-                "
+                :prefetch="item.prefetch === true"
                 cache-for="5s"
-                :class="[
-                  'flex items-center justify-between px-4 py-4 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900/50',
-                  i > 0 ? 'border-t border-gray-200 dark:border-gray-800' : ''
-                ]"
+                class="focus-visible:outline-brand flex items-center justify-between gap-4 rounded-lg px-4 py-3 transition-colors hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 dark:hover:bg-gray-900/50"
               >
-                <div class="flex items-center space-x-3">
+                <div class="flex min-w-0 items-center space-x-3">
                   <Server
                     v-if="item.icon === 'server'"
                     class="h-4 w-4 text-gray-400 dark:text-gray-500"
@@ -306,7 +305,7 @@ const filteredCategories = computed(() => {
                   </div>
                 </div>
                 <ChevronRight
-                  class="h-4 w-4 text-gray-300 dark:text-gray-600"
+                  class="h-4 w-4 shrink-0 text-gray-300 dark:text-gray-600"
                   stroke-width="2"
                 />
               </Link>
