@@ -615,23 +615,19 @@ test(
           borderTopWidth: style.borderTopWidth,
           borderRightWidth: style.borderRightWidth,
           borderBottomWidth: style.borderBottomWidth,
-          borderBottomStyle: style.borderBottomStyle,
           borderLeftWidth: style.borderLeftWidth,
           borderRadius: style.borderRadius,
-          hasVisibleShadow: [
-            ...style.boxShadow.matchAll(/(-?\d*\.?\d+)px/g)
-          ].some(([, size]) => Number(size) !== 0),
+          boxShadow: style.boxShadow,
           backgroundColor: style.backgroundColor
         }
       })
     ).toMatchObject({
       borderTopWidth: '0px',
       borderRightWidth: '0px',
-      borderBottomWidth: '1px',
-      borderBottomStyle: 'dashed',
+      borderBottomWidth: '0px',
       borderLeftWidth: '0px',
       borderRadius: '0px',
-      hasVisibleShadow: false,
+      boxShadow: 'none',
       backgroundColor: 'rgba(0, 0, 0, 0)'
     })
     expect(
