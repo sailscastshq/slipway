@@ -62,7 +62,8 @@ function validate(app, siblings) {
   const mount = prefix(app)
   if (
     !/^(\/[a-zA-Z0-9._-]+)*$/.test(mount) ||
-    /(?:^|\/)(?:_slipway|\.well-known|bridge|bearing|wake|health)(?:\/|$)/.test(
+    mount.split('/').some((segment) => segment === '.' || segment === '..') ||
+    /(?:^|\/)(?:_slipway|\.well-known|bridge|bearing|wake|health)(?:\/|$)/i.test(
       mount
     )
   )
@@ -77,8 +78,10 @@ function validate(app, siblings) {
       const other = prefix(sibling)
       // Existing ingress uses prefix matching, including undeployed siblings.
       if (
-        other === mount ||
-        (other && target.startsWith(other) && other.length >= mount.length)
+        other.toLowerCase() === mount.toLowerCase() ||
+        (other &&
+          target.toLowerCase().startsWith(other.toLowerCase()) &&
+          other.length >= mount.length)
       )
         return `${target} conflicts with the ${
           sibling.name || sibling.slug

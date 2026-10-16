@@ -131,6 +131,10 @@ test(
         for (const [path, method, status] of [
           ['/.env', 'POST', 404],
           ['/.env/extra', 'GET', 404],
+          ['/.ENV', 'GET', 404],
+          ['/%2eenv', 'GET', 404],
+          ['//.env', 'GET', 404],
+          ['/unused/../.env', 'GET', 404],
           ['/missing', 'GET', 404],
           ['/normal', 'GET', 201]
         ]) {
