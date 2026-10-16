@@ -169,11 +169,12 @@ module.exports = {
             return String(value);
           }
         );
-        return { message };
+        return { message, notification: result.notification && JSON.stringify(result.notification).length <= 64000 ? result.notification : undefined };
       }
       if (typeof result === 'string') return { message: result };
       if (typeof result !== 'object' || Array.isArray(result)) return {};
       return {
+        notification: result.notification && JSON.stringify(result.notification).length <= 64000 ? result.notification : undefined,
         message:
           typeof result.message === 'string'
             ? result.message
@@ -241,8 +242,12 @@ module.exports = {
       throw error
     }
 
+    const notification = sails.helpers.bridge.normalizeActionNotification.with({
+      value: output?.notification
+    })
     return {
-      message: safeMessage(output?.message) || action.success
+      message: safeMessage(output?.message) || action.success,
+      ...(notification ? { notification } : {})
     }
   }
 }
