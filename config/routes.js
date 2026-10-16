@@ -276,6 +276,9 @@ module.exports.routes = {
   'DELETE /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug':
     'api/v1/app/destroy-app',
 
+  'PATCH /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/decoys':
+    'api/v1/app/update-decoys',
+
   // Sails-native release flags
   'GET /api/v1/flags/apps/:appId': 'api/v1/flag/get-config',
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/flags':
@@ -591,6 +594,8 @@ module.exports.routes = {
     'project/bridge-action-context',
   'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/actions/:actionName':
     'project/bridge-execute-action',
+  'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/actions/:actionName/fields/:fieldName/options':
+    'project/bridge-action-options',
   'GET /api/v1/projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/relationships/:relationshipAlias/options':
     'project/bridge-relationship-options',
   'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/:recordId/relationships/:relationshipAlias/:operation':
@@ -653,10 +658,14 @@ module.exports.routes = {
     'project/bridge-action-context',
   'POST /projects/:slug/bridge/:modelIdentity/actions/:actionName':
     'project/bridge-execute-action',
+  'GET /projects/:slug/bridge/:modelIdentity/actions/:actionName/fields/:fieldName/options':
+    'project/bridge-action-options',
   'GET /projects/:slug/environments/:envSlug/bridge/:modelIdentity/actions/:actionName/context':
     'project/bridge-action-context',
   'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/actions/:actionName':
     'project/bridge-execute-action',
+  'GET /projects/:slug/environments/:envSlug/bridge/:modelIdentity/actions/:actionName/fields/:fieldName/options':
+    'project/bridge-action-options',
   // Bridge relationship search is JSON transport for async comboboxes.
   'GET /api/v1/projects/:slug/bridge/:modelIdentity/relationships/:relationshipAlias/options':
     'project/bridge-relationship-options',

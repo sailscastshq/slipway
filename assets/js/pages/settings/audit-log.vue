@@ -253,7 +253,7 @@ function shortHash(hash) {
                   { value: 'helm', label: 'Helm' }
                 ]"
                 data-test="audit-group"
-                class="rounded-md border-0 bg-gray-50 py-2 pl-3 pr-8 text-sm text-gray-700 outline-none ring-1 ring-inset ring-gray-200 focus:ring-gray-400 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-800 dark:focus:ring-gray-600"
+                class="focus:border-brand dark:focus:border-brand min-h-10 rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent py-2 pl-1 pr-8 text-sm text-gray-900 shadow-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-transparent dark:text-white"
               />
             </label>
           </div>

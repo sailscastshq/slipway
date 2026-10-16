@@ -97,6 +97,18 @@ module.exports = {
         name: 'An app with this name already exists in this environment.'
       })
     }
+    const siblings = await sails.helpers.lookout.decoyConfig(
+      await App.find({ environment: environment.id })
+    )
+    const next = [...siblings, { id: '__new__', name, routePath, healthPath }]
+    for (const candidate of siblings) {
+      const conflict =
+        require('../../helpers/lookout/decoy-config')._private.validate(
+          candidate,
+          next
+        )
+      if (conflict) problems.push({ routePath: conflict })
+    }
     if (problems.length) {
       throw { invalid: { problems } }
     }

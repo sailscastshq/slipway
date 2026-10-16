@@ -1,4 +1,5 @@
 <script setup>
+import LookoutDecoySettings from '@/components/LookoutDecoySettings.vue'
 import { submitInertiaForm } from '@/lib/inertia-mutation'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import { useGithubRepositories } from '@/composables/useGithubRepositories'
@@ -37,6 +38,9 @@ const props = defineProps({
   project: Object,
   environment: Object,
   app: Object,
+  decoys: Object,
+  decoyPaths: Array,
+  canManageDecoys: Boolean,
   connectedRepo: Object,
   githubConnected: Boolean,
   startupWindowSeconds: { type: Number, default: 120 }
@@ -983,6 +987,14 @@ async function deleteApp() {
             </div>
           </div>
         </div>
+
+        <LookoutDecoySettings
+          :app="app"
+          :config="decoys"
+          :paths="decoyPaths"
+          :can-manage="canManageDecoys"
+          :url="`${settingsUrl}/decoys`"
+        />
 
         <!-- Danger Zone -->
         <div

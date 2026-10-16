@@ -18,6 +18,13 @@ export function useFlashToast(toast) {
     (flash) => {
       if (!flash) return
 
+      if (flash.bridgeActionResult) {
+        toast({
+          kind: 'bridge-action-result',
+          result: flash.bridgeActionResult,
+          duration: false
+        })
+      }
       if (flash.success) {
         toast({ message: flash.success, type: 'success' })
       }

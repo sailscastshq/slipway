@@ -337,6 +337,9 @@ module.exports = {
           name: environment.name,
           slug: environment.slug
         },
+        decoys: await sails.helpers.lookout.decoySummary.with({
+          environmentId: environment.id
+        }),
         appName: app ? app.name : project.name,
         containers,
         telemetry,

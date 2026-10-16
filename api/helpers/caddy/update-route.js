@@ -51,12 +51,32 @@ module.exports = {
     deferCommit,
     domainOverride
   }) {
-    const environmentApps = Array.isArray(apps)
+    let environmentApps = Array.isArray(apps)
       ? apps
       : await App.find({ environment: environmentId })
-    const previousApps = Array.isArray(apps)
+    environmentApps = await sails.helpers.lookout.decoyConfig(environmentApps)
+    for (const app of environmentApps) {
+      const conflict = require('../lookout/decoy-config')._private.validate(
+        app,
+        environmentApps
+      )
+      if (conflict) throw new Error(conflict)
+    }
+
+    let previousApps = Array.isArray(apps)
       ? await App.find({ environment: environmentId })
       : environmentApps
+    previousApps = await sails.helpers.lookout.decoyConfig(previousApps)
+    const decoyTokens = (values) =>
+      values
+        .filter((a) => a.hostPort && a.lookoutDecoys?.enabled)
+        .flatMap((a) =>
+          a.lookoutDecoys.paths.map((p) =>
+            require('../lookout/decoy-config')._private.token(a, p)
+          )
+        )
+    const expectedDecoys = decoyTokens(environmentApps)
+    const previousDecoys = decoyTokens(previousApps)
     const config = await sails.helpers.caddy.generateRouteConfig.with({
       environmentId,
       apps: environmentApps,
@@ -144,6 +164,7 @@ module.exports = {
       // This lets the deployment commit App state before retiring anything.
       await sails.helpers.caddy.verifyRoute.with({
         expectedUpstreams,
+        expectedDecoys,
         expectedDomains: config.domains
       })
 
@@ -155,6 +176,8 @@ module.exports = {
         previousExists: oldExists,
         previousWasRunning: oldWasRunning,
         previousUpstreams,
+        previousDecoys,
+        candidateDecoys: expectedDecoys,
         candidateDomains: config.domains,
         previousDomains: await Environment.getDomains(environmentId),
         candidateUpstreams: expectedUpstreams
@@ -188,6 +211,10 @@ module.exports = {
         if (oldWasRunning && previousUpstreams.length > 0) {
           await sails.helpers.caddy.verifyRoute.with({
             expectedUpstreams: previousUpstreams,
+            expectedDecoys: previousDecoys,
+            excludedDecoys: expectedDecoys.filter(
+              (v) => !previousDecoys.includes(v)
+            ),
             excludedUpstreams: expectedUpstreams.filter(
               (upstream) => !previousUpstreams.includes(upstream)
             )
@@ -365,6 +392,14 @@ function buildRouteLabels({
       upstream: controlPlaneUpstream
     })
   }
+
+  labels.push(
+    ...require('./decoy-handlers')._private.labels(sorted, handleIndex)
+  )
+  handleIndex += sorted.reduce(
+    (n, a) => n + (a.lookoutDecoys?.enabled ? a.lookoutDecoys.paths.length : 0),
+    0
+  )
 
   for (const app of sorted) {
     const routePrefix = normalizeRoutePrefix(app.routePath)

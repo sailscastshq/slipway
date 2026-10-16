@@ -146,6 +146,38 @@ module.exports = {
     }
 
     const action = loaded.actionDefinition
+    for (const [fieldName, attribute] of Object.entries(action.fields)) {
+      if (
+        !attribute.field?.optionsProvider ||
+        !Object.hasOwn(allowedValues, fieldName)
+      )
+        continue
+      const selectedIds = allowedValues[fieldName]
+      if (!selectedIds?.length) continue
+      try {
+        const result = await sails.helpers.bridge.searchActionOptions.with({
+          containerName: app.containerName,
+          action,
+          fieldName,
+          actor,
+          recordId: loaded.recordId,
+          values: allowedValues,
+          selectedIds
+        })
+        const eligible = new Set(result.options.map((option) => option.value))
+        if (selectedIds.some((id) => !eligible.has(id)))
+          throw new Error('Selection changed')
+      } catch {
+        throw {
+          badRequest: {
+            errors: {
+              [fieldName]:
+                'Some selected people are no longer available. Search and select again.'
+            }
+          }
+        }
+      }
+    }
     const auditDetails = {
       projectId: project.id,
       projectSlug: project.slug,
@@ -238,10 +270,17 @@ module.exports = {
       ipAddress: this.req.ip
     })
 
-    sails.inertia.flash(
-      'success',
-      outcome.message || action.success || `${action.label} completed.`
-    )
+    if (outcome.notification) {
+      sails.inertia.flash('bridgeActionResult', {
+        ...outcome.notification,
+        id: randomUUID()
+      })
+    } else {
+      sails.inertia.flash(
+        'success',
+        outcome.message || action.success || `${action.label} completed.`
+      )
+    }
     return actionRedirect({
       bridgeBasePath,
       resource: loaded.resource,

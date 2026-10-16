@@ -3,7 +3,7 @@ const path = require('node:path')
 const { test } = require('sounding')
 
 test(
-  'compact database select renders as text and one caret without chrome',
+  'compact database select keeps its dashed underline, one caret and keyboard placement',
   {
     browser: true,
     world: {
@@ -84,6 +84,7 @@ test(
         borderTopWidth: style.borderTopWidth,
         borderRightWidth: style.borderRightWidth,
         borderBottomWidth: style.borderBottomWidth,
+        borderBottomStyle: style.borderBottomStyle,
         borderLeftWidth: style.borderLeftWidth,
         borderRadius: style.borderRadius,
         hasVisibleShadow: style.boxShadow.includes('0.1)')
@@ -93,7 +94,8 @@ test(
     expect(chrome).toMatchObject({
       borderTopWidth: '0px',
       borderRightWidth: '0px',
-      borderBottomWidth: '0px',
+      borderBottomWidth: '1px',
+      borderBottomStyle: 'dashed',
       borderLeftWidth: '0px',
       borderRadius: '0px',
       hasVisibleShadow: false

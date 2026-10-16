@@ -1,4 +1,5 @@
 <script setup>
+import LookoutDecoyHits from '@/components/LookoutDecoyHits.vue'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
@@ -35,6 +36,10 @@ const props = defineProps({
   project: Object,
   environment: Object,
   appName: String,
+  decoys: {
+    type: Object,
+    default: () => ({ groups: [], window: 'Last hour' })
+  },
   containers: {
     type: Array,
     default: () => []
@@ -184,6 +189,7 @@ const tabs = computed(() => {
   } else {
     list.push({ id: 'setup', label: 'Set up telemetry' })
   }
+  list.push({ id: 'decoys', label: 'Decoys' })
   return list
 })
 
@@ -1060,6 +1066,8 @@ async function copyToken() {
         </div>
 
         <!-- REQUESTS TAB -->
+        <LookoutDecoyHits v-if="activeTab === 'decoys'" :summary="decoys" />
+
         <div
           v-if="activeTab === 'requests'"
           data-slot="tab-panel"
@@ -1228,6 +1236,7 @@ async function copyToken() {
                 </div>
                 <!-- Status filter -->
                 <Select
+                  aria-label="Request status"
                   :model-value="requestStatusFilter"
                   :options="[
                     { value: '', label: 'Any status' },
@@ -1237,7 +1246,7 @@ async function copyToken() {
                     { value: '5xx', label: '5xx' }
                   ]"
                   @change="requestStatusFilter = $event"
-                  class="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400"
+                  class="focus:border-brand dark:focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1.5 py-0.5 text-[10px] font-medium text-gray-900 shadow-none focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
                 />
                 <!-- Search -->
                 <div class="relative">

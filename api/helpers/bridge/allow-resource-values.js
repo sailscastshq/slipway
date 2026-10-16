@@ -220,6 +220,25 @@ function normalizeFieldValue({ value, attribute, type, field, label }) {
     throw new Error(`${label} is required.`)
   }
 
+  if (type === 'multiselect') {
+    if (
+      !Array.isArray(value) ||
+      value.length > 100 ||
+      value.some(
+        (id) =>
+          typeof id !== 'string' ||
+          !id.trim() ||
+          id.length > 200 ||
+          /[\u0000-\u001f\u007f]/.test(id)
+      )
+    )
+      throw new Error(`${label} must contain at most 100 valid identifiers.`)
+    if (attribute.required && !value.length)
+      throw new Error(`${label} is required.`)
+    if (new Set(value).size !== value.length)
+      throw new Error(`${label} contains duplicate identifiers.`)
+    return [...value]
+  }
   if (type === 'chips') {
     if (!Array.isArray(value) || value.length > 100)
       throw new Error(`${label} must contain at most 100 values.`)

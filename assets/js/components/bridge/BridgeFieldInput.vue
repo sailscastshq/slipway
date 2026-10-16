@@ -1,4 +1,5 @@
 <script setup>
+import BridgeActionMultiselect from '@/components/bridge/BridgeActionMultiselect.vue'
 import Chips from '@/components/ui/chips/Chips.vue'
 import { normalizeChip } from '@/lib/bridge/chips.mjs'
 import DateInput from '@/components/DateInput.vue'
@@ -25,6 +26,7 @@ import {
 } from '@/lib/bridge/resilient-upload.mjs'
 
 const props = defineProps({
+  actionOptions: { type: Object, default: () => null },
   field: {
     type: Object,
     required: true
@@ -849,6 +851,16 @@ function defaultPlaceholder(fieldType) {
         />
       </div>
 
+      <BridgeActionMultiselect
+        v-else-if="type === 'multiselect' && actionOptions"
+        :id="fieldId"
+        :model-value="Array.isArray(modelValue) ? modelValue : []"
+        v-bind="actionOptions"
+        :invalid="Boolean(visibleError)"
+        :described-by="describedBy"
+        @update:model-value="update"
+        @blur="handleBlur"
+      />
       <Chips
         v-else-if="type === 'chips'"
         :id="fieldId"

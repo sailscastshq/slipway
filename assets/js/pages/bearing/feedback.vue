@@ -952,7 +952,7 @@ function shortDate(value) {
                       v-model="form.category"
                       aria-label="Category"
                       :options="categoryOptions"
-                      class="min-h-10 w-auto max-w-[16rem] rounded-lg border-0 bg-gray-100 px-3.5 py-2 text-sm font-semibold text-gray-950 shadow-none hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800 dark:focus-visible:ring-white dark:focus-visible:ring-offset-gray-950"
+                      class="focus:border-brand dark:focus:border-brand min-h-10 w-auto max-w-[16rem] rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm font-semibold text-gray-900 shadow-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-transparent dark:text-white"
                     />
                   </div>
                 </div>
