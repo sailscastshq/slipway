@@ -16,12 +16,17 @@ const triggerClasses = computed(() =>
     attrs.class
   )
 )
+const chromeReset = {
+  borderRadius: '0',
+  boxShadow: 'none',
+  background: 'transparent'
+}
 </script>
 
 <template>
   <Select
     v-bind="forwardedAttrs"
     :class="triggerClasses"
-    :style="attrs.style"
+    :style="[chromeReset, attrs.style]"
   />
 </template>
