@@ -20,6 +20,11 @@ function handlers(apps) {
               match: [
                 {
                   path: [decoys.effectivePath(app, path)],
+                  vars_regexp: {
+                    '{http.request.orig_uri}': {
+                      pattern: requestPattern(app, path)
+                    }
+                  },
                   method: ['GET', 'HEAD']
                 }
               ],
@@ -87,6 +92,10 @@ function labels(apps, startIndex) {
       const key = `caddy.handle_${index++}`
       labels.push(
         `caddy.@${matcher}.path=${decoys.effectivePath(app, path)}`,
+        `caddy.@${matcher}.vars_regexp={http.request.orig_uri} ${requestPattern(
+          app,
+          path
+        )}`,
         `caddy.@${matcher}.method=GET HEAD`,
         `${key}=@${matcher}`,
         `${key}.log_name=${logger.name}`,
@@ -101,4 +110,12 @@ function labels(apps, startIndex) {
     }
   return labels
 }
-module.exports._private = { BODY, handlers, labels }
+// Caddy's path matcher folds case and cleans paths. Constrain the original
+// escaped URI as well; patterns only come from validated fixed paths/mounts.
+function requestPattern(app, path) {
+  const escaped = decoys
+    .effectivePath(app, path)
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return `^${escaped}(?:\\?.*)?$`
+}
+module.exports._private = { BODY, handlers, labels, requestPattern }

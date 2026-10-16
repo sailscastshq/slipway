@@ -8,7 +8,10 @@ app's dynamic routes. Disable decoys before changing the app mount, then verify
 the new paths before enabling again.
 
 Selected GET/HEAD requests receive a fixed 21-byte inert JSON response with HTTP
-200, JSON content type, `no-store`, and `nosniff`. Other paths and methods retain
+200, JSON content type, `no-store`, and `nosniff`. Matching also constrains the
+original escaped request URI with an anchored server-generated literal pattern.
+Case, encoding, repeated-slash and dot-segment aliases keep their normal route
+behavior; operators cannot supply patterns. Other paths and methods retain
 their ordinary behavior. No credentials, callbacks, client IPs, headers, query
 strings or bodies enter the observation store. The feature does not rate-limit
 incoming traffic and a hit does not establish that a visitor was malicious.

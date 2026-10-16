@@ -49,15 +49,41 @@ test('decoy allowlist is exact, off by default and rejects known route conflicts
     /reserved/
   )
   assert.match(config.validate({ ...app, routePath: null }, []), /Workers/)
+  assert.match(
+    config.validate({ ...app, routePath: '/BRIDGE' }, []),
+    /reserved/
+  )
+  assert.match(
+    config.validate({ ...app, routePath: '/api/../admin' }, []),
+    /reserved/
+  )
+  assert.match(
+    config.validate(app, [
+      app,
+      { id: '44', name: 'Uppercase sibling', routePath: '/API/.ENV' }
+    ]),
+    /sibling/
+  )
 })
 
 test('decoy rendering preserves exact methods, body budget and disabled behavior', () => {
   assert.deepEqual(handlers([{ ...app, lookoutDecoys: config.OFF }]), [])
   assert.deepEqual(labels([{ ...app, lookoutDecoys: config.OFF }], 0), [])
   const route = handlers([app])[0].routes[0]
-  assert.deepEqual(route.match, [
-    { path: ['/api/.env'], method: ['GET', 'HEAD'] }
+  assert.deepEqual(route.match[0].path, ['/api/.env'])
+  assert.deepEqual(route.match[0].method, ['GET', 'HEAD'])
+  const exact = new RegExp(
+    route.match[0].vars_regexp['{http.request.orig_uri}'].pattern
+  )
+  assert.ok(exact.test('/api/.env'))
+  assert.ok(exact.test('/api/.env?query=ignored'))
+  for (const alias of [
+    '/api/.ENV',
+    '/api/%2eenv',
+    '/api//.env',
+    '/api/x/../.env'
   ])
+    assert.equal(exact.test(alias), false)
   assert.equal(route.handle.at(-1).body, BODY)
   assert.ok(Buffer.byteLength(BODY) < 64)
   assert.equal(
