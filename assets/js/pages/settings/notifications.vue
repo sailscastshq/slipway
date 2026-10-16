@@ -325,15 +325,13 @@ const categoryIcons = {
             <h2 class="mb-4 text-sm font-medium text-gray-900 dark:text-white">
               Notification Events
             </h2>
-            <div class="space-y-4">
+            <div class="space-y-6">
               <div
                 v-for="(events, category) in groupedEvents"
                 :key="category"
-                class="rounded-lg border border-gray-200 dark:border-gray-800"
+                class="space-y-1"
               >
-                <div
-                  class="border-b border-gray-200 bg-gray-50/50 px-4 py-2 dark:border-gray-800 dark:bg-gray-900/50"
-                >
+                <div class="py-2">
                   <div class="flex items-center gap-2">
                     <component
                       :is="categoryIcons[category]"
@@ -345,11 +343,11 @@ const categoryIcons = {
                     >
                   </div>
                 </div>
-                <div class="divide-y divide-gray-200 dark:divide-gray-800">
+                <div class="space-y-1">
                   <label
                     v-for="event in events"
                     :key="event.id"
-                    class="flex cursor-pointer items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-900/30"
+                    class="flex cursor-pointer items-center justify-between gap-4 rounded-lg px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-900/30"
                   >
                     <div>
                       <span class="text-sm text-gray-900 dark:text-white">{{
@@ -374,9 +372,7 @@ const categoryIcons = {
             <h2 class="mb-4 text-sm font-medium text-gray-900 dark:text-white">
               Notification Channels
             </h2>
-            <div
-              class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
-            >
+            <div class="space-y-6">
               <!-- Discord Section -->
               <div v-if="filteredChannels.some((c) => c.id === 'discord')">
                 <div class="flex items-center justify-between px-4 py-3">
@@ -411,10 +407,7 @@ const categoryIcons = {
                     />
                   </label>
                 </div>
-                <div
-                  v-if="form.discordEnabled"
-                  class="border-t border-gray-200 dark:border-gray-800"
-                >
+                <div v-if="form.discordEnabled" class="space-y-1">
                   <div class="px-4 py-3">
                     <label
                       class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
@@ -480,7 +473,7 @@ const categoryIcons = {
               <!-- Slack Section -->
               <div
                 v-if="filteredChannels.some((c) => c.id === 'slack')"
-                class="border-t border-gray-200 dark:border-gray-800"
+                class="space-y-1"
               >
                 <div class="flex items-center justify-between px-4 py-3">
                   <div class="flex items-center gap-3">
@@ -514,10 +507,7 @@ const categoryIcons = {
                     />
                   </label>
                 </div>
-                <div
-                  v-if="form.slackEnabled"
-                  class="border-t border-gray-200 dark:border-gray-800"
-                >
+                <div v-if="form.slackEnabled" class="space-y-1">
                   <div class="px-4 py-3">
                     <label
                       class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
@@ -581,7 +571,7 @@ const categoryIcons = {
               <!-- Telegram Section -->
               <div
                 v-if="filteredChannels.some((c) => c.id === 'telegram')"
-                class="border-t border-gray-200 dark:border-gray-800"
+                class="space-y-1"
               >
                 <div class="flex items-center justify-between px-4 py-3">
                   <div class="flex items-center gap-3">
@@ -615,10 +605,7 @@ const categoryIcons = {
                     />
                   </label>
                 </div>
-                <div
-                  v-if="form.telegramEnabled"
-                  class="border-t border-gray-200 dark:border-gray-800"
-                >
+                <div v-if="form.telegramEnabled" class="space-y-1">
                   <div class="px-4 py-3">
                     <label
                       class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
@@ -769,7 +756,7 @@ const categoryIcons = {
               <!-- Email Section -->
               <div
                 v-if="filteredChannels.some((c) => c.id === 'email')"
-                class="border-t border-gray-200 dark:border-gray-800"
+                class="space-y-1"
               >
                 <div class="flex items-center justify-between px-4 py-3">
                   <div class="flex items-center gap-3">
@@ -795,10 +782,7 @@ const categoryIcons = {
                     />
                   </label>
                 </div>
-                <div
-                  v-if="form.smtpEnabled"
-                  class="border-t border-gray-200 dark:border-gray-800"
-                >
+                <div v-if="form.smtpEnabled" class="space-y-1">
                   <!-- Env vars notice -->
                   <div
                     v-if="smtp.fromEnv"
@@ -981,7 +965,7 @@ const categoryIcons = {
               <!-- Webhook Section -->
               <div
                 v-if="filteredChannels.some((c) => c.id === 'webhook')"
-                class="border-t border-gray-200 dark:border-gray-800"
+                class="space-y-1"
               >
                 <div class="flex items-center justify-between px-4 py-3">
                   <div class="flex items-center gap-3">
@@ -1008,10 +992,7 @@ const categoryIcons = {
                     />
                   </label>
                 </div>
-                <div
-                  v-if="form.webhookEnabled"
-                  class="border-t border-gray-200 dark:border-gray-800"
-                >
+                <div v-if="form.webhookEnabled" class="space-y-1">
                   <div class="px-4 py-3">
                     <label
                       class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
