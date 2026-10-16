@@ -122,6 +122,18 @@ test(
         }
       }
     ])
+    await sails.models.telemetryspan.create({
+      traceId: 'lookout-style-fixture',
+      spanId: 'lookout-style-span',
+      name: 'GET /normal',
+      kind: 'server',
+      method: 'GET',
+      url: '/normal',
+      statusCode: 200,
+      duration: 12,
+      startedAt: Date.now(),
+      environment: String(env.id)
+    })
     await page.raw.setViewportSize({ width: 1440, height: 1000 })
     await page.goto(`${base}/lookout?tab=decoys`)
     const hits = page.raw.getByRole('region', { name: 'Decoy hits' })
@@ -137,6 +149,25 @@ test(
         await page.raw.setViewportSize({ width, height: 1000 })
         await (scheme === 'dark' ? page.inDarkMode() : page.inLightMode())
         await hits.scrollIntoViewIfNeeded()
+        for (const label of ['App', 'Path']) {
+          const filter = hits.getByLabel(label, { exact: true })
+          const styles = await filter.evaluate((el) => {
+            const s = getComputedStyle(el)
+            return {
+              bottom: s.borderBottomStyle,
+              top: s.borderTopWidth,
+              radius: s.borderRadius,
+              background: s.backgroundColor
+            }
+          })
+          assert.equal(styles.bottom, 'dashed')
+          assert.equal(styles.top, '0px')
+          assert.equal(styles.radius, '0px')
+          assert.equal(styles.background, 'rgba(0, 0, 0, 0)')
+          await filter.focus()
+          await expect(filter).toBeFocused()
+        }
+
         assert.ok(
           await page.raw.evaluate(
             () => document.documentElement.scrollWidth <= innerWidth
@@ -144,6 +175,44 @@ test(
         )
         await page.screenshot(
           path.join(output, `hits-${scheme}-${width}.png`),
+          { animations: 'disabled' }
+        )
+      }
+    await sails.models.environment
+      .updateOne({ id: env.id })
+      .set({ features: { 'sails-hook-slipway': { version: '0.0.100' } } })
+    await page.raw.setViewportSize({ width: 1440, height: 1000 })
+    await page.goto(`${base}/lookout?tab=requests`)
+    const status = page.raw.getByLabel('Request status', { exact: true })
+    await expect(status).toBeVisible()
+    await status.focus()
+    await status.press('ArrowDown')
+    await page.raw.getByRole('option', { name: '5xx', exact: true }).click()
+    await expect(
+      page.raw.getByText('No requests match your filters.')
+    ).toBeVisible()
+    for (const width of [1440, 390])
+      for (const scheme of ['light', 'dark']) {
+        await page.raw.setViewportSize({ width, height: 1000 })
+        await (scheme === 'dark' ? page.inDarkMode() : page.inLightMode())
+        await status.scrollIntoViewIfNeeded()
+        const style = await status.evaluate((el) => {
+          const s = getComputedStyle(el)
+          return {
+            bottom: s.borderBottomStyle,
+            top: s.borderTopWidth,
+            radius: s.borderRadius,
+            background: s.backgroundColor
+          }
+        })
+        assert.equal(style.bottom, 'dashed')
+        assert.equal(style.top, '0px')
+        assert.equal(style.radius, '0px')
+        assert.equal(style.background, 'rgba(0, 0, 0, 0)')
+        await status.focus()
+        await expect(status).toBeFocused()
+        await page.screenshot(
+          path.join(output, `request-status-${scheme}-${width}.png`),
           { animations: 'disabled' }
         )
       }
