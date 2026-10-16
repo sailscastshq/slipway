@@ -3,6 +3,7 @@ import Check from '@/components/ui/icons/Check.vue'
 import InfoCircle from '@/components/ui/icons/InfoCircle.vue'
 import X from '@/components/ui/icons/X.vue'
 import Toast from '@/components/ui/toast/Toast.vue'
+import BackupToast from '@/components/BackupToast.vue'
 import DeploymentToast from '@/components/DeploymentToast.vue'
 import ServiceActionToast from '@/components/ServiceActionToast.vue'
 
@@ -29,6 +30,22 @@ function dismissDeployment(item, dismiss) {
   emit('dismiss-deployment', item.deployment.id)
 }
 
+function updateBackup(item, state) {
+  const current = props.controller
+    .getSnapshot()
+    .find((candidate) => candidate.id === item.id)
+  if (!current) return
+  const active = ['pending', 'running'].includes(state.status)
+  props.controller.update(item.id, {
+    backup: {
+      ...current.backup,
+      ...state,
+      ...(active ? {} : { completedAt: Date.now() })
+    },
+    duration: active ? false : 5000
+  })
+}
+
 function activateAction(item, event, dismiss) {
   item.action?.onClick?.(event, item)
   dismiss()
@@ -49,6 +66,12 @@ function activateAction(item, event, dismiss) {
         :deployment="item.deployment"
         @status-change="emit('deployment-status-change', $event)"
         @dismiss="dismissDeployment(item, dismiss)"
+      />
+      <BackupToast
+        v-else-if="item.kind === 'backup'"
+        :backup="item.backup"
+        @status-change="updateBackup(item, $event)"
+        @dismiss="dismiss"
       />
       <ServiceActionToast
         v-else-if="item.kind === 'service-action'"

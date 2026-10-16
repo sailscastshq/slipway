@@ -92,7 +92,7 @@ test(
     await fs.mkdir(output, { recursive: true })
     await page.resize(1280, 1000)
     await button.scrollIntoViewIfNeeded()
-    await expect(button).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+    await expect(button).toHaveCSS('outline-style', 'none')
     await button.screenshot({
       path: path.join(output, 'label-idle.png'),
       animations: 'disabled'
@@ -128,7 +128,7 @@ test(
       finishStream()
       finishStream = undefined
       await expect(toast).toContainText(
-        terminal === 'completed' ? 'Backup completed' : 'Backup failed.'
+        terminal === 'completed' ? 'Backup completed' : 'Backup failed'
       )
       await openMenu()
       await expect(button).toBeEnabled()
@@ -279,7 +279,8 @@ test(
     const row = page.raw.locator('[data-backup-row]')
     await expect(row).toContainText('Last successful backup')
     await expect(row).toContainText('74.9 KB')
-    await expect(row).toContainText('Latest attempt failed')
+    await expect(row).not.toContainText('Latest attempt failed')
+    await expect(row).not.toContainText('Backing up')
     const trigger = row.getByRole('button', {
       name: 'Backup options for FLOSSAfrica database',
       exact: true
@@ -330,6 +331,16 @@ test(
           Math.abs(rect.right - anchor.right) < 2
         )
       }, `backup-actions-${service.id}`)
+      const focusedItem = menu.getByRole('menuitem', {
+        name: 'Backup now',
+        exact: true
+      })
+      await expect(focusedItem).toBeFocused()
+      await expect(focusedItem).toHaveCSS('outline-style', 'none')
+      await expect(focusedItem).toHaveCSS(
+        'background-color',
+        theme === 'dark' ? 'rgb(38, 38, 38)' : 'rgb(250, 250, 250)'
+      )
       const rowBox = await row.boundingBox()
       const menuBox = await menu.boundingBox()
       expect(menuBox.x >= 0 && menuBox.x + menuBox.width <= width).toBe(true)
@@ -349,7 +360,162 @@ test(
       })
       await page.raw.keyboard.press('Escape')
       await expect(trigger).toBeFocused()
+      await expect(trigger).toHaveCSS('outline-color', 'rgb(115, 115, 115)')
     }
+    expect(page).toHaveNoJavascriptErrors()
+  }
+)
+
+test(
+  'backup deployment-style notification persists through running states and navigation',
+  {
+    browser: true,
+    world: {
+      name: 'configured-slipway',
+      context: { deploymentTarget: { slug: 'backup-toast-review' } }
+    }
+  },
+  async ({ sails, world, login, page, expect }) => {
+    await sails.helpers.setting.set(
+      'backupStorageConfig',
+      JSON.stringify({
+        provider: 's3',
+        bucket: 'fixture-private',
+        region: 'auto',
+        endpoint: 'https://fixture.invalid',
+        key: 'fixture',
+        secret: 'fixture'
+      })
+    )
+    const service = await world.create('service').with({
+      environment: world.current.environments.production.id,
+      name: 'FLOSSAfrica database',
+      status: 'running',
+      containerName: 'fixture-toast',
+      internalHost: 'fixture-toast',
+      internalPort: 5432,
+      database: 'db',
+      username: 'postgres'
+    })
+    await Backup.create({
+      service: service.id,
+      type: 'manual',
+      status: 'completed',
+      createdAt: Date.now() - 86400000,
+      completedAt: Date.now() - 86400000,
+      sizeBytes: 76664
+    })
+    await login.withPassword('genesisUser', page, {
+      password: world.current.auth.genesisUserPassword
+    })
+    await page.raw.addInitScript(() => {
+      const NativeEventSource = window.EventSource
+      window.EventSource = class {
+        constructor(url) {
+          if (!String(url).includes('/backups/fixture-toast/stream'))
+            return new NativeEventSource(url)
+          window.fixtureBackupStream = this
+        }
+        close() {
+          this.closed = true
+        }
+      }
+    })
+    let requests = 0
+    await page.raw.route(
+      `**/api/v1/services/${service.id}/backups`,
+      (route) => {
+        requests++
+        return route.fulfill({
+          status: 200,
+          json: { backup: { id: 'fixture-toast' } }
+        })
+      }
+    )
+    await page.goto(
+      '/projects/backup-toast-review/environments/production?services'
+    )
+    const row = page.raw.locator('[data-backup-row]')
+    const trigger = row.getByRole('button', {
+      name: 'Backup options for FLOSSAfrica database',
+      exact: true
+    })
+    const menu = page.raw.getByRole('menu', {
+      name: 'Backup options for FLOSSAfrica database',
+      exact: true
+    })
+    const notification = page.raw.locator('[data-backup-notification]')
+    const output = path.resolve('.tmp/screenshots/780')
+    await fs.mkdir(output, { recursive: true })
+    await trigger.click()
+    await menu
+      .getByRole('menuitem', { name: 'Backup now', exact: true })
+      .click()
+    await expect(notification).toHaveAttribute('data-backup-status', 'pending')
+    await page.raw.waitForFunction(() => window.fixtureBackupStream)
+    const toastId = await notification.evaluate(
+      (element) => element.closest('[data-toast-id]').dataset.toastId
+    )
+    await page.raw.evaluate(() =>
+      window.fixtureBackupStream.onmessage({
+        data: JSON.stringify({ status: 'running' })
+      })
+    )
+    await expect(notification).toHaveAttribute('data-backup-status', 'running')
+    await expect(notification).toContainText('Backing up')
+    await expect(notification).not.toContainText('Backup completed')
+    await expect(row).not.toContainText('Backing up')
+    await expect(row).not.toContainText('Latest attempt failed')
+    await trigger.click()
+    const backupNow = menu.getByRole('menuitem', {
+      name: 'Backup now',
+      exact: true
+    })
+    await expect(backupNow).toBeDisabled()
+    await backupNow.dispatchEvent('click')
+    expect(requests).toBe(1)
+    await page.raw.keyboard.press('Escape')
+    for (const width of [1280, 390]) {
+      await page.resize(width, 900)
+      await page.raw.emulateMedia({ colorScheme: 'dark' })
+      await page.screenshot(
+        path.join(output, `toast-running-dark-${width}.png`),
+        { animations: 'disabled' }
+      )
+      expect(
+        await notification.evaluate(
+          (element) =>
+            element.getBoundingClientRect().right <= window.innerWidth
+        )
+      ).toBe(true)
+    }
+    // A persistent AppLayout notification owns its stream after the page unmounts.
+    await page.resize(1280, 900)
+    await page.raw
+      .locator('a[href="/"]:visible')
+      .filter({ hasText: 'Projects' })
+      .first()
+      .click()
+    await expect(notification).toHaveAttribute('data-backup-status', 'running')
+    await page.raw.evaluate(() =>
+      window.fixtureBackupStream.onmessage({
+        data: JSON.stringify({ status: 'completed' })
+      })
+    )
+    await expect(notification).toHaveAttribute(
+      'data-backup-status',
+      'completed'
+    )
+    await expect(notification).toContainText('Backup completed')
+    await notification.screenshot({
+      path: path.join(output, 'toast-completed.png'),
+      animations: 'disabled'
+    })
+    expect(
+      await notification.evaluate(
+        (element) => element.closest('[data-toast-id]').dataset.toastId
+      )
+    ).toBe(toastId)
     expect(page).toHaveNoJavascriptErrors()
   }
 )
