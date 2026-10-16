@@ -615,6 +615,7 @@ test(
           borderTopWidth: style.borderTopWidth,
           borderRightWidth: style.borderRightWidth,
           borderBottomWidth: style.borderBottomWidth,
+          borderBottomStyle: style.borderBottomStyle,
           borderLeftWidth: style.borderLeftWidth,
           borderRadius: style.borderRadius,
           boxShadow: style.boxShadow,
@@ -624,7 +625,8 @@ test(
     ).toMatchObject({
       borderTopWidth: '0px',
       borderRightWidth: '0px',
-      borderBottomWidth: '0px',
+      borderBottomWidth: '1px',
+      borderBottomStyle: 'dashed',
       borderLeftWidth: '0px',
       borderRadius: '0px',
       boxShadow: 'none',
