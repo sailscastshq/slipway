@@ -111,8 +111,9 @@ async function save() {
         </label>
         <p class="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
           Fixed, harmless JSON · GET/HEAD only · no credentials or callbacks.
-          Observations are sampled, collected about every five minutes and
-          retained for seven days. This does not rate-limit incoming traffic.
+          Observations are sampled, usually collected every five minutes (busy
+          installations can take longer) and retained for seven days. This does
+          not rate-limit incoming traffic.
         </p>
       </fieldset>
       <p
