@@ -1351,6 +1351,42 @@ Changing a URL slug does not change helper names, authorization action names,
 audit identifiers, upload storage namespaces, or database tables. Deploy the
 application's configuration change and refresh Bridge to load its contract.
 
+### Persistent detailed action results
+
+A helper can opt into a persistent formatted result toast by returning
+`notification` alongside its existing `message`:
+
+```js
+return {
+  message: 'Preview: 18 recipients. Nothing sent.',
+  notification: {
+    title: 'Speaker email preview',
+    type: 'info',
+    subject: 'Your final recording checklist',
+    counts: [{ label: 'recipients', value: 18 }],
+    items: ['alex@example.com', 'sam@example.com'],
+    message: 'Nothing sent. Close when you’re done reviewing.'
+  }
+}
+```
+
+Types are `info`, `success`, `warning`, or `error`; choose warning for partial or
+uncertain outcomes. Counts must be nonnegative safe integers (up to eight labeled
+counts). Optional `detailsLabel` puts items behind a keyboard-operable disclosure.
+All values render as escaped text; HTML and Markdown are never executed. Results
+are bounded to a 120-character title, 300-character subject, 2,000-character
+message and the first 100 item lines of 320 characters. Clipped strings use an
+ellipsis; omitted items show an explicit count. Transport rejects structured
+payloads above 64,000 serialized characters and falls back to the legacy message.
+
+Detailed results use the existing Klean Toast controller with no dismissal timer
+and remain until explicitly closed, even when other notifications arrive. The
+viewport and content stay scrollable on mobile. Ordinary message-only action
+results retain their current short-toast timing. Result details travel in the
+session-backed, consumed Inertia flash; they are not copied into action audit
+metadata. A toast is not a durable activity history across reloads or browser
+sessions. No new per-app notification system is needed.
+
 ### Conditional record actions and fields
 
 ::: warning Availability

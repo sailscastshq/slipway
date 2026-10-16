@@ -238,10 +238,17 @@ module.exports = {
       ipAddress: this.req.ip
     })
 
-    sails.inertia.flash(
-      'success',
-      outcome.message || action.success || `${action.label} completed.`
-    )
+    if (outcome.notification) {
+      sails.inertia.flash('bridgeActionResult', {
+        ...outcome.notification,
+        id: randomUUID()
+      })
+    } else {
+      sails.inertia.flash(
+        'success',
+        outcome.message || action.success || `${action.label} completed.`
+      )
+    }
     return actionRedirect({
       bridgeBasePath,
       resource: loaded.resource,

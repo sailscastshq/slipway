@@ -1,4 +1,5 @@
 <script setup>
+import BridgeActionResultToast from '@/components/bridge/BridgeActionResultToast.vue'
 import Check from '@/components/ui/icons/Check.vue'
 import InfoCircle from '@/components/ui/icons/InfoCircle.vue'
 import X from '@/components/ui/icons/X.vue'
@@ -58,11 +59,16 @@ function activateAction(item, event, dismiss) {
     position="bottom-right"
     from="right"
     to="right"
-    class="w-80 max-w-[calc(100vw-2rem)]"
+    class="w-80 max-w-[calc(100vw-2rem)] [&:has([data-test=bridge-action-result-toast])]:w-[25.5rem]"
   >
     <template #default="{ item, dismiss }">
+      <BridgeActionResultToast
+        v-if="item.kind === 'bridge-action-result'"
+        :result="item.result"
+        @dismiss="dismiss"
+      />
       <DeploymentToast
-        v-if="item.kind === 'deployment'"
+        v-else-if="item.kind === 'deployment'"
         :deployment="item.deployment"
         @status-change="emit('deployment-status-change', $event)"
         @dismiss="dismissDeployment(item, dismiss)"
