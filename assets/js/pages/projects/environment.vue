@@ -65,7 +65,6 @@ import DeploymentHistory from '@/components/DeploymentHistory.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import { useToast } from '@/composables/toast'
 import { useServiceActions } from '@/composables/service-actions'
-import { useEventSource } from '@/composables/sse'
 import { usePrecognitionValidation } from '@/composables/precognition'
 import { configVariableSummary } from '@/lib/config-variables.mjs'
 
@@ -949,46 +948,78 @@ function cancelDeleteService() {
 
 // --- Backups ---
 const backingUpServiceId = ref(null)
-const backupStreamUrl = ref(null)
 const backupToastId = ref(null)
+let backupToastState
 
-const { close: closeBackupStream, connect: connectBackupStream } =
-  useEventSource(backupStreamUrl, {
-    immediate: false,
-    autoReconnect: false,
-    onError() {
-      closeBackupStream()
-      toast.dismiss(`${backupToastId.value}-queued`)
-      backingUpServiceId.value = null
-      toast({
-        id: `${backupToastId.value}-result`,
-        message:
-          'Backup status connection interrupted. Refresh to check whether the backup completed before retrying.',
-        type: 'error'
-      })
-      router.reload({ only: ['environment'] })
-    },
-    onMessage(msg) {
-      if (msg.status === 'completed' || msg.status === 'failed') {
-        closeBackupStream()
-        toast.dismiss(`${backupToastId.value}-queued`)
-        toast({
-          id: `${backupToastId.value}-result`,
-          message:
-            msg.status === 'completed'
-              ? 'Backup completed'
-              : 'Backup failed. Check the service backup logs before retrying.',
-          type: msg.status === 'completed' ? 'success' : 'error'
-        })
-        backingUpServiceId.value = null
-        router.reload({ only: ['environment'] })
-      }
-    }
+function updateBackupNotification(status, message = '') {
+  if (!backupToastState) return
+  const active = ['pending', 'running'].includes(status)
+  backupToastState = {
+    ...backupToastState,
+    status,
+    message,
+    ...(active ? {} : { completedAt: Date.now() })
+  }
+  toast.update(backupToastId.value, {
+    backup: backupToastState,
+    duration: active ? false : 5000
   })
+}
+
+let handledBackupNotification
+const unsubscribeBackupNotifications = toast.subscribe(() => {
+  const item = toast
+    .getSnapshot()
+    .find((candidate) => candidate.id === backupToastId.value)
+  const status = item?.backup?.status
+  if (
+    !backingUpServiceId.value ||
+    !['completed', 'failed', 'interrupted'].includes(status) ||
+    handledBackupNotification === item.id
+  )
+    return
+  handledBackupNotification = item.id
+  if (status === 'interrupted') {
+    router.reload({
+      only: ['environment'],
+      onFinish: () => {
+        backingUpServiceId.value = null
+      }
+    })
+  } else {
+    backingUpServiceId.value = null
+    router.reload({ only: ['environment'] })
+  }
+})
 
 async function triggerBackup(service) {
-  if (backingUpServiceId.value) return
+  if (
+    backingUpServiceId.value ||
+    ['pending', 'running'].includes(service.lastBackup?.status)
+  )
+    return
   backingUpServiceId.value = service.id
+  backupToastId.value = `manual-backup-${service.id}-${Date.now()}`
+  backupToastState = {
+    status: 'pending',
+    startedAt: Date.now(),
+    serviceName: service.name,
+    projectName: props.project.name,
+    environmentName: props.environment.name,
+    href:
+      service.managementMode === 'external'
+        ? `/projects/${props.project.slug}/environments/${props.environment.slug}/services/${service.id}`
+        : `/projects/${props.project.slug}/environments/${props.environment.slug}/dock/${service.id}?tab=backups`
+  }
+  toast({
+    id: backupToastId.value,
+    kind: 'backup',
+    backup: backupToastState,
+    class:
+      'block overflow-visible bg-transparent p-0 shadow-none ring-0 dark:bg-transparent',
+    dismissible: false,
+    duration: false
+  })
   try {
     const res = await fetch(`/api/v1/services/${service.id}/backups`, {
       method: 'POST',
@@ -997,17 +1028,10 @@ async function triggerBackup(service) {
     await assertMutationResponse(res)
     const data = await res.json()
     router.reload({ only: ['environment'] })
-    backupToastId.value = `manual-backup-${data.backup.id}`
-    toast({
-      id: `${backupToastId.value}-queued`,
-      duration: 0,
-      message: `Backup queued for ${service.name}`,
-      type: 'info'
-    })
-    backupStreamUrl.value = `/api/v1/backups/${data.backup.id}/stream`
-    connectBackupStream()
+    backupToastState = { ...backupToastState, backupId: data.backup.id }
+    toast.update(backupToastId.value, { backup: backupToastState })
   } catch (error) {
-    toast({ message: mutationFailureMessage(error), type: 'error' })
+    updateBackupNotification('failed', mutationFailureMessage(error))
     backingUpServiceId.value = null
   }
 }
@@ -1212,6 +1236,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  unsubscribeBackupNotifications()
   document.removeEventListener('keydown', handleEscapeKey)
 })
 </script>
@@ -2064,11 +2089,6 @@ onBeforeUnmount(() => {
                         >
                       </span>
                       <span v-else>No successful backups yet</span>
-                      <span
-                        v-if="service.lastBackup?.status === 'failed'"
-                        class="text-red-500"
-                        >Latest attempt failed</span
-                      >
                     </div>
                     <div class="relative shrink-0">
                       <button
@@ -2081,25 +2101,16 @@ onBeforeUnmount(() => {
                             service.lastBackup?.status
                           )
                         "
-                        class="flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-900 dark:hover:text-gray-200"
+                        class="backup-actions-trigger flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-900 dark:hover:text-gray-200"
                       >
-                        <Spinner
-                          v-if="
-                            backingUpServiceId === service.id ||
-                            ['pending', 'running'].includes(
-                              service.lastBackup?.status
-                            )
-                          "
-                          class="h-3.5 w-3.5"
-                        />
-                        <EllipsisHorizontal v-else class="h-4 w-4" />
+                        <EllipsisHorizontal class="h-4 w-4" />
                       </button>
                       <Menu
                         :id="`backup-actions-${service.id}`"
                         :aria-label="`Backup options for ${service.name}`"
                         placement="bottom-end"
                         :offset="4"
-                        class="w-40 rounded-lg border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-800 dark:bg-gray-900"
+                        class="backup-actions-menu w-40 rounded-lg border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-800 dark:bg-gray-900"
                       >
                         <button
                           v-if="
@@ -2122,16 +2133,7 @@ onBeforeUnmount(() => {
                           "
                           class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-wait disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
                         >
-                          <Spinner
-                            v-if="
-                              backingUpServiceId === service.id ||
-                              ['pending', 'running'].includes(
-                                service.lastBackup?.status
-                              )
-                            "
-                            class="h-4 w-4"
-                          />
-                          <Upload v-else class="h-4 w-4" stroke-width="2" />
+                          <Upload class="h-4 w-4" stroke-width="2" />
                           Backup now
                         </button>
                         <Link
@@ -2524,3 +2526,21 @@ onBeforeUnmount(() => {
     </ConfirmModal>
   </div>
 </template>
+
+<style scoped>
+/* Match the neutral menu-item focus used by Bridge row actions. The global
+   brand outline otherwise clips against this popover's full-width items. */
+.backup-actions-trigger:focus-visible {
+  outline: 2px solid var(--color-gray-500);
+  outline-offset: 2px;
+}
+.backup-actions-menu :deep([role='menuitem']:focus) {
+  outline: none;
+  background-color: var(--color-gray-50);
+}
+@media (prefers-color-scheme: dark) {
+  .backup-actions-menu :deep([role='menuitem']:focus) {
+    background-color: var(--color-gray-800);
+  }
+}
+</style>

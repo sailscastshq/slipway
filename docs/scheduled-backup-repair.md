@@ -6,7 +6,7 @@ The one-off Bridge benchmark is deleted along with its optional `local.sh bridge
 
 The schedule is persisted as the `backupSchedule` setting. The backup script checks configured storage, enabled state, interval and last-run watermark before selecting running managed/reachable external services. Existing schedule-update code preserves `lastRunAt`. The repair does not change schedule values or invoke backups.
 
-The environment controller now returns the last completed backup separately from the newest attempt. The row uses the existing Klean horizontal-ellipsis menu for “Backup now” and “Backups” and retains last successful time/size when a newer attempt fails. The invoker shows progress, the backup menu item preserves disabled/busy semantics, and the existing menu handles keyboard navigation, dismissal and positioning. No divider lines were added.
+The environment controller now returns the last completed backup separately from the newest attempt. The row uses the existing Klean horizontal-ellipsis menu for “Backup now” and “Backups” and retains last successful time/size when a newer attempt fails. The row contains only last successful backup metadata and a horizontal ellipsis. Progress and outcomes appear in one deployment-style toast; the backup menu item preserves disabled/busy semantics. The existing menu handles keyboard navigation, dismissal and positioning. No divider lines were added.
 
 ## Visual review
 
@@ -42,3 +42,13 @@ The existing `~/.slipway/config.json` connection resolved `https://slipway.sails
 - Prettier on changed source and command scripts, and `git diff --check`: passed.
 
 Direct live resident-registry inspection is not exposed by the read endpoints used; the production evidence above is deliberately limited. No live database backup, restore, schedule mutation, migration, deployment, merge or release was performed.
+
+## Review follow-up: focus and notifications
+
+The cyan horizontal lines were the global `*:focus-visible` brand outline from `assets/css/app.css`, applied to the first menu item that Klean focuses on opening. Full-width items clip its sides against the popover. They were not added borders. The backup menu now follows Bridge row actions’ neutral focused background, scoped to these items; the ellipsis retains a neutral visible keyboard outline. Other app focus styles remain unchanged.
+
+`BackupToast.vue` reuses the deployment notification’s card/progress/status layout inside the existing toast controller. It owns the backup SSE subscription in the persistent AppLayout toast layer, so navigation does not strand an active notification. The same toast identity moves through queued/running/completed/failed states; only a completion event shows success. Interrupted streams show an explicit uncertain-status message. Active notifications persist until a terminal result, with terminal dismissal and timers managed by the existing toast infrastructure. The row has no inline failure text, progress label or spinner; duplicate actions remain disabled and guarded in the handler.
+
+Mocked browser verification covers queue and terminal events, a held running stream, duplicate-action attempts, navigation before completion, interrupted streams, permission failure, neutral keyboard focus, and desktop/narrow layouts. No production backup was triggered.
+
+[Desktop running toast](images/backup-row/toast-running-dark-1280.png) · [Narrow running toast](images/backup-row/toast-running-dark-390.png) · [Completed toast](images/backup-row/toast-completed.png) · [Failed toast](images/backup-row/toast-failed.png)
