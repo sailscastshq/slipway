@@ -138,6 +138,14 @@ test('caddy route generation matches both the custom and generated hostnames whe
       { wildcardDomain: 'apps.example.com' }
     )
 
+    global.sails.helpers.lookout = {
+      decoyConfig: async (apps) =>
+        apps.map((app) => ({
+          ...app,
+          lookoutDecoys: { enabled: false, paths: [], revision: '' }
+        }))
+    }
+
     global.App = {
       find: async () => [
         {
