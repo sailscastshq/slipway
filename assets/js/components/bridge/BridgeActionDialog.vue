@@ -146,7 +146,32 @@ function validateAndRemember(field) {
   else delete localErrors.value[field.name]
 }
 
+function optionsFor(field) {
+  if (!field.attr.field?.optionsProvider) return null
+  const names = [
+    ...new Set([
+      ...field.attr.field.optionsProvider.dependsOn,
+      ...Object.keys(field.attr.visibleWhen || {})
+        .filter((p) => p.startsWith('form.'))
+        .map((p) => p.slice(5))
+    ])
+  ]
+  return {
+    searchUrl: `${props.submitUrl}/fields/${encodeURIComponent(
+      field.name
+    )}/options`,
+    recordId: props.recordId,
+    conditionToken: props.conditionToken,
+    dependencies: Object.fromEntries(
+      names.map((name) => [name, formValues.value[name]])
+    )
+  }
+}
 function updateField(field, value) {
+  for (const [name, attribute] of Object.entries(props.action?.fields || {})) {
+    if (attribute.field?.optionsProvider?.dependsOn.includes(field.name))
+      formValues.value[name] = []
+  }
   formValues.value[field.name] = value
   if (localErrors.value[field.name]) validateAndRemember(field)
   if (form.errors[field.name]) form.clearErrors(field.name)
@@ -294,6 +319,7 @@ function handleKeydown(event) {
                   v-for="field in fields"
                   :key="field.name"
                   :field="field"
+                  :action-options="optionsFor(field)"
                   :model-value="formValues[field.name]"
                   :error="
                     localErrors[field.name] || form.errors[field.name] || ''
