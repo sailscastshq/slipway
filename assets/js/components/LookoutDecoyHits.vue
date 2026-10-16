@@ -30,9 +30,10 @@ const rows = computed(() =>
       <p
         class="mt-2 max-w-2xl text-sm leading-relaxed text-gray-500 dark:text-gray-400"
       >
-        {{ summary.window }} · sampled observations, collected about every five
-        minutes. Decoy responses are separate from app successes, errors and
-        latency. A hit records a probe; it does not identify an attacker.
+        {{ summary.window }} · sampled observations, usually collected every
+        five minutes. Busy installations can take longer. Decoy responses are
+        separate from app successes, errors and latency. A hit records a probe;
+        it does not identify an attacker.
       </p>
       <p v-if="summary.capped" class="mt-2 text-xs text-gray-500">
         Showing the latest 1,000 observations.
@@ -44,7 +45,7 @@ const rows = computed(() =>
         <select
           v-model="app"
           aria-label="App"
-          class="block max-w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+          class="focus:border-brand dark:focus:border-brand block max-w-full rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm text-gray-900 shadow-none focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
         >
           <option value="">All apps</option>
           <option v-for="[id, name] in apps" :key="id" :value="id">
@@ -57,7 +58,7 @@ const rows = computed(() =>
         <select
           v-model="path"
           aria-label="Path"
-          class="block max-w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+          class="focus:border-brand dark:focus:border-brand block max-w-full rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm text-gray-900 shadow-none focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
         >
           <option value="">All paths</option>
           <option v-for="p in paths" :key="p" :value="p">{{ p }}</option>

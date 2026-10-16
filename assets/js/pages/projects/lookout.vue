@@ -1236,6 +1236,7 @@ async function copyToken() {
                 </div>
                 <!-- Status filter -->
                 <Select
+                  aria-label="Request status"
                   :model-value="requestStatusFilter"
                   :options="[
                     { value: '', label: 'Any status' },
@@ -1245,7 +1246,7 @@ async function copyToken() {
                     { value: '5xx', label: '5xx' }
                   ]"
                   @change="requestStatusFilter = $event"
-                  class="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400"
+                  class="focus:border-brand dark:focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1.5 py-0.5 text-[10px] font-medium text-gray-900 shadow-none focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
                 />
                 <!-- Search -->
                 <div class="relative">
