@@ -36,6 +36,8 @@ const canManageInstance = computed(
   () => page.props.loggedInUser?.isGenesisUser === true
 )
 
+// Prefetch is opt-in: keep secret-heavy, audit and external update reads
+// behind an explicit visit. Do not turn new settings entries on by default.
 const rawCategories = [
   {
     name: 'Instance',
@@ -45,6 +47,7 @@ const rawCategories = [
         title: 'Instance',
         description: 'Configure your Slipway instance domain and branding.',
         href: '/settings/instance',
+        prefetch: true,
         icon: 'server'
       },
       {
@@ -52,12 +55,14 @@ const rawCategories = [
         description:
           'S3-compatible storage for team logos and database backups.',
         href: '/settings/uploads',
+        prefetch: true,
         icon: 'cloud'
       },
       {
         title: 'Notifications',
         description: 'Deployment alerts via Telegram and email.',
         href: '/settings/notifications',
+        prefetch: true,
         icon: 'bell'
       },
       {
@@ -76,12 +81,14 @@ const rawCategories = [
         title: 'Team Profile',
         description: 'Customize your team name and logo.',
         href: '/settings/team-profile',
+        prefetch: true,
         icon: 'building'
       },
       {
         title: 'Team Members',
         description: 'Invite and manage who has access to your team.',
         href: '/settings/team',
+        prefetch: true,
         icon: 'users'
       }
     ]
@@ -94,6 +101,7 @@ const rawCategories = [
         description:
           'Connect GitHub for push-to-deploy and manage deploy tokens.',
         href: '/settings/git',
+        prefetch: true,
         icon: 'git'
       },
       {
@@ -227,13 +235,7 @@ const filteredCategories = computed(() => {
                 v-for="(item, i) in category.items"
                 :key="item.href"
                 :href="item.href"
-                :prefetch="
-                  ![
-                    '/settings/global-env',
-                    '/settings/cli-tokens',
-                    '/settings/audit-log'
-                  ].includes(item.href)
-                "
+                :prefetch="item.prefetch === true"
                 cache-for="5s"
                 :class="[
                   'flex items-center justify-between px-4 py-4 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900/50',
