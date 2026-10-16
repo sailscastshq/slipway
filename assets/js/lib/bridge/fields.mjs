@@ -18,6 +18,8 @@ export function toBridgeFieldInputValue(attribute, value) {
   const defaultValue = attribute.field?.default ?? attribute.defaultsTo
   const resolved = value === undefined ? defaultValue : value
 
+  if (type === 'multiselect')
+    return Array.isArray(resolved) ? [...resolved] : []
   if (type === 'chips') return chipsInputValue(resolved, attribute.field?.items)
   if (type === 'boolean') return Boolean(resolved ?? false)
   if (type === 'json') {
@@ -48,6 +50,17 @@ export function validateBridgeFieldValue({ attribute, value, isEdit = false }) {
   }
   if (isEmpty(value, type)) return ''
 
+  if (type === 'multiselect') {
+    if (
+      !Array.isArray(value) ||
+      value.length > 100 ||
+      value.some((id) => typeof id !== 'string' || !id || id.length > 200)
+    )
+      return 'Choose at most 100 available options.'
+    if (attribute.required && !value.length)
+      return `${attribute.label || 'This field'} is required.`
+    return ''
+  }
   if (type === 'chips') {
     try {
       if (!Array.isArray(value) || value.length > 100)

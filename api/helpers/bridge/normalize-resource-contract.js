@@ -67,6 +67,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
   ]
   const CUSTOM_ACTION_SCOPES = ['resource', 'record', 'bulk']
   const CUSTOM_ACTION_FIELD_TYPES = [
+    'multiselect',
     'text',
     'textarea',
     'richtext',
@@ -108,6 +109,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'recordIds'
   ]
   const CUSTOM_ACTION_FIELD_OPTION_KEYS = [
+    'optionsProvider',
     'visibleWhen',
     'type',
     'label',
@@ -1325,6 +1327,24 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       )
     }
 
+    for (const [fieldName, attribute] of Object.entries(fields)) {
+      const provider = attribute.field?.optionsProvider
+      if (!provider) continue
+      if (rawAction.scope !== 'record')
+        throw new Error(`${path} dynamic options require record scope.`)
+      for (const dependency of provider.dependsOn) {
+        const driver = fields[dependency]
+        if (
+          dependency === fieldName ||
+          !driver ||
+          driver.visibleWhen ||
+          !['boolean', 'text', 'number', 'select'].includes(driver.field.type)
+        )
+          throw new Error(
+            `${path} options dependencies require unconditional scalar sibling fields.`
+          )
+      }
+    }
     const label = readString(rawAction.label) || humanize(name)
     const destructive = rawAction.destructive === true
     const slug = slugFor(name, rawAction.slug)
@@ -1500,8 +1520,44 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       assertSerializable(rawField.default, `${path}.default`)
     }
 
+    let optionsProvider
+    if (type === 'multiselect') {
+      const provider = rawField.optionsProvider
+      if (!isPlainObject(provider))
+        throw new Error(`${path}.optionsProvider is required.`)
+      rejectUnknownKeys(
+        provider,
+        ['helper', 'dependsOn'],
+        `${path}.optionsProvider`
+      )
+      if (!isSafeHelperIdentity(provider.helper))
+        throw new Error(`${path}.optionsProvider.helper is invalid.`)
+      const dependencies = provider.dependsOn ?? []
+      if (
+        !Array.isArray(dependencies) ||
+        dependencies.length > 10 ||
+        dependencies.some((name) => !isSafeIdentifier(name)) ||
+        new Set(dependencies).size !== dependencies.length
+      )
+        throw new Error(
+          `${path}.optionsProvider.dependsOn must name at most 10 sibling fields.`
+        )
+      optionsProvider = {
+        helper: provider.helper,
+        dependsOn: [...dependencies]
+      }
+      if (
+        rawField.default !== undefined &&
+        (!Array.isArray(rawField.default) || rawField.default.length)
+      )
+        throw new Error(
+          `${path}.default must be an empty array; choose authorized values in the dialog.`
+        )
+    } else if (rawField.optionsProvider !== undefined)
+      throw new Error(`${path}.optionsProvider requires multiselect.`)
     const field = {
       type,
+      ...(optionsProvider ? { optionsProvider } : {}),
       ...(readString(rawField.help) ? { help: rawField.help.trim() } : {}),
       ...(readString(rawField.placeholder)
         ? { placeholder: rawField.placeholder.trim() }
@@ -1532,7 +1588,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
           ? 'number'
           : type === 'boolean'
           ? 'boolean'
-          : type === 'json'
+          : ['json', 'multiselect'].includes(type)
           ? 'json'
           : 'string',
       label: readString(rawField.label) || humanize(fieldName),
