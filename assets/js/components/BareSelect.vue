@@ -12,22 +12,16 @@ const forwardedAttrs = computed(() => {
 })
 const triggerClasses = computed(() =>
   twMerge(
-    'focus-visible:text-brand dark:focus-visible:text-brand-400 rounded-none border-0 bg-transparent shadow-none focus-visible:outline-none',
+    'focus:border-brand dark:focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent text-gray-900 shadow-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-transparent dark:text-white',
     attrs.class
   )
 )
-const chromeReset = {
-  border: '0',
-  borderRadius: '0',
-  boxShadow: 'none',
-  background: 'transparent'
-}
 </script>
 
 <template>
   <Select
     v-bind="forwardedAttrs"
     :class="triggerClasses"
-    :style="[chromeReset, attrs.style]"
+    :style="attrs.style"
   />
 </template>
