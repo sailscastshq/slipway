@@ -63,17 +63,15 @@ test(
       assert.equal(state.optionCalls.length, before)
       state.denied = false
       const post = (people) =>
-        client
-          .withHeaders({ 'x-csrf-token': browser.token })
-          .post(base, {
-            recordId: 1,
-            conditionToken: token,
-            values: {
-              selectionMode: 'selected',
-              people,
-              acceptanceMessage: 'Hello'
-            }
-          })
+        client.withHeaders({ 'x-csrf-token': browser.token }).post(base, {
+          recordId: 1,
+          conditionToken: token,
+          values: {
+            selectionMode: 'selected',
+            people,
+            acceptanceMessage: 'Hello'
+          }
+        })
       expect(await post([])).toHaveStatus(400)
       expect(await post(['foreign'])).toHaveStatus(400)
       assert.equal(state.calls.length, 0)
