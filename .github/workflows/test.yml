@@ -375,7 +375,8 @@ jobs:
 
   test:
     name: Test (${{ matrix.lane }})
-    timeout-minutes: 15
+    # The full serial unit lane can approach 15 minutes on slower hosted runners.
+    timeout-minutes: 25
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

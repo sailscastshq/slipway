@@ -17,5 +17,9 @@ module.exports.quest = {
   withoutOverlapping: true,
 
   // Jobs run in the console environment for lightweight execution
-  environment: 'console'
+  environment: 'console',
+
+  // Reuse Quest's owned Linux child lifecycle and bounded live-log snapshots.
+  runtimeControls: true,
+  logBytes: 32768
 }

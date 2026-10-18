@@ -214,7 +214,31 @@ for (const project of ['desktop', 'mobile']) {
               'aria-activedescendant',
               await plain.getAttribute('id')
             )
-            await page.raw.keyboard.press('Enter')
+            // A focus advance can race the select's deferred close effects.
+            // Keep the user's next field focused after those effects settle.
+            await kind.evaluate((element) => {
+              element.dispatchEvent(
+                new KeyboardEvent('keydown', {
+                  key: 'Enter',
+                  bubbles: true,
+                  cancelable: true
+                })
+              )
+              element
+                .closest('[role="dialog"]')
+                .querySelectorAll('[role="combobox"]')[1]
+                .focus()
+            })
+            await page.raw.evaluate(
+              () =>
+                new Promise((resolve) =>
+                  requestAnimationFrame(() => requestAnimationFrame(resolve))
+                )
+            )
+            await expect(
+              surface.getByRole('combobox', { name: 'Preview environments' })
+            ).toBeFocused()
+            await kind.focus()
 
             await expect(kind).toContainText('Plain config')
             await expect(surface).toBeVisible()

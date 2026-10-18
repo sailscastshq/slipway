@@ -367,3 +367,8 @@ module.exports._private = {
   createRecoveryLease,
   recoverLease
 }
+
+// Share image-use admission with conservative deployment image retention.
+module.exports.fn = require('../../lib/image-operation-guard').guard(
+  module.exports.fn
+)
