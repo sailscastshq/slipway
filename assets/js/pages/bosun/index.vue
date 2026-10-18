@@ -897,7 +897,7 @@ onUnmounted(() => {
     <!-- Tab bar (Dock-style pills with frosted glass) -->
     <div
       data-slot="tabs-list"
-      class="flex items-center space-x-1 border-b border-gray-200/50 bg-white/80 px-4 py-2 backdrop-blur-md dark:border-gray-800/50 dark:bg-gray-950/80 sm:px-6"
+      class="flex flex-wrap items-center gap-1 border-b border-gray-200/50 bg-white/80 px-4 py-2 backdrop-blur-md dark:border-gray-800/50 dark:bg-gray-950/80 sm:px-6"
     >
       <button
         v-for="tab in tabs"

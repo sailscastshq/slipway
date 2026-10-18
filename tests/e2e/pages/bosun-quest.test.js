@@ -125,6 +125,10 @@ test(
       await expect(panel.getByLabel('Instance run detail')).toContainText(
         'Safe fixture: processing backup 2 of 3'
       )
+      runs[0].logs.stdout += '\nSafe fixture: live output refreshed'
+      await expect(panel.getByLabel('Instance run detail')).toContainText(
+        'Safe fixture: live output refreshed'
+      )
       const output = path.resolve('output/bosun-quest')
       fs.mkdirSync(output, { recursive: true })
       for (const [width, theme] of [
@@ -133,7 +137,10 @@ test(
       ]) {
         await page.raw.setViewportSize({ width, height: 1100 })
         await page.raw.emulateMedia({ colorScheme: theme })
-        await panel.screenshot({
+        await expect(
+          page.raw.getByRole('tab', { name: 'Quest', exact: true })
+        ).toBeInViewport()
+        await page.raw.screenshot({
           path: path.join(output, `instance-jobs-${width}-${theme}.png`),
           animations: 'disabled'
         })
@@ -156,7 +163,10 @@ test(
         'Safe fixture: preview only'
       )
       expect(starts).toBe(1)
-      await panel.screenshot({
+      await panel
+        .getByLabel('Instance run detail')
+        .evaluate((node) => node.scrollIntoView({ block: 'start' }))
+      await page.raw.screenshot({
         path: path.join(output, 'instance-preview-mobile-dark.png'),
         animations: 'disabled'
       })

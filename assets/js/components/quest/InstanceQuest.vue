@@ -140,7 +140,7 @@ onBeforeUnmount(() => {
         </p>
       </div>
       <Button
-        variant="ghost"
+        class="min-h-8 min-w-8 h-8 w-8 bg-transparent p-1 text-gray-500 hover:bg-gray-100 dark:bg-transparent dark:text-gray-400 dark:hover:bg-gray-800"
         aria-label="Refresh instance jobs"
         @click="refresh"
         ><Refresh class="h-4 w-4"
@@ -216,7 +216,7 @@ onBeforeUnmount(() => {
             v-model="selectedJob"
             :options="options"
             aria-label="Filter instance runs"
-            class="border-0 bg-transparent shadow-none"
+            class="w-full border-0 bg-transparent py-1 text-sm text-gray-900 shadow-none dark:text-gray-300"
           />
         </div>
       </div>
