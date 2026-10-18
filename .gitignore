@@ -155,3 +155,9 @@ db/*.db-shm
 .claude
 data/
 *.mp4
+
+# Bounded instance Quest history and conservative image-operation holds
+db/instance-quest/
+db/image-operation-guard/
+db/image-retention.lock
+output/bosun-quest/

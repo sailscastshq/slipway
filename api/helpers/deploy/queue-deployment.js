@@ -141,3 +141,6 @@ async function getQueuePosition(job) {
   const index = jobs.findIndex((candidate) => candidate.id === job.id)
   return index === -1 ? 1 : index + 1
 }
+
+// Share image-use admission with conservative deployment image retention.
+module.exports.fn = require('../../lib/image-operation-guard').guard(module.exports.fn)

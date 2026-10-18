@@ -49,6 +49,7 @@ import LoadingState from '@/components/ui/loading-state/LoadingState.vue'
 import ErrorState from '@/components/ui/error-state/ErrorState.vue'
 import LogViewer from '@/components/LogViewer.vue'
 import { cancelHelmExecution, cancelledHelmResult } from '@/lib/helmExecution'
+import InstanceQuest from '@/components/quest/InstanceQuest.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
 
 defineOptions({
@@ -68,7 +69,14 @@ const sidebarCollapsed = inject('sidebarCollapsed')
 const page = usePage()
 
 // ─── Tab management (matches Dock pattern: init from URL, sync via watcher) ───
-const validTabs = ['overview', 'environment', 'console', 'migrate', 'activity']
+const validTabs = [
+  'overview',
+  'environment',
+  'console',
+  'migrate',
+  'activity',
+  'quest'
+]
 const initialTab = new URLSearchParams(window.location.search).get('tab')
 const activeTab = ref(validTabs.includes(initialTab) ? initialTab : 'overview')
 const tabs = [
@@ -76,7 +84,8 @@ const tabs = [
   { id: 'environment', name: 'Environment' },
   { id: 'console', name: 'Console' },
   { id: 'migrate', name: 'Migrate' },
-  { id: 'activity', name: 'Activity' }
+  { id: 'activity', name: 'Activity' },
+  { id: 'quest', name: 'Quest' }
 ]
 
 // ─── Console state ───
@@ -1303,6 +1312,7 @@ onUnmounted(() => {
       class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8"
     >
       <div class="mx-auto max-w-6xl">
+        <InstanceQuest v-if="activeTab === 'quest'" :csrf="page.props._csrf" />
         <!-- ═══ Overview Tab ═══ -->
         <div
           v-if="activeTab === 'overview'"

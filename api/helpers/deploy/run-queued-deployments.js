@@ -295,3 +295,6 @@ module.exports._private = {
   runClaimedJob,
   isUniqueConflict
 }
+
+// Share image-use admission with conservative deployment image retention.
+module.exports.fn = require('../../lib/image-operation-guard').guard(module.exports.fn)
