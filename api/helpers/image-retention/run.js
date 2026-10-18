@@ -3,13 +3,13 @@ const path = require('node:path')
 const { randomUUID } = require('node:crypto')
 
 module.exports = {
-  friendlyName: 'Run deployment image retention',
+  friendlyName: 'Clean up deployment images',
   description:
-    'Plan or explicitly opt into bounded image removal under one shared instance lock.',
-  inputs: {},
+    'Remove eligible old deployment images or explicitly preview under one shared instance lock.',
+  inputs: { preview: { type: 'boolean', defaultsTo: false } },
   exits: { success: { outputType: 'ref' } },
 
-  fn: async function () {
+  fn: async function ({ preview = false } = {}) {
     const lockPath = path.join(
       sails.config.appPath,
       'db',
@@ -22,11 +22,21 @@ module.exports = {
       lock = await fs.open(lockPath, 'wx', 0o600)
     } catch (error) {
       if (error.code !== 'EEXIST') throw error
+      sails.log.info(
+        'Clean up deployment images: busy; another cleanup run owns the instance lock.'
+      )
       return {
         status: 'busy',
         removed: [],
         skipped: [],
-        reason: 'Another image retention run owns the instance lock'
+        reason: 'Another image retention run owns the instance lock',
+        summary: {
+          status: 'busy',
+          removed: 0,
+          skipped: 0,
+          errors: 0,
+          deferred: 0
+        }
       }
     }
     const result = {
@@ -46,7 +56,7 @@ module.exports = {
         'cleanup'
       )
       const policy = await sails.helpers.imageRetention.getPolicy()
-      result.mode = policy.remove ? 'remove' : 'dry-run'
+      result.mode = policy.remove && !preview ? 'remove' : 'dry-run'
       result.policy = policy
       const inventory = await sails.helpers.imageRetention.getInventory.with({
         policy
@@ -64,7 +74,8 @@ module.exports = {
         policy,
         plan
       })
-      if (plan.status === 'held' || !policy.remove) return await finish()
+      if (plan.status === 'held' || result.mode === 'dry-run')
+        return await finish()
 
       result.status = 'running'
       for (const candidate of plan.candidates.slice(0, policy.maxRemovals)) {
@@ -134,7 +145,7 @@ module.exports = {
           saveError.message
         )
       )
-      sails.log.error('Image retention stopped:', result.error)
+      sails.log.error('Deployment image cleanup stopped:', result.error)
       throw new Error(result.error, { cause: error })
     } finally {
       if (releaseImages) await releaseImages()
@@ -180,6 +191,22 @@ module.exports = {
         }
       }
       result.finishedAt = Date.now()
+      result.summary = {
+        status: result.status,
+        mode: result.mode,
+        candidates: result.plan?.candidates.length || 0,
+        removed: result.removed.length,
+        skipped: result.skipped.length,
+        errors: Math.max(result.failed.length, result.error ? 1 : 0),
+        deferred: result.skipped.filter((item) =>
+          [
+            'batch-limit',
+            'run-time-limit',
+            'run-stopped',
+            'inventory-held'
+          ].includes(item.reason)
+        ).length
+      }
       await save()
       await audit('image-retention.finished', {
         status: result.status,
@@ -190,15 +217,10 @@ module.exports = {
         holds: result.holds || result.plan?.holds || [],
         error: result.error || null
       })
-      sails.log.info('Image retention:', {
-        runId: token,
-        status: result.status,
-        mode: result.mode,
-        candidates: result.plan?.candidates.length || 0,
-        removed: result.removed.length,
-        skipped: result.skipped.length,
-        failed: result.failed.length
-      })
+      const summary = result.summary
+      sails.log.info(
+        `Clean up deployment images: ${summary.status} (${summary.mode}); candidates ${summary.candidates}, removed ${summary.removed}, skipped ${summary.skipped}, errors ${summary.errors}, deferred ${summary.deferred}.`
+      )
       return result
     }
   }

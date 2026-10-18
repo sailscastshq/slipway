@@ -30,11 +30,13 @@ async function fixture(t) {
   let calls = 0,
     finish
   let nativeId
+  const inputsSent = []
   sails.quest = {
     get: (name) => (name === job.name ? job : null),
     metadata: (name) =>
       name ? (name === job.name ? job : null) : [job, { name: 'unlisted' }],
-    run: (name) => {
+    run: (name, inputs) => {
+      inputsSent.push(structuredClone(inputs))
       calls++
       job.runningCount++
       nativeId = randomUUID()
@@ -77,6 +79,7 @@ async function fixture(t) {
     job,
     calls: () => calls,
     finish: () => finish(),
+    inputsSent,
     native: () => nativeId
   }
 }
@@ -198,4 +201,28 @@ test('a torn history record disables instance controls without preventing Slipwa
   )
   assert.equal(await fs.readFile(file, 'utf8'), '{"id":')
   assert.equal(sails.listenerCount('quest:job:start'), 0)
+})
+
+test('cleanup accepts only an explicit boolean preview and keeps request identity tied to its mode', async (t) => {
+  const { adapter, job, finish, inputsSent, sails } = await fixture(t)
+  job.name = 'retain-deployment-images'
+  assert.equal((await adapter.snapshot()).jobs[0].cleanupEnabled, true)
+  for (const input of [
+    { remove: true },
+    { preview: 'true' },
+    { preview: true, other: 1 }
+  ])
+    await assert.rejects(adapter.trigger(job.name, randomUUID(), input), {
+      status: 400
+    })
+  const requestId = randomUUID()
+  await adapter.trigger(job.name, requestId, { preview: true })
+  assert.deepEqual(inputsSent[0], { preview: true })
+  finish()
+  await assert.rejects(adapter.trigger(job.name, requestId), { status: 409 })
+  await adapter.trigger(job.name, randomUUID())
+  assert.deepEqual(inputsSent[1], {})
+  finish()
+  sails.config.imageRetention = { remove: false }
+  assert.equal((await adapter.snapshot()).jobs[0].cleanupEnabled, false)
 })

@@ -82,8 +82,14 @@ async function refresh() {
     loading.value = false
   }
 }
-function ask(job) {
-  review.value = job
+function jobName(name) {
+  return (
+    data.value.jobs.find((job) => job.name === name)?.friendlyName ||
+    (name === 'retain-deployment-images' ? 'Clean up deployment images' : name)
+  )
+}
+function ask(job, preview = false) {
+  review.value = { ...job, preview }
   requestId.value = crypto.randomUUID()
 }
 async function run() {
@@ -100,7 +106,7 @@ async function run() {
       body: JSON.stringify({
         name: review.value.name,
         requestId: requestId.value,
-        jobInputs: {}
+        jobInputs: review.value.preview ? { preview: true } : {}
       })
     })
     const value = await response.json()
@@ -162,7 +168,7 @@ onBeforeUnmount(() => {
       <article
         v-for="job in data.jobs"
         :key="job.name"
-        class="flex items-start justify-between gap-4 py-4"
+        class="flex flex-wrap items-start justify-between gap-4 py-4"
       >
         <div class="min-w-0 space-y-1">
           <div class="flex flex-wrap items-center gap-2">
@@ -191,17 +197,41 @@ onBeforeUnmount(() => {
             v-if="job.name === 'retain-deployment-images'"
             class="text-xs text-gray-500"
           >
-            Preview by default. Removal requires server configuration.
+            {{
+              job.cleanupEnabled === false
+                ? 'Cleanup is disabled by instance configuration; runs preview only.'
+                : 'Removes eligible images older than 14 days; keeps at least three successful images.'
+            }}
           </p>
         </div>
-        <Button
-          variant="outline"
-          class="shrink-0"
-          :disabled="!job.manualAllowed || submitting"
-          :aria-label="`Run ${job.friendlyName || job.name}`"
-          @click="ask(job)"
-          ><Play class="h-3.5 w-3.5" />Run</Button
-        >
+        <div class="flex shrink-0 gap-2">
+          <Button
+            v-if="job.name === 'retain-deployment-images'"
+            class="border border-dashed border-gray-300 bg-transparent text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-transparent dark:text-gray-300 dark:hover:bg-gray-900"
+            :disabled="!job.manualAllowed || submitting"
+            aria-label="Preview deployment image cleanup"
+            @click="ask(job, true)"
+            >Preview</Button
+          >
+          <Button
+            variant="outline"
+            :disabled="
+              !job.manualAllowed ||
+              submitting ||
+              (job.name === 'retain-deployment-images' &&
+                job.cleanupEnabled === false)
+            "
+            :aria-label="
+              job.name === 'retain-deployment-images'
+                ? 'Clean up deployment images'
+                : `Run ${job.friendlyName || job.name}`
+            "
+            @click="ask(job)"
+            ><Play class="h-3.5 w-3.5" />{{
+              job.name === 'retain-deployment-images' ? 'Clean up' : 'Run'
+            }}</Button
+          >
+        </div>
       </article>
     </div>
     <div class="space-y-3">
@@ -232,7 +262,7 @@ onBeforeUnmount(() => {
           @click="selectedId = item.id"
         >
           <span
-            >{{ item.name
+            >{{ jobName(item.name)
             }}<span class="ml-2"
               >{{ item.trigger }} · {{ time(item.startedAt) }}</span
             ></span
@@ -247,7 +277,7 @@ onBeforeUnmount(() => {
     >
       <div class="flex flex-wrap items-center gap-2">
         <h3 class="text-sm font-medium text-gray-900 dark:text-white">
-          {{ selected.name }}
+          {{ jobName(selected.name) }}
         </h3>
         <QuestStatus :state="selected.state" />
       </div>
@@ -278,9 +308,27 @@ onBeforeUnmount(() => {
     <ConfirmModal
       :show="Boolean(review)"
       :loading="submitting"
-      :title="`Run ${review?.friendlyName || review?.name || 'job'}?`"
-      message="This runs the instance job immediately with its existing configured defaults. It can perform operational work. Its regular schedule stays in place."
-      confirm-label="Run job"
+      :title="
+        review?.preview
+          ? 'Preview deployment image cleanup?'
+          : review?.name === 'retain-deployment-images'
+          ? 'Clean up deployment images?'
+          : `Run ${review?.friendlyName || review?.name || 'job'}?`
+      "
+      :message="
+        review?.name === 'retain-deployment-images'
+          ? review.preview
+            ? 'Inspect eligible images without removing anything. The regular cleanup schedule stays in place.'
+            : 'Remove eligible old deployment images now, preserving container, deployment and recovery references. Cleanup runs in bounded batches; run again for a remaining backlog.'
+          : 'This runs the instance job immediately with its existing configured defaults. It can perform operational work. Its regular schedule stays in place.'
+      "
+      :confirm-label="
+        review?.preview
+          ? 'Preview'
+          : review?.name === 'retain-deployment-images'
+          ? 'Clean up'
+          : 'Run job'
+      "
       @confirm="run"
       @cancel="review = null"
     />

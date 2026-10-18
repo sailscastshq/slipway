@@ -12,9 +12,9 @@ test(
     const jobs = [
       {
         name: 'retain-deployment-images',
-        friendlyName: 'Retain deployment images',
+        friendlyName: 'Clean up deployment images',
         description:
-          'Preview old deployment images while preserving running work and recovery references.',
+          'Remove eligible old app deployment images while preserving running work and recovery references.',
         schedule: { interval: '24 hours', timezone: 'UTC' },
         scheduled: true,
         nextRunAt: '2026-10-22T03:30:00Z',
@@ -73,9 +73,11 @@ test(
       }
     ]
     let starts = 0
+    const requests = []
     sails.instanceQuest = {
       snapshot: async () => ({ available: true, jobs, runs, liveLogs: true }),
-      trigger: async (name, requestId) => {
+      trigger: async (name, requestId, jobInputs) => {
+        requests.push(jobInputs)
         starts++
         const run = {
           id: requestId,
@@ -84,12 +86,20 @@ test(
           state: 'completed',
           startedAt: now,
           logs: {
-            stdout: 'Safe fixture: preview only. No Docker commands executed.',
+            stdout: jobInputs.preview
+              ? 'Safe fixture: preview only. No Docker commands executed.'
+              : 'Safe fixture: cleanup complete; removed 2, skipped 1, errors 0, deferred 1.',
             stderr: ''
           },
           result: JSON.stringify({
             status: 'available',
-            value: { mode: 'dry-run', removed: [] }
+            value: {
+              mode: jobInputs.preview ? 'dry-run' : 'remove',
+              removed: jobInputs.preview ? 0 : 2,
+              skipped: 1,
+              errors: 0,
+              deferred: 1
+            }
           })
         }
         runs.unshift(run)
@@ -108,7 +118,7 @@ test(
       const panel = page.raw.locator('[data-test="instance-quest"]')
       await expect(
         panel.getByRole('heading', {
-          name: 'Retain deployment images',
+          name: 'Clean up deployment images',
           exact: true
         })
       ).toBeVisible()
@@ -120,7 +130,7 @@ test(
       ).toBeDisabled()
       expect(starts).toBe(0)
       await panel
-        .getByRole('button', { name: /^run-scheduled-backups/ })
+        .getByRole('button', { name: /^Run scheduled backups/ })
         .click()
       await expect(panel.getByLabel('Instance run detail')).toContainText(
         'Safe fixture: processing backup 2 of 3'
@@ -150,27 +160,62 @@ test(
       }
       await panel
         .getByRole('button', {
-          name: 'Run Retain deployment images',
+          name: 'Preview deployment image cleanup',
           exact: true
         })
         .click()
       const review = panel.locator('[data-test="confirm-modal"]')
       await expect(review).toBeVisible()
       expect(starts).toBe(0)
-      await review.getByRole('button', { name: 'Run job', exact: true }).click()
+      await review.getByRole('button', { name: 'Preview', exact: true }).click()
       await expect(review).not.toBeVisible()
       await expect(panel.getByLabel('Instance run detail')).toContainText(
         'Safe fixture: preview only'
       )
       expect(starts).toBe(1)
+      expect(requests[0]).toEqual({ preview: true })
       await panel
         .getByLabel('Instance run detail')
         .evaluate((node) => node.scrollIntoView({ block: 'start' }))
-      await page.raw.evaluate(() => window.scrollTo(0, 0))
-      await page.raw.screenshot({
+      await panel.getByLabel('Instance run detail').screenshot({
         path: path.join(output, 'instance-preview-mobile-dark.png'),
         animations: 'disabled'
       })
+      await panel
+        .getByRole('button', {
+          name: 'Clean up deployment images',
+          exact: true
+        })
+        .click()
+      await expect(review).toContainText(
+        'Remove eligible old deployment images now'
+      )
+      await review
+        .getByRole('button', { name: 'Clean up', exact: true })
+        .click()
+      await expect(panel.getByLabel('Instance run detail')).toContainText(
+        'Safe fixture: cleanup complete; removed 2, skipped 1, errors 0, deferred 1.'
+      )
+      expect(starts).toBe(2)
+      expect(requests[1]).toEqual({})
+      await panel.getByLabel('Instance run detail').scrollIntoViewIfNeeded()
+      await panel.getByLabel('Instance run detail').screenshot({
+        path: path.join(output, 'instance-cleanup-mobile-dark.png'),
+        animations: 'disabled'
+      })
+      jobs[0].cleanupEnabled = false
+      await expect(
+        panel.getByRole('button', {
+          name: 'Clean up deployment images',
+          exact: true
+        })
+      ).toBeDisabled()
+      await expect(
+        panel.getByRole('button', {
+          name: 'Preview deployment image cleanup',
+          exact: true
+        })
+      ).toBeEnabled()
       expect(page).toHaveNoJavascriptErrors()
     } finally {
       sails.instanceQuest = previous

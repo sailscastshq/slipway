@@ -30,6 +30,13 @@ test('the real scripts directory registers every scheduled job without executing
     'retain-deployment-images',
     'run-scheduled-backups'
   ])
+  assert.equal(
+    jobs.get('retain-deployment-images').friendlyName,
+    'Clean up deployment images'
+  )
+  assert.deepEqual(jobs.get('retain-deployment-images').scriptInputs, {
+    preview: false
+  })
   assert.equal(jobs.get('run-scheduled-backups').interval, '1 minute')
   assert.equal(jobs.get('run-scheduled-backups').withoutOverlapping, true)
 })

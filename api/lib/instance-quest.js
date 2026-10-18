@@ -182,6 +182,13 @@ function create(sails) {
             nextRunAt: job.nextRunAt,
             paused: job.paused,
             runningCount: job.runningCount,
+            ...(job.name === 'retain-deployment-images'
+              ? {
+                  cleanupEnabled:
+                    sails.config.imageRetention?.remove === undefined ||
+                    sails.config.imageRetention?.remove === true
+                }
+              : {}),
             manualAllowed:
               !storageError &&
               !stopped &&
@@ -210,11 +217,16 @@ function create(sails) {
       !inputs ||
       typeof inputs !== 'object' ||
       Array.isArray(inputs) ||
-      Object.keys(inputs).length
+      (Object.keys(inputs).length &&
+        !(
+          name === 'retain-deployment-images' &&
+          Object.keys(inputs).length === 1 &&
+          typeof inputs.preview === 'boolean'
+        ))
     )
       throw Object.assign(
         new Error(
-          'Choose a registered instance job; custom inputs are not supported.'
+          'Choose a registered instance job. Only deployment-image cleanup accepts a boolean preview input.'
         ),
         { status: 400 }
       )
@@ -224,11 +236,15 @@ function create(sails) {
         new Error(storageError?.message || 'Instance Quest is stopping.'),
         { status: 503 }
       )
+    const jobInputs = inputs.preview === true ? { preview: true } : {}
     const existing = runs.get(requestId)
     if (existing) {
-      if (existing.name !== name)
+      if (
+        existing.name !== name ||
+        JSON.stringify(existing.inputs || {}) !== JSON.stringify(jobInputs)
+      )
         throw Object.assign(
-          new Error('Request identity belongs to a different job.'),
+          new Error('Request identity belongs to a different job or mode.'),
           { status: 409 }
         )
       return { run: existing, duplicate: true }
@@ -250,6 +266,7 @@ function create(sails) {
     const run = {
       id: requestId,
       name,
+      inputs: jobInputs,
       state: 'requested',
       trigger: 'manual',
       startedAt: new Date().toISOString(),
@@ -260,7 +277,7 @@ function create(sails) {
       // request never re-executes, including after an interrupted web response.
       await save(run, true)
       runs.set(run.id, run)
-      const execution = sails.quest.run(name, {})
+      const execution = sails.quest.run(name, jobInputs)
       Promise.resolve(execution)
         .catch((error) => {
           enqueue(async () => {

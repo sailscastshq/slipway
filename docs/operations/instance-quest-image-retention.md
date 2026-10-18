@@ -4,7 +4,7 @@ Bosun → Quest shows Slipway's registered maintenance jobs, their existing UTC
 schedules, the runtime's next-run time, running state and the latest 100 runs.
 Opening Bosun never invokes a job. Instance administrators can review and run an
 allowlisted job with its configured defaults. Arbitrary scripts and custom input
-values are rejected. Manual requests have durable identities, so retrying a
+values are rejected, except the cleanup job’s boolean `preview` diagnostic. Manual requests have durable identities, so retrying a
 retained request does not execute it again. Scheduled execution remains owned by
 the existing Quest hook, including its overlap prevention and console children.
 
@@ -21,10 +21,27 @@ are bounded to 16 KiB and may be unavailable when larger.
 
 ## How the daily cleanup works
 
-`retain-deployment-images` runs every 24 hours. By default it only produces and
-audits a preview. Bosun's Run button uses server configuration and cannot turn
-removal on. `SLIPWAY_IMAGE_RETENTION_REMOVE` remains unset/false for this rollout;
-a separate reviewed rollout would be needed before changing it.
+**Upgrade behavior:** from v0.0.104, **Clean up deployment images** removes eligible
+old Slipway app deployment images by default, every 24 hours. v0.0.103 only previewed.
+No database schema migration is needed. The internal `retain-deployment-images`
+script identity stays unchanged so schedules and existing history remain compatible.
+
+In Bosun → Quest, **Clean up** runs cleanup immediately. **Preview** explicitly
+checks candidates without deleting anything and does not change the regular schedule.
+Both actions retain instance-admin authorization, CSRF, admission and shared guards.
+The only accepted cleanup input is `{ "preview": true }` (or boolean false for the
+normal configured mode); arbitrary removal overrides are rejected.
+
+`SLIPWAY_IMAGE_RETENTION_REMOVE=false` opts the instance out of removal. Unset or
+`true` enables it; invalid values fail closed to preview. The installer now persists
+and forwards this variable from `/etc/slipway/.env` (or `SLIPWAY_ENV_FILE`). An explicit
+variable supplied to the installer takes precedence over its saved value. Existing
+self-update containers preserve their environment, including an explicit opt-out.
+For a custom Docker/Compose installation, change the container’s actual environment
+and recreate it using the same image; a plain `docker restart` cannot change its
+Docker environment. A new release is not required to change this configuration.
+Bosun’s generic Environment editor currently saves database overrides only and does
+not apply this startup setting. Preview is the supported per-run runtime option.
 
 1. Acquire the cleanup lock and exclusive shared image-operation admission.
    Deployment enqueueing, reconciliation and deploy/rollback workers hold shared
@@ -42,15 +59,22 @@ a separate reviewed rollout would be needed before changing it.
    and untagged legacy images untouched.
 4. Select images strictly older than 14 days. Persist the plan to
    `imageRetentionLastRun` and write its audit record before any removal.
-5. If a future rollout explicitly enables removal, process at most 10 images per
-   run. Re-read policy, complete inventory and all references for each exact image
+5. Process at most 100 images and stop after five minutes per run by default. Re-read policy, complete inventory and all references for each exact image
    ID while retaining the exclusive guard. Use `docker image rm --no-prune ID`,
    never force, blanket prune, volume pruning or build-cache pruning. Stop on
    failure or a changed/held inventory; record removed, skipped and failed IDs.
 
 Volumes, backups, build cache and unrelated images are outside the operation.
 Virtual image sizes share layers; a candidate-size sum is not reclaimed disk space.
-Review actual host usage after a future removal rollout.
+The output is a short plain-text removed/skipped/errors/deferred summary; the full
+plan and outcomes stay in the audit records and `imageRetentionLastRun`. No reclaimed
+byte total is claimed. Review actual host usage separately.
+
+A run reports the backlog deferred by its image/time bound. The next daily run
+continues it, or an administrator can select **Clean up** again after completion.
+The bound avoids holding deployment/rollback admission indefinitely. Inventory is
+still refreshed before every individual non-force removal; a backlog never weakens
+protection or expands eligibility.
 
 ## Interrupted-operation holds
 

@@ -1,13 +1,15 @@
 module.exports = {
   friendlyName: 'Get image retention policy',
   description:
-    'Validate image-retention limits and require explicit removal opt-in.',
+    'Validate safe cleanup limits and respect an explicit removal opt-out.',
   inputs: {},
   exits: { success: { outputType: 'ref' } },
 
   fn: async function () {
     const config = sails.config.imageRetention || {}
-    const policy = { remove: config.remove === true }
+    const policy = {
+      remove: config.remove === undefined || config.remove === true
+    }
     for (const [key, fallback, minimum, maximum] of [
       ['minimumAgeDays', 14, 14, 3650],
       ['keepSuccessful', 3, 3, 100],
@@ -15,7 +17,7 @@ module.exports = {
       ['maxContainers', 1000, 1, 10000],
       ['maxRecords', 20000, 1, 100000],
       ['inspectBatchSize', 50, 1, 100],
-      ['maxRemovals', 10, 1, 100],
+      ['maxRemovals', 100, 1, 100],
       ['maxRunMs', 300000, 1000, 600000]
     ]) {
       const value = config[key] === undefined ? fallback : config[key]
