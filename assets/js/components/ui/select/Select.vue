@@ -202,6 +202,7 @@ function openSelect(edge = 'selected') {
 }
 
 function closeSelect({ restoreFocus = false } = {}) {
+  const focusAtClose = document.activeElement
   suppressNativeReopen = true
   requestOpen(false)
 
@@ -217,7 +218,18 @@ function closeSelect({ restoreFocus = false } = {}) {
     }
 
     if (restoreFocus) {
-      nextTick(() => trigger.value?.focus({ preventScroll: true }))
+      nextTick(() => {
+        const active = document.activeElement
+        // A deferred close must not steal focus after Tab or another control
+        // has already advanced it outside this select.
+        if (
+          active === focusAtClose ||
+          active === document.body ||
+          content?.contains(active)
+        ) {
+          trigger.value?.focus({ preventScroll: true })
+        }
+      })
     }
   }
 
