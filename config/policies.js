@@ -116,6 +116,8 @@ module.exports.policies = {
   'api/v1/bearing/exchange': 'rate-limit-bridge-exchange',
   'bearing/session': true,
   'bearing/view-feedback': true,
+  'bearing/update-email-preference': true,
+  'bearing/unsubscribe-updates': true,
   'bearing/create-feedback': true,
   'bearing/add-feedback-images': true,
   'bearing/subscribe-realtime': true,

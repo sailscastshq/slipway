@@ -1,9 +1,12 @@
 <script setup>
 import { Head } from '@inertiajs/vue3'
-import { computed, onUnmounted, ref } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
+import { inertiaMutation } from '@/lib/inertia-mutation'
 import { useBearingRealtime } from '@/composables/useBearingRealtime'
 
 const props = defineProps({
+  participant: Object,
+  emailSubscribed: Boolean,
   app: Object,
   bearing: Object,
   realtime: Object,
@@ -11,6 +14,38 @@ const props = defineProps({
   embedded: Boolean,
   items: Array
 })
+
+const emailSubscribed = ref(props.emailSubscribed === true)
+const emailSaving = ref(false)
+const emailStatus = ref('')
+watch(
+  () => props.emailSubscribed,
+  (value) => {
+    if (!emailSaving.value) emailSubscribed.value = value === true
+  }
+)
+async function saveEmailPreference(event) {
+  const previous = emailSubscribed.value
+  emailSubscribed.value = event.target.checked
+  emailSaving.value = true
+  emailStatus.value = 'Saving…'
+  try {
+    const receipt = await inertiaMutation(
+      'post',
+      props.app.emailPreferencePath,
+      { enabled: emailSubscribed.value, embedded: props.embedded }
+    )
+    const saved = receipt.props.flash?.bearingEmailPreference
+    if (!saved || saved.enabled !== emailSubscribed.value)
+      throw new Error('Preference was not confirmed')
+    emailStatus.value = 'Saved.'
+  } catch {
+    emailSubscribed.value = previous
+    emailStatus.value = 'Could not save. Please try again.'
+  } finally {
+    emailSaving.value = false
+  }
+}
 
 const surfaceItems = ref([...props.items])
 const highlightedFeedback = ref(new Set())
@@ -359,6 +394,49 @@ function isoDate(value) {
           </p>
         </div>
 
+        <section
+          v-if="surface === 'updates'"
+          class="mt-12 border-t border-gray-200 pt-6 text-sm dark:border-gray-800"
+          aria-label="Update email preference"
+        >
+          <label class="flex items-start gap-3">
+            <input
+              type="checkbox"
+              :checked="emailSubscribed"
+              :disabled="!participant || emailSaving"
+              :aria-busy="emailSaving"
+              aria-describedby="bearing-email-help bearing-email-status"
+              class="size-4 mt-0.5 accent-gray-950 dark:accent-white"
+              @change="saveEmailPreference"
+            />
+            <span>Email me when {{ app.name }} publishes an update</span>
+          </label>
+          <p
+            id="bearing-email-help"
+            class="mt-2 pl-7 text-gray-500 dark:text-gray-400"
+          >
+            Only this app's updates. Unsubscribe anytime.
+          </p>
+          <a
+            v-if="!participant"
+            :href="app.identityPath"
+            class="min-h-10 mt-3 inline-block pl-7 underline"
+            >Sign in to choose update emails</a
+          >
+          <p
+            id="bearing-email-status"
+            role="status"
+            aria-live="polite"
+            class="mt-2 pl-7"
+            :class="
+              emailStatus.startsWith('Could not')
+                ? 'text-red-600'
+                : 'text-gray-500 dark:text-gray-400'
+            "
+          >
+            {{ emailStatus }}
+          </p>
+        </section>
         <footer
           v-if="!embedded"
           class="mt-16 text-center text-xs text-gray-400"

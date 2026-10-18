@@ -549,6 +549,12 @@ module.exports = function defineSlipwayHook(sails) {
   function createBearingIdentityRoute() {
     return async function proveBearingIdentity(req, res) {
       if (!bearingConfig.enabled) return res.notFound()
+      const surface = req.query?.surface === 'updates' ? 'updates' : 'feedback'
+      const embedded = req.query?.embedded === '1'
+      const returnQuery =
+        surface === 'updates'
+          ? `?surface=updates${embedded ? '&embedded=1' : ''}`
+          : ''
 
       if (
         !bearingConfig.exchangeUrl ||
@@ -576,7 +582,9 @@ module.exports = function defineSlipwayHook(sails) {
       }
 
       if (!identity) {
-        const returnUrl = withBearingRoutePrefix('/_slipway/bearing/identity')
+        const returnUrl = withBearingRoutePrefix(
+          `/_slipway/bearing/identity${returnQuery}`
+        )
         const loginUrl = await resolveLoginUrl({
           req,
           featureConfig: bearingConfig,
@@ -597,7 +605,9 @@ module.exports = function defineSlipwayHook(sails) {
           token: bearingConfig.secret,
           body: {
             appId: String(bearingConfig.appId),
-            hostUser: identity
+            hostUser: identity,
+            surface,
+            embedded
           }
         })
         if (!response.launchUrl) {

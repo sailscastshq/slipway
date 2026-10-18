@@ -61,6 +61,21 @@ test('configured mail syncs UI SMTP settings before delegating', async ({
       username: 'project.9',
       password: 'secret'
     })
+    sails.helpers.setting.syncSmtpConfig = async () => {}
+    sails.config.mail.default = 'log'
+    sails.config.mail.mailers.log = { transport: 'log' }
+    calls.length = 0
+    let rejected = false
+    try {
+      await sails.helpers.mail.sendConfigured.with({
+        to: 'synthetic@example.test',
+        rejectLoggingTransport: true
+      })
+    } catch {
+      rejected = true
+    }
+    expect(rejected).toBe(true)
+    expect(calls).toEqual([])
   } finally {
     sails.helpers.setting.syncSmtpConfig = originalSyncSmtpConfig
     sails.helpers.mail.send.with = originalSendWith

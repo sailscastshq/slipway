@@ -524,6 +524,12 @@ module.exports.routes = {
   },
   'GET /bearing/session': 'bearing/session',
   'GET /_slipway/bearing/session': 'bearing/session',
+  'POST /_slipway/bearing/host/:projectSlug/:environmentSlug/:appSlug/update-email-preference':
+    'bearing/update-email-preference',
+  'GET /_slipway/bearing/host/:projectSlug/:environmentSlug/:appSlug/unsubscribe':
+    'bearing/unsubscribe-updates',
+  'POST /_slipway/bearing/host/:projectSlug/:environmentSlug/:appSlug/unsubscribe':
+    'bearing/unsubscribe-updates',
   'GET /_slipway/bearing/host/:projectSlug/:environmentSlug/:appSlug/feedback':
     'bearing/view-feedback',
   'POST /_slipway/bearing/host/:projectSlug/:environmentSlug/:appSlug/feedback':

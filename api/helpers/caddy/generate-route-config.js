@@ -242,7 +242,13 @@ function bearingHandlers({
       { handler: 'rewrite', uri: internalBasePath },
       controlPlaneProxy
     ]),
-    ...['feedback', 'roadmap', 'updates'].map((surface) =>
+    ...[
+      'feedback',
+      'roadmap',
+      'updates',
+      'update-email-preference',
+      'unsubscribe'
+    ].map((surface) =>
       subroute(`${publicBasePath}/${surface}*`, [
         {
           handler: 'rewrite',

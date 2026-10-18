@@ -6,6 +6,12 @@ const createExecutor = require('./migration-executor')
 const readSchema = require('./sqlite-schema')
 const plans = require('./migration-plans')
 const registry = require('./releases/0.0.88.json')
+const mailRegistry = require('./releases/bearing-update-emails-v1.json')
+const mailChecksum = plans.digest(mailRegistry)
+const definitions = (datastore) => ({
+  ...registry.datastores[datastore],
+  ...(mailRegistry.datastores[datastore] || {})
+})
 const compatibleSchema = require('./release-legacy-schema')
 const applySqliteMigration =
   require('../helpers/dock/apply-sqlite-migration').fn
@@ -58,8 +64,10 @@ function current(service) {
       fail('The installed release migration checksum differs from this image.')
     const native = schema({ ...service, transaction: { database: db } })
     for (const [table, definition] of Object.entries(
-      registry.datastores[service.datastore]
+      definitions(service.datastore)
     )) {
+      if (mailRegistry.datastores[service.datastore]?.[table] && !native[table])
+        return false
       if (
         !native[table] ||
         !compatibleSchema(
@@ -90,6 +98,14 @@ function current(service) {
             `The recorded release index changed at ${name}; review it before starting Slipway.`
           )
       }
+    }
+    if (mailRegistry.datastores[service.datastore]) {
+      const mailReceipt = db
+        .prepare(`SELECT checksum FROM ${receiptTable} WHERE version = ?`)
+        .get(mailRegistry.version)
+      if (!mailReceipt) return false
+      if (mailReceipt.checksum !== mailChecksum)
+        fail('The Bearing email migration checksum differs from this image.')
     }
     return true
   } finally {
@@ -130,11 +146,20 @@ function prepare(service) {
         fail(
           'The installed release migration checksum differs from this image.'
         )
-      recorded = Boolean(existingReceipt)
+      const mailReceipt = mailRegistry.datastores[service.datastore]
+        ? db
+            .prepare(`SELECT checksum FROM ${receiptTable} WHERE version = ?`)
+            .get(mailRegistry.version)
+        : null
+      if (mailReceipt && mailReceipt.checksum !== mailChecksum)
+        fail('The Bearing email migration checksum differs from this image.')
+      recorded =
+        Boolean(existingReceipt) &&
+        (!mailRegistry.datastores[service.datastore] || Boolean(mailReceipt))
     }
     db.exec('BEGIN IMMEDIATE')
     for (const [table, definition] of Object.entries(
-      registry.datastores[service.datastore]
+      definitions(service.datastore)
     )) {
       const existing = before[table]
       if (!existing) add('create_table', table, definition.create)
@@ -254,6 +279,18 @@ async function execute(service, prepared, beforeCommit, assertBudget) {
           JSON.stringify(input.backup),
           Date.now()
         )
+      if (mailRegistry.datastores[service.datastore]) {
+        input.database
+          .prepare(
+            `INSERT INTO ${receiptTable} (version, checksum, backup, applied_at) VALUES (?, ?, ?, ?) ON CONFLICT(version) DO UPDATE SET backup = excluded.backup, applied_at = excluded.applied_at`
+          )
+          .run(
+            mailRegistry.version,
+            mailChecksum,
+            JSON.stringify(input.backup),
+            Date.now()
+          )
+      }
     }
   })
   const result = await executor({ entry, actor: { id: 0, team: 0 } })

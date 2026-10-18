@@ -72,7 +72,20 @@ test('legacy upgrade preserves every row, historical column and constraint; rest
   fixture(async (directory) => {
     const before = rows(directory)
     await migrations.run({ directory })
-    assert.deepEqual(rows(directory), before)
+    const after = rows(directory)
+    for (const table of [
+      'bearing_update_consents',
+      'bearing_update_publications',
+      'bearing_update_deliveries'
+    ]) {
+      assert.deepEqual(
+        after.default[table],
+        [],
+        `${table} starts empty without backfill or consent`
+      )
+      delete after.default[table]
+    }
+    assert.deepEqual(after, before)
     for (const [datastore, file] of Object.entries(migrations.files)) {
       assert.equal(
         migrations.current({ path: path.join(directory, file), datastore }),

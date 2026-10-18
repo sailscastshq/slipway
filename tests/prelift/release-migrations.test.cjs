@@ -52,6 +52,52 @@ function hashes(directory) {
   )
 }
 
+test('already receipted installations add email tables with a separate receipt and no inherited consent', () =>
+  fixture(async (directory) => {
+    await migrations.run({ directory })
+    edit(directory, 'app.db', (db) => {
+      for (const table of [
+        'bearing_update_deliveries',
+        'bearing_update_publications',
+        'bearing_update_consents'
+      ])
+        db.exec(`DROP TABLE ${table}`)
+      db.prepare(
+        `DELETE FROM ${migrations.receiptTable} WHERE version = ?`
+      ).run('bearing-update-emails-v1')
+    })
+    const before = hashes(directory)
+    await startup.beforeLift({ directory, role: 'preflight', listen: false })
+    assert.deepEqual(hashes(directory), before)
+    await migrations.run({ directory })
+    edit(directory, 'app.db', (db) => {
+      assert.equal(
+        db
+          .prepare(
+            `SELECT checksum FROM ${migrations.receiptTable} WHERE version='0.0.88'`
+          )
+          .get().checksum,
+        migrations.checksum
+      )
+      assert.ok(
+        db
+          .prepare(
+            `SELECT checksum FROM ${migrations.receiptTable} WHERE version='bearing-update-emails-v1'`
+          )
+          .get()
+      )
+      assert.equal(
+        db
+          .prepare('SELECT count(*) AS count FROM bearing_update_consents')
+          .get().count,
+        0
+      )
+    })
+    const after = hashes(directory)
+    await migrations.run({ directory })
+    assert.deepEqual(hashes(directory), after)
+  }))
+
 test('released 86 clone validation leaves all live bytes untouched and runs no Sails hooks', () =>
   fixture(async (directory) => {
     const before = hashes(directory)

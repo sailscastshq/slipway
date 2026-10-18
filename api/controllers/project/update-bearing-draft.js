@@ -129,6 +129,12 @@ module.exports = {
           .set({ status: 'shipped' })
           .usingConnection(db)
       }
+      if (inputs.publish)
+        await require('../../lib/bearing-update-mail').recordPublication(
+          update,
+          resolved,
+          db
+        )
     })
 
     if (inputs.publish) {

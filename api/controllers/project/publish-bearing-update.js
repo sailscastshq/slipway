@@ -62,6 +62,11 @@ module.exports = {
           .set({ status: 'shipped' })
           .usingConnection(db)
       }
+      await require('../../lib/bearing-update-mail').recordPublication(
+        update,
+        resolved,
+        db
+      )
     })
 
     for (const feedback of linkedFeedback) {

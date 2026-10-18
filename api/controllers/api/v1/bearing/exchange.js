@@ -8,6 +8,12 @@ module.exports = {
 
   inputs: {
     appId: { type: 'string', required: true },
+    surface: {
+      type: 'string',
+      isIn: ['feedback', 'updates'],
+      defaultsTo: 'feedback'
+    },
+    embedded: { type: 'boolean', defaultsTo: false },
     hostUser: { type: 'json', required: true }
   },
 
@@ -18,7 +24,7 @@ module.exports = {
     forbidden: { statusCode: 403 }
   },
 
-  fn: async function ({ appId, hostUser }) {
+  fn: async function ({ appId, hostUser, surface, embedded }) {
     const app = await App.findOne({ id: appId }).decrypt()
     const presentedSecret = bearerToken(this.req)
 
@@ -48,7 +54,9 @@ module.exports = {
 
     const now = Date.now()
     const participantKey = createParticipantKey(space.id, hostUserId)
-    let participant = await BearingParticipant.findOne({ participantKey })
+    let participant = await BearingParticipant.findOne({
+      participantKey
+    }).decrypt()
 
     if (participant?.disabledAt) throw 'forbidden'
 
@@ -75,6 +83,24 @@ module.exports = {
         lastSeenAt: now,
         space: space.id
       }).fetch()
+    }
+
+    const consent = await require('../../../../lib/bearing-update-mail').latest(
+      participant.id
+    )
+    if (
+      consent?.state === 'on' &&
+      consent.emailHash !==
+        require('../../../../lib/bearing-update-mail').emailHash(email)
+    ) {
+      await BearingUpdateConsent.create({
+        participant: participant.id,
+        space: space.id,
+        state: 'off',
+        emailHash: require('../../../../lib/bearing-update-mail').emailHash(
+          email
+        )
+      })
     }
 
     const code = await sails.helpers.bearing.issueLaunchCode.with({
@@ -115,7 +141,11 @@ module.exports = {
       launchUrl: `${appUrl.replace(
         /\/$/,
         ''
-      )}/_slipway/bearing/session?code=${encodeURIComponent(code)}`
+      )}/_slipway/bearing/session?code=${encodeURIComponent(code)}${
+        surface === 'updates'
+          ? `&surface=updates${embedded ? '&embedded=1' : ''}`
+          : ''
+      }`
     }
   }
 }
