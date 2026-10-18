@@ -12,7 +12,9 @@ History is stored as bounded, redacted JSON records under `db/instance-quest/`
 (mode 0600). There is no database schema migration or synthetic App/Environment.
 Keep the existing writable, persistent `db` volume. After a restart, unfinished
 runs are marked interrupted with unknown completion; inspect effects before
-running them again. History starts when this feature is installed. Linux Quest
+running them again. History starts when this feature is installed. If history is unreadable or corrupt,
+Bosun reports it and disables instance manual runs while the rest of Slipway starts;
+preserve and inspect the records before repairing storage. Linux Quest
 owned children supply live output; other platforms show output at completion.
 The UI polls while visible and retains each stream's last 32 KiB. Return values
 are bounded to 16 KiB and may be unavailable when larger.

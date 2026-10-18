@@ -7,9 +7,30 @@ module.exports = function (sails) {
       if (sails.config.environment === 'console' || process.env.QUEST_RUN_ID)
         return
       const adapter = create(sails)
-      await adapter.initialize()
-      sails.instanceQuest = adapter
-      sails.on('lower', () => adapter.close())
+      try {
+        await adapter.initialize()
+        sails.instanceQuest = adapter
+        sails.on('lower', () => adapter.close())
+      } catch {
+        // A torn history record or unavailable volume disables manual admission,
+        // never the rest of Slipway. Preserve the files for operator inspection.
+        await adapter.close()
+        const message =
+          'Instance Quest history is unavailable. Manual runs are disabled pending storage recovery.'
+        sails.log.error(message)
+        sails.instanceQuest = {
+          snapshot: async () => ({
+            available: false,
+            error: message,
+            jobs: [],
+            runs: [],
+            liveLogs: false
+          }),
+          trigger: async () => {
+            throw Object.assign(new Error(message), { status: 503 })
+          }
+        }
+      }
     }
   }
 }

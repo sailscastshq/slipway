@@ -181,3 +181,21 @@ test('a persistence failure disables further manual admission', async (t) => {
     status: 503
   })
 })
+
+test('a torn history record disables instance controls without preventing Slipway startup', async (t) => {
+  const { root, adapter, sails } = await fixture(t)
+  await adapter.close()
+  const file = path.join(root, 'db', 'instance-quest', `${randomUUID()}.json`)
+  await fs.writeFile(file, '{"id":', { mode: 0o600 })
+  const hook = require('../../../api/hooks/instance-quest')(sails)
+  await hook.initialize()
+  const snapshot = await sails.instanceQuest.snapshot()
+  assert.equal(snapshot.available, false)
+  assert.match(snapshot.error, /Manual runs are disabled/)
+  await assert.rejects(
+    sails.instanceQuest.trigger('maintain-wake', randomUUID()),
+    { status: 503 }
+  )
+  assert.equal(await fs.readFile(file, 'utf8'), '{"id":')
+  assert.equal(sails.listenerCount('quest:job:start'), 0)
+})
