@@ -27,6 +27,7 @@ test('the real scripts directory registers every scheduled job without executing
     'maintain-observability',
     'maintain-wake',
     'reconcile-deployments',
+    'retain-deployment-images',
     'run-scheduled-backups'
   ])
   assert.equal(jobs.get('run-scheduled-backups').interval, '1 minute')

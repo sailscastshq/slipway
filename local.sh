@@ -355,9 +355,32 @@ open_shell() {
 }
 
 destroy_local_state() {
+  local local_state_path=""
+  if [ -d "$LOCAL_ROOT" ]; then
+    local_state_path="$(cd "$LOCAL_ROOT" && pwd -P)"
+    # Never mount an installation parent or the operator's home for recursive
+    # ownership recovery, even if a local-root override was configured wrongly.
+    case "$ROOT_DIR/" in
+      "$local_state_path/"*) echo "Refusing to destroy an installation parent." >&2; return 1 ;;
+    esac
+    if [ "$local_state_path" = "/" ] || [ "$local_state_path" = "$HOME" ]; then
+      echo "Refusing to destroy an unsafe local state directory." >&2
+      return 1
+    fi
+  fi
   remove_container
   docker volume rm -f "$NODE_MODULES_VOLUME" "$NPM_CACHE_VOLUME" >/dev/null 2>&1 || true
-  rm -rf "$LOCAL_ROOT"
+  if ! rm -rf -- "$LOCAL_ROOT" 2>/dev/null; then
+    # Root-owned 0700 state (including Quest history) must stay private during
+    # normal operation. Recover ownership only for this explicit local destroy,
+    # inside a container with no network or Docker socket and one bounded mount.
+    echo "Recovering ownership of container-created local state..."
+    docker run --rm --network none --user 0:0 \
+      --mount "type=bind,source=$local_state_path,target=/local-state" \
+      --entrypoint chown "$IMAGE_NAME" \
+      --no-dereference -R -P "$(id -u):$(id -g)" /local-state
+    rm -rf -- "$LOCAL_ROOT"
+  fi
   docker network rm "$NETWORK_NAME" >/dev/null 2>&1 || true
 }
 

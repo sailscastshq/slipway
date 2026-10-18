@@ -63,6 +63,11 @@ Do not delete holds merely because a timestamp looks old. These internal files
 are not committed and must remain on the same instance db volume across console
 children. This feature assumes Slipway's existing single web scheduler instance.
 
+The explicit local installer destroy command can recover ownership of private
+container-created state before deleting its local fixture directory. Its recovery
+container has one bounded mount, no network and no Docker socket; production
+history permissions remain private.
+
 ## Local evidence
 
 The unit tests replace Docker execution and use disposable directories. The
