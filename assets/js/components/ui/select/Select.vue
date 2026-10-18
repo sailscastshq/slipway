@@ -202,7 +202,7 @@ function openSelect(edge = 'selected') {
 }
 
 function closeSelect({ restoreFocus = false } = {}) {
-  const focusAtClose = document.activeElement
+  const focusAtClose = restoreFocus ? document.activeElement : undefined
   suppressNativeReopen = true
   requestOpen(false)
 
