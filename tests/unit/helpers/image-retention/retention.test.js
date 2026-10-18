@@ -340,3 +340,26 @@ test('cleanup is held while a deployment or rollback holds shared image admissio
     await release()
   }
 })
+
+test('a failed removal records each candidate as removed, failed or skipped', async (t) => {
+  const { state, deployment } = await fixture(t, { remove: true })
+  for (let n = 1; n <= 7; n++) deployment(n)
+  const remove = sails.helpers.imageRetention.removeImage.with
+  let attempts = 0
+  sails.helpers.imageRetention.removeImage.with = async (input) => {
+    if (++attempts === 2) throw new Error('fixture Docker removal failed')
+    return remove(input)
+  }
+  await assert.rejects(run.fn(), /fixture Docker removal failed/)
+  const outcome = state.writes.at(-1).value
+  assert.deepEqual(outcome.removed, [id(1)])
+  assert.deepEqual(
+    outcome.failed.map((item) => item.id),
+    [id(2)]
+  )
+  assert.deepEqual(
+    outcome.skipped.map((item) => item.id),
+    [id(3), id(4)]
+  )
+  assert.equal(outcome.status, 'failed')
+})

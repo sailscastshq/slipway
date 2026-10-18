@@ -166,6 +166,7 @@ test(
       await panel
         .getByLabel('Instance run detail')
         .evaluate((node) => node.scrollIntoView({ block: 'start' }))
+      await page.raw.evaluate(() => window.scrollTo(0, 0))
       await page.raw.screenshot({
         path: path.join(output, 'instance-preview-mobile-dark.png'),
         animations: 'disabled'

@@ -69,6 +69,7 @@ module.exports = {
       result.status = 'running'
       for (const candidate of plan.candidates.slice(0, policy.maxRemovals)) {
         if (Date.now() - result.startedAt >= policy.maxRunMs) {
+          result.stopReason = 'run-time-limit'
           result.skipped.push({ id: candidate.id, reason: 'run-time-limit' })
           break
         }
@@ -162,6 +163,22 @@ module.exports = {
       })
     }
     async function finish() {
+      if (result.mode === 'remove') {
+        const accounted = new Set([
+          ...result.removed,
+          ...result.skipped.map((item) => item.id),
+          ...result.failed.map((item) => item.id)
+        ])
+        for (const candidate of result.plan?.candidates || []) {
+          if (!accounted.has(candidate.id))
+            result.skipped.push({
+              id: candidate.id,
+              reason:
+                result.stopReason ||
+                (result.status === 'held' ? 'inventory-held' : 'run-stopped')
+            })
+        }
+      }
       result.finishedAt = Date.now()
       await save()
       await audit('image-retention.finished', {
