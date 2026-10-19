@@ -194,6 +194,31 @@ test(
       await page.goto(
         '/projects/large-upload-review/environments/production/bridge/submission/1'
       )
+      let browserPartHeaders
+      await page.raw.route(
+        '**/__bridge_fixture_part_headers',
+        async (route) => {
+          browserPartHeaders = await route.request().allHeaders()
+          return route.fulfill({ status: 204 })
+        }
+      )
+      const partType = await page.raw.evaluate(async () => {
+        const file = new File(['synthetic bytes'], 'synthetic.mp4', {
+          type: 'video/mp4'
+        })
+        const part = file.slice(0, 4)
+        await new Promise((resolve, reject) => {
+          const request = new XMLHttpRequest()
+          request.open('PUT', '/__bridge_fixture_part_headers')
+          request.upload.addEventListener('progress', () => {})
+          request.onload = resolve
+          request.onerror = reject
+          request.send(part)
+        })
+        return part.type
+      })
+      expect(partType).toBe('')
+      expect(browserPartHeaders['content-type']).toBe(undefined)
       await page.raw
         .getByRole('button', {
           name: 'Actions for Building with Sails',
