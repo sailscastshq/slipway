@@ -85,12 +85,34 @@ protection or expands eligibility.
 
 ## Interrupted-operation holds
 
+A held run removed nothing unless its summary explicitly records earlier successful
+removals. The summary distinguishes `inventoryStatus: not-started` from an assessed plan.
+Mode is still reported as `remove` or `dry-run`; it describes policy, not
+permission to bypass the hold. Summaries and CLI logs include the hold reason:
+`image-use-guard-present`, `image-cleanup-guard-present`, or
+`image-admission-guard-busy`. The separate cleanup lock reports
+`image-retention-lock-present`. These describe recorded guards, not proof that an
+owner is alive or stale. Inventory holds also retain their bounded, redacted reasons.
+Protected and skipped reason counts explain why an image backlog remains.
+
 Guard files are under `db/image-operation-guard/`; cleanup also uses
 `db/image-retention.lock`. They deliberately have no automatic stale timeout.
 A crashed or interrupted owner leaves a conservative hold rather than allowing a
 slow deployment or rollback to race deletion. An operator must verify that no
 web/console worker or deployment owns the marker before removing a stale hold.
-Do not delete holds merely because a timestamp looks old. These internal files
+Do not delete holds merely because a timestamp looks old. Version 2 use guards
+record a random ownership token plus Linux boot identity, PID namespace and kernel
+process-start ticks. A reused PID is not the original owner. During removal runs,
+only use records proved dead in the same boot/namespace can be quarantined
+automatically, after complete idle cache/durable-work checks and a fresh bounded
+recheck under admission. The exclusive cleanup marker exists before any use
+record is moved. Quarantine and its manifest persist under
+`db/image-guard-retired/`; outcomes report `recoveredGuards`. Preview/opt-out
+runs do not attempt this recovery. Live, legacy, malformed, cross-namespace,
+reboot, admission and cleanup holds require operator inspection; an uncertain
+daemon operation is never released based on process death alone. Exact owned
+content is checked again during release, preventing an old owner from deleting a
+replacement owner's marker. There is no PID-only or age-based stale timeout. These internal files
 are not committed and must remain on the same instance db volume across console
 children. This feature assumes Slipway's existing single web scheduler instance.
 

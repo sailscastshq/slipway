@@ -205,10 +205,7 @@ onBeforeUnmount(() => {
             <button
               type="button"
               :disabled="
-                !job.manualAllowed ||
-                submitting ||
-                (job.name === 'retain-deployment-images' &&
-                  job.cleanupEnabled === false)
+                !job.manualAllowed || submitting || job.cleanupEnabled === false
               "
               class="flex w-full items-center rounded px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
               @click="ask(job)"
@@ -296,15 +293,23 @@ onBeforeUnmount(() => {
       :title="
         review?.name === 'retain-deployment-images'
           ? 'Clean up deployment images?'
+          : review?.name === 'retain-build-cache'
+          ? 'Clean up old build cache?'
           : `Run ${review?.friendlyName || review?.name || 'job'}?`
       "
       :message="
         review?.name === 'retain-deployment-images'
           ? 'Remove eligible old deployment images now, preserving container, deployment and recovery references. Cleanup runs in bounded batches; run again for a remaining backlog.'
+          : review?.name === 'retain-build-cache'
+          ? 'Remove only unused old build cache using the configured storage target. Deployment images and volumes are not pruned. Builds wait for this bounded maintenance run.'
           : 'This runs the instance job immediately with its existing configured defaults. It can perform operational work. Its regular schedule stays in place.'
       "
       :confirm-label="
-        review?.name === 'retain-deployment-images' ? 'Clean up' : 'Run job'
+        ['retain-deployment-images', 'retain-build-cache'].includes(
+          review?.name
+        )
+          ? 'Clean up'
+          : 'Run job'
       "
       @confirm="run"
       @cancel="review = null"

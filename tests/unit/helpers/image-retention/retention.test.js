@@ -340,7 +340,10 @@ test('single-flight lock excludes a simultaneous worker and is released after co
   }
   const first = run.fn()
   await started
-  assert.equal((await run.fn()).status, 'busy')
+  const busy = await run.fn()
+  assert.equal(busy.status, 'busy')
+  assert.equal(busy.summary.mode, 'dry-run')
+  assert.deepEqual(busy.summary.holds, ['image-retention-lock-present'])
   release()
   assert.equal((await first).status, 'dry-run')
   await assert.rejects(fs.stat(path.join(root, 'db', 'image-retention.lock')), {
@@ -403,7 +406,26 @@ test('cleanup is held while a deployment or rollback holds shared image admissio
     const result = await run.fn()
     assert.equal(result.status, 'held')
     assert.deepEqual(state.removed, [])
-    assert.deepEqual(result.holds, ['deployment-or-maintenance-in-progress'])
+    assert.deepEqual(result.holds, ['image-use-guard-present'])
+    assert.equal(result.summary.mode, 'remove')
+    assert.deepEqual(result.summary.holds, ['image-use-guard-present'])
+    assert.match(state.logs.at(-1), /Hold: image-use-guard-present/)
+    const {
+      safeResult
+    } = require('../../../../packages/hook/lib/quest-runtime')
+    const redactor = {
+      available: true,
+      text: (value) => value,
+      value: (value) => value
+    }
+    assert.equal(
+      safeResult(
+        { status: 'available', value: result.summary },
+        redactor,
+        16384
+      ).status,
+      'available'
+    )
   } finally {
     await release()
   }
@@ -574,4 +596,44 @@ test('unexplained orphan recovery metadata still holds all image retention', asy
       'Recovery metadata does not match the app traffic owner'
     )
   )
+})
+
+for (const [marker, reason] of [
+  ['cleanup', 'image-cleanup-guard-present'],
+  ['admission', 'image-admission-guard-busy']
+]) {
+  test(`cleanup exposes ${reason} without removing its marker`, async (t) => {
+    const { root, state } = await fixture(t)
+    const directory = path.join(root, 'db', 'image-operation-guard')
+    await fs.mkdir(directory, { recursive: true })
+    const markerPath = path.join(directory, marker)
+    if (marker === 'admission') await fs.mkdir(markerPath)
+    else
+      await fs.writeFile(
+        markerPath,
+        JSON.stringify({ pid: 999999, startedAt: 1 })
+      )
+    const result = await run.fn()
+    assert.equal(result.status, 'held')
+    assert.equal(result.summary.mode, 'remove')
+    assert.deepEqual(result.summary.holds, [reason])
+    assert.deepEqual(state.removed, [])
+    assert.ok(await fs.stat(markerPath))
+    assert.doesNotMatch(state.logs.at(-1), /undefined|stale|expired/)
+  })
+}
+
+test('inventory holds remain explicit in bounded redacted job summaries', async (t) => {
+  const { state, policy } = await fixture(t)
+  policy.pinnedImages = ['missing']
+  sails.config.imageRetention.pinnedImages = ['missing']
+  sails.hooks = {
+    secrets: { text: (value) => value.replaceAll('missing', '<redacted>') }
+  }
+  const result = await job.fn()
+  assert.equal(result.status, 'held')
+  assert.equal(result.mode, 'remove')
+  assert.match(result.holds[0], /Unresolved pin reference: <redacted>/)
+  assert.deepEqual(state.removed, [])
+  assert.doesNotMatch(state.logs.at(-1), /missing/)
 })
