@@ -175,6 +175,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'label',
     'show',
     'searchable',
+    'description',
     'search',
     'fields',
     'limit',
@@ -834,6 +835,18 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
         value: raw?.search,
         allowed: relatedResource?.search || []
       })
+      const description = normalizeRelationshipFieldList({
+        identity,
+        alias: association.alias,
+        option: 'description',
+        value: raw?.description,
+        allowed: (relatedResource?.show || []).filter(
+          (field) =>
+            isRelationshipScopeAttribute(relatedResource.attributes[field]) &&
+            !relatedResource.associations.some((entry) => entry.alias === field)
+        ),
+        defaults: []
+      })
       const configuredFields = normalizeRelationshipFieldList({
         identity,
         alias: association.alias,
@@ -887,6 +900,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
         searchable:
           !hidden && !disabled && (raw?.searchable ?? searchFields.length > 0),
         search: searchFields,
+        ...(description.length ? { description } : {}),
         fields,
         limit,
         ...(where ? { where } : {}),
@@ -945,7 +959,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
         `Bridge relationship "${identity}.${alias}".${option}`
       )
     }
-    for (const option of ['search', 'fields']) {
+    for (const option of ['search', 'fields', 'description']) {
       if (
         relation[option] !== undefined &&
         (!Array.isArray(relation[option]) ||

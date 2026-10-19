@@ -25,6 +25,8 @@ test(
     const courseId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80221'
     const lessonId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80222'
     let mutation
+    let allowTargetView = true
+    let optionQueries = 0
 
     const contract = await sails.helpers.bridge.normalizeResourceContract.with({
       models: relationshipModels(),
@@ -51,23 +53,29 @@ test(
           for (const authorizationRequest of requests) {
             decisions[authorizationRequest.key] =
               decisions[authorizationRequest.key] || {}
-            decisions[authorizationRequest.key][
-              authorizationRequest.action
-            ] = true
+            decisions[authorizationRequest.key][authorizationRequest.action] =
+              !(
+                !allowTargetView &&
+                authorizationRequest.resource.identity === 'lesson' &&
+                authorizationRequest.action === 'viewAny'
+              )
           }
           return successfulResult(decisions)
         }
         if (code.includes('const textSearch = definition.query')) {
+          optionQueries += 1
           const definition = readEmbeddedValue(code, 'definition')
           expect(definition.page).toBe(2)
           expect(definition.query).toBe('deploy')
           expect(definition.limit).toBe(12)
+          expect(definition.description).toEqual(['id'])
           expect(definition.recordId).toBe(courseId)
           return successfulResult({
             options: [
               {
                 id: lessonId,
                 label: 'Deploy without drama',
+                description: lessonId,
                 attached: false
               }
             ],
@@ -99,6 +107,7 @@ test(
         'options.0.label',
         'Deploy without drama'
       )
+      expect(optionsResponse).toHaveJsonPath('options.0.description', lessonId)
       expect(optionsResponse).toHaveJsonPath('options.0.attached', false)
       expect(optionsResponse).toHaveJsonPath('hasMore', false)
 
@@ -118,6 +127,11 @@ test(
         relatedId: lessonId,
         operation: 'attach'
       })
+
+      allowTargetView = false
+      const deniedOptions = await browser.request.get(optionsPath)
+      expect(deniedOptions).toHaveStatus(400)
+      expect(optionQueries).toBe(1)
     } finally {
       sails.helpers.bridge.introspectModels = originalIntrospectModels
       sails.helpers.bridge.buildSailsWrapper = originalBuildSailsWrapper
@@ -318,6 +332,7 @@ function relationshipConfig({ attach, detach }) {
         relationships: {
           lessons: {
             label: 'Lessons',
+            description: ['id'],
             fields: ['id', 'title'],
             search: ['title'],
             limit: 12,
