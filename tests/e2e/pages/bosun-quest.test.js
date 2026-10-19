@@ -84,6 +84,21 @@ test(
         })
       }
     ]
+    runs.push({
+      id: randomUUID(),
+      name: 'run-scheduled-backups',
+      trigger: 'manual',
+      state: 'failed',
+      startedAt: now,
+      finishedAt: now,
+      error: 'Safe fixture: backup destination unavailable',
+      logs: {
+        stdout: '',
+        stderr: 'Safe fixture: retry after checking destination',
+        truncated: true
+      },
+      result: '{invalid retained result'
+    })
     let starts = 0
     const requests = []
     sails.instanceQuest = {
@@ -166,15 +181,93 @@ test(
       await page.raw.keyboard.press('Escape')
       await expect(backupActions).toBeFocused()
       await panel
-        .getByRole('button', { name: /^Run scheduled backups/ })
+        .getByRole('button', {
+          name: 'Runs for Run scheduled backups',
+          exact: true
+        })
         .click()
-      await expect(panel.getByLabel('Instance run detail')).toContainText(
+      const backupRuns = panel.getByRole('region', {
+        name: 'Runs for Run scheduled backups',
+        exact: true
+      })
+      await expect(backupRuns.getByLabel('Instance run detail')).toHaveCount(0)
+      await backupRuns.getByRole('button', { name: /^scheduled run/ }).click()
+      await expect(backupRuns.getByLabel('Instance run detail')).toContainText(
         'Safe fixture: processing backup 2 of 3'
       )
       runs[0].logs.stdout += '\nSafe fixture: live output refreshed'
-      await expect(panel.getByLabel('Instance run detail')).toContainText(
+      await expect(backupRuns.getByLabel('Instance run detail')).toContainText(
         'Safe fixture: live output refreshed'
       )
+      const failedRun = backupRuns.getByRole('button', { name: /^manual run/ })
+      await failedRun.click()
+      const failureDetail = backupRuns
+        .locator(`[data-run="${runs[2].id}"]`)
+        .getByLabel('Instance run detail')
+      await expect(failureDetail).toContainText(
+        'Safe fixture: backup destination unavailable'
+      )
+      await expect(failureDetail).toContainText(
+        'Safe fixture: retry after checking destination'
+      )
+      await expect(failureDetail).toContainText(
+        'Showing the retained output tail'
+      )
+      await expect(failureDetail).toContainText(
+        'The return value exceeded the capture limit'
+      )
+      await expect(backupRuns.getByLabel('Instance run detail')).toHaveCount(2)
+      await failedRun.click()
+      const cleanupJob = panel.getByRole('button', {
+        name: 'Runs for Clean up deployment images',
+        exact: true
+      })
+      await cleanupJob.click()
+      const cleanupRuns = panel.getByRole('region', {
+        name: 'Runs for Clean up deployment images',
+        exact: true
+      })
+      await cleanupRuns.getByRole('button', { name: /^scheduled run/ }).click()
+      await expect(cleanupRuns.getByLabel('Instance run detail')).toContainText(
+        '2 candidates, 0 removed'
+      )
+      await expect(backupRuns.getByLabel('Instance run detail')).toBeVisible()
+      await cleanupJob.click()
+      await expect(cleanupRuns).toHaveCount(0)
+      await expect(backupRuns.getByLabel('Instance run detail')).toBeVisible()
+      await cleanupJob.click()
+      await expect(cleanupRuns.getByLabel('Instance run detail')).toContainText(
+        '2 candidates, 0 removed'
+      )
+      await cleanupRuns.getByRole('button', { name: /^scheduled run/ }).click()
+      await expect(cleanupRuns.getByLabel('Instance run detail')).toHaveCount(0)
+      const emptyJob = panel.getByRole('button', {
+        name: 'Runs for Maintain observability',
+        exact: true
+      })
+      await emptyJob.focus()
+      await page.raw.keyboard.press('Enter')
+      await expect(
+        panel.getByRole('region', { name: 'Runs for Maintain observability' })
+      ).toContainText('No runs recorded yet')
+      await emptyJob.click()
+      for (const width of [1440, 390]) {
+        for (const theme of ['light', 'dark']) {
+          await page.raw.setViewportSize({ width, height: 1100 })
+          await page.raw.emulateMedia({ colorScheme: theme })
+          await panel
+            .getByRole('heading', { name: 'Instance jobs', exact: true })
+            .scrollIntoViewIfNeeded()
+          await emptyJob.blur()
+          await page.raw.screenshot({
+            path: path.join(output, `inline-runs-${width}-${theme}.png`),
+            animations: 'disabled'
+          })
+          expect(
+            await panel.evaluate((node) => node.scrollWidth <= node.clientWidth)
+          ).toBe(true)
+        }
+      }
       for (const [width, theme] of [
         [1440, 'light'],
         [390, 'dark']
@@ -230,16 +323,24 @@ test(
         .getByRole('button', { name: 'Clean up', exact: true })
         .click()
       await expect(review).not.toBeVisible()
-      await expect(panel.getByLabel('Instance run detail')).toContainText(
+      await expect(
+        cleanupRuns.getByLabel('Instance run detail').last()
+      ).toContainText(
         'Safe fixture: cleanup complete; removed 2, skipped 1, errors 0, deferred 1.'
       )
       expect(starts).toBe(1)
       expect(requests[0]).toEqual({})
-      await panel.getByLabel('Instance run detail').scrollIntoViewIfNeeded()
-      await panel.getByLabel('Instance run detail').screenshot({
-        path: path.join(output, 'instance-cleanup-menu-mobile-dark.png'),
-        animations: 'disabled'
-      })
+      await cleanupRuns
+        .getByLabel('Instance run detail')
+        .last()
+        .scrollIntoViewIfNeeded()
+      await cleanupRuns
+        .getByLabel('Instance run detail')
+        .last()
+        .screenshot({
+          path: path.join(output, 'instance-cleanup-menu-mobile-dark.png'),
+          animations: 'disabled'
+        })
       jobs[0].cleanupEnabled = false
       await cleanupActions.click()
       await expect(
