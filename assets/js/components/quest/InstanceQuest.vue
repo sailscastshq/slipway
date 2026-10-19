@@ -1,49 +1,136 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
-import QuestStatus from './QuestStatus.vue'
-import InstanceQuestRun from './InstanceQuestRun.vue'
-import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
+import QuestJobList from './QuestJobList.vue'
+import QuestJobDetail from './QuestJobDetail.vue'
+import QuestGlobalRuns from './QuestGlobalRuns.vue'
+import QuestRunDetail from './QuestRunDetail.vue'
+import QuestRunningJobs from './QuestRunningJobs.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import Button from '@/components/ui/button/Button.vue'
+import Input from '@/components/ui/input/Input.vue'
+import Tabs from '@/components/ui/tabs/Tabs.vue'
+import BareSelect from '@/components/BareSelect.vue'
 import Refresh from '@/components/ui/icons/Refresh.vue'
-import Play from '@/components/ui/icons/Play.vue'
-import RowActions from '@/components/ui/row-actions/RowActions.vue'
+import { questJobState, questRunTime } from '@/lib/questWorkspace.mjs'
 
 const props = defineProps({ csrf: String })
+const apiUrl = '/api/v1/bosun/quest'
 const data = ref({ jobs: [], runs: [], available: false })
 const error = ref('')
+const actionError = ref('')
 const loading = ref(true)
 const submitting = ref(false)
-const expandedJobs = ref(new Set())
-const expandedRuns = ref(new Set())
 const review = ref(null)
 const requestId = ref('')
+const now = ref(Date.now())
+const activeTab = ref('jobs')
+const jobTab = ref('runs')
+const search = ref('')
+const stateFilter = ref('all')
+const runJobFilter = ref('all')
+const runStateFilter = ref('all')
+const selectedJobName = ref('')
+const selectedRunId = ref('')
 let timer
 let controller
 let stopped = false
-const runsByJob = computed(() => {
-  const grouped = new Map()
-  for (const run of data.value.runs) {
-    if (!grouped.has(run.name)) grouped.set(run.name, [])
-    grouped.get(run.name).push(run)
-  }
-  return grouped
+const live = computed(
+  () =>
+    data.value.workspace || {
+      mode: 'unavailable',
+      capabilities: {},
+      jobs: [],
+      runs: [],
+      legacyEvents: [],
+      nextCursor: null
+    }
+)
+const fresh = computed(
+  () =>
+    data.value.available &&
+    !error.value &&
+    now.value - (live.value.observedAt || 0) < 10000
+)
+const jobs = computed(() => live.value.jobs)
+const selectedJob = computed(() =>
+  jobs.value.find((job) => job.name === selectedJobName.value)
+)
+const selectedSummary = computed(() =>
+  live.value.runs.find((run) => run.runId === selectedRunId.value)
+)
+const selectedRunJob = computed(
+  () =>
+    jobs.value.find((job) => job.name === selectedSummary.value?.jobName) ||
+    selectedJob.value
+)
+const detailRevision = computed(() => selectedSummary.value?.revision || '')
+const jobRuns = computed(() =>
+  live.value.runs.filter((run) => run.jobName === selectedJobName.value)
+)
+const lastActivity = computed(() => {
+  const result = {}
+  for (const run of [...live.value.runs].sort(
+    (a, b) => questRunTime(b) - questRunTime(a)
+  ))
+    if (!result[run.jobName]) result[run.jobName] = run
+  return result
 })
-function toggle(set, key) {
-  if (set.has(key)) set.delete(key)
-  else set.add(key)
+const state = (job) => questJobState(job, live.value, fresh.value)
+const filteredJobs = computed(() =>
+  jobs.value.filter(
+    (job) =>
+      `${job.name} ${job.friendlyName || ''} ${job.description || ''}`
+        .toLowerCase()
+        .includes(search.value.toLowerCase()) &&
+      (stateFilter.value === 'all' ||
+        (stateFilter.value === 'failed'
+          ? lastActivity.value[job.name]?.state === 'failed'
+          : state(job) === stateFilter.value))
+  )
+)
+const filteredRuns = computed(() =>
+  live.value.runs.filter(
+    (run) =>
+      (runJobFilter.value === 'all' || run.jobName === runJobFilter.value) &&
+      (runStateFilter.value === 'all' || run.state === runStateFilter.value)
+  )
+)
+function runDisabledReason(job) {
+  const current = jobs.value.find((item) => item.name === job?.name)
+  if (!fresh.value)
+    return 'Current instance state is unavailable. Refresh to retry.'
+  if (!current?.manualAllowed)
+    return 'Manual execution is unavailable for this job.'
+  if (current.cleanupEnabled === false)
+    return 'Cleanup removal is disabled in instance configuration.'
+  if (current.isRunning && current.withoutOverlapping)
+    return 'This job is already running.'
+  return ''
 }
-function time(value) {
-  return value ? new Date(value).toLocaleString() : '—'
+const canInvoke = (job) => !submitting.value && !runDisabledReason(job)
+function clearFilters() {
+  search.value = ''
+  stateFilter.value = 'all'
 }
-function schedule(job) {
-  return job.schedule?.cron || job.schedule?.interval || 'Manual'
+function chooseJob(job) {
+  selectedJobName.value = job.name
+  selectedRunId.value = ''
+  jobTab.value = 'runs'
+  activeTab.value = 'jobs'
+}
+function closeJob() {
+  selectedJobName.value = ''
+  selectedRunId.value = ''
+}
+function chooseRun(run) {
+  selectedRunId.value = run.runId
+  selectedJobName.value = run.jobName
 }
 async function refresh() {
   if (controller || stopped) return
   controller = new AbortController()
   try {
-    const response = await fetch('/api/v1/bosun/quest', {
+    const response = await fetch(apiUrl, {
       signal: controller.signal,
       headers: { Accept: 'application/json' }
     })
@@ -61,14 +148,16 @@ async function refresh() {
   }
 }
 function ask(job) {
+  if (!canInvoke(job)) return
+  actionError.value = ''
   review.value = job
   requestId.value = crypto.randomUUID()
 }
 async function run() {
-  if (submitting.value) return
+  if (!review.value || !canInvoke(review.value)) return
   submitting.value = true
   try {
-    const response = await fetch('/api/v1/bosun/quest/run', {
+    const response = await fetch(`${apiUrl}/run`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -84,12 +173,12 @@ async function run() {
     const value = await response.json()
     if (!response.ok)
       throw new Error(value.error || 'Job could not be started.')
-    expandedJobs.value.add(value.run.name)
-    expandedRuns.value.add(value.run.id)
+    chooseJob(review.value)
+    selectedRunId.value = value.run.id
     review.value = null
     await refresh()
   } catch (failure) {
-    error.value = failure.message
+    actionError.value = failure.message
   } finally {
     submitting.value = false
   }
@@ -97,6 +186,7 @@ async function run() {
 onMounted(() => {
   refresh()
   timer = setInterval(() => {
+    now.value = Date.now()
     if (!document.hidden) refresh()
   }, 2000)
 })
@@ -105,8 +195,15 @@ onBeforeUnmount(() => {
   clearInterval(timer)
   controller?.abort()
 })
+const tabClass = (current, value) => [
+  'border-b-2 py-3 text-sm font-medium',
+  current === value
+    ? 'border-gray-900 text-gray-900 dark:border-white dark:text-white'
+    : 'border-transparent text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+]
+const filterClass =
+  'focus:border-brand min-h-10 rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-0 dark:border-gray-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-brand'
 </script>
-
 <template>
   <section data-test="instance-quest" class="space-y-6">
     <div class="flex items-start justify-between gap-4">
@@ -128,111 +225,168 @@ onBeforeUnmount(() => {
     <p v-if="error" role="alert" class="text-sm text-red-600 dark:text-red-400">
       {{ error }}
     </p>
+    <p
+      v-if="actionError"
+      role="alert"
+      class="text-sm text-red-600 dark:text-red-400"
+    >
+      {{ actionError }}
+    </p>
     <p v-if="loading" class="text-sm text-gray-500" role="status">
       Loading jobs…
     </p>
     <p v-else-if="!data.available" class="text-sm text-gray-500">
-      The instance Quest runtime is unavailable.
+      The instance Quest runtime is unavailable. Retained history is still
+      available.
     </p>
-    <div v-else class="space-y-2">
-      <article v-for="job in data.jobs" :key="job.name" :data-job="job.name">
+    <QuestRunningJobs
+      :jobs="jobs"
+      :fresh="fresh"
+      context-key="instance"
+      @select-job="chooseJob"
+    />
+    <Tabs
+      v-model="activeTab"
+      aria-label="Quest workspace"
+      class="quest-workspace-tabs"
+    >
+      <div data-slot="tabs-list" class="-mb-px flex gap-6">
+        <button data-value="jobs" :class="tabClass(activeTab, 'jobs')">
+          Jobs
+          <span class="ml-1 text-xs font-normal text-gray-400">{{
+            jobs.length
+          }}</span></button
+        ><button data-value="runs" :class="tabClass(activeTab, 'runs')">
+          Runs
+        </button>
+      </div>
+      <div data-slot="tab-panel" data-value="jobs" class="pt-4">
         <div
-          class="flex items-start gap-2 rounded-lg px-2 py-3 hover:bg-gray-50 dark:hover:bg-gray-900/50"
+          :class="[
+            'mb-4 flex flex-wrap gap-2',
+            selectedJob && 'hidden lg:flex'
+          ]"
         >
-          <button
-            type="button"
-            class="flex min-w-0 flex-1 items-start gap-2 text-left"
-            :aria-label="`Runs for ${job.friendlyName || job.name}`"
-            :aria-expanded="expandedJobs.has(job.name)"
-            :aria-controls="`instance-runs-${job.name}`"
-            @click="toggle(expandedJobs, job.name)"
-          >
-            <ChevronRight
-              class="mt-0.5 h-4 w-4 shrink-0 text-gray-400 transition-transform motion-reduce:transition-none"
-              :class="{ 'rotate-90': expandedJobs.has(job.name) }"
-            />
-            <div class="min-w-0 flex-1 space-y-1">
-              <div class="flex flex-wrap items-center gap-2">
-                <h3 class="text-sm font-medium text-gray-900 dark:text-white">
-                  {{ job.friendlyName || job.name }}
-                </h3>
-                <QuestStatus
-                  :state="
-                    job.runningCount
-                      ? 'running'
-                      : job.paused
-                      ? 'paused'
-                      : job.scheduled
-                      ? 'scheduled'
-                      : 'inactive'
-                  "
-                />
-                <span class="text-xs text-gray-400"
-                  >{{ runsByJob.get(job.name)?.length || 0 }}
-                  {{
-                    runsByJob.get(job.name)?.length === 1 ? 'run' : 'runs'
-                  }}</span
-                >
-              </div>
-              <p class="text-xs text-gray-500">{{ job.description }}</p>
-              <p class="text-xs text-gray-500">
-                <span class="font-mono">{{ schedule(job) }}</span> ·
-                {{ job.schedule?.timezone || 'UTC' }}
-                <span class="ml-2 inline-block"
-                  >Next: {{ time(job.nextRunAt) }}</span
-                >
-              </p>
-            </div>
-          </button>
-          <RowActions
-            :id="`instance-job-actions-${job.name}`"
-            :label="`Actions for ${job.friendlyName || job.name}`"
-            :busy="submitting"
-            class="shrink-0 text-gray-400 dark:text-gray-400"
-          >
-            <template #menu>
-              <button
-                type="button"
-                :disabled="
-                  !job.manualAllowed ||
-                  submitting ||
-                  job.cleanupEnabled === false
-                "
-                class="flex w-full items-center rounded px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
-                @click="ask(job)"
-              >
-                <Play class="mr-2 h-4 w-4" />Run now
-              </button>
-            </template>
-          </RowActions>
-        </div>
-        <div
-          v-if="expandedJobs.has(job.name)"
-          :id="`instance-runs-${job.name}`"
-          class="ml-3 space-y-1 pb-3 sm:ml-8"
-          :aria-label="`Runs for ${job.friendlyName || job.name}`"
-          role="region"
-        >
-          <p
-            v-if="!runsByJob.get(job.name)?.length"
-            class="px-3 py-3 text-xs text-gray-500"
-          >
-            No runs recorded yet. Scheduled and manual runs appear here.
-          </p>
-          <InstanceQuestRun
-            v-for="item in runsByJob.get(job.name) || []"
-            :key="item.id"
-            :run="item"
-            :expanded="expandedRuns.has(item.id)"
-            :live-logs="data.liveLogs"
-            @toggle="toggle(expandedRuns, item.id)"
+          <Input
+            v-model="search"
+            type="search"
+            aria-label="Search jobs"
+            placeholder="Search jobs…"
+            :class="[filterClass, 'sm:max-w-64 min-w-0 flex-1']"
+          />
+          <BareSelect
+            v-model="stateFilter"
+            aria-label="Filter jobs by state"
+            :class="filterClass"
+            :options="[
+              { label: 'All states', value: 'all' },
+              { label: 'Running', value: 'running' },
+              { label: 'Paused', value: 'paused' },
+              { label: 'Scheduled', value: 'scheduled' },
+              { label: 'Inactive', value: 'inactive' },
+              { label: 'Manual', value: 'manual' },
+              { label: 'Last activity failed', value: 'failed' },
+              { label: 'Unavailable', value: 'unavailable' }
+            ]"
           />
         </div>
-      </article>
-    </div>
+        <div
+          :class="[
+            'grid items-start gap-6',
+            selectedJob && 'lg:grid-cols-[minmax(220px,0.7fr)_minmax(0,1.5fr)]'
+          ]"
+        >
+          <QuestJobList
+            :jobs="jobs"
+            :filtered-jobs="filteredJobs"
+            :selected-job-name="selectedJobName"
+            :selected-job="selectedJob"
+            :fresh="fresh"
+            :now="now"
+            :last-activity="lastActivity"
+            :live="live"
+            :state="state"
+            :run-disabled-reason="runDisabledReason"
+            :can-invoke="canInvoke"
+            empty-text="No instance jobs found."
+            empty-description="Instance jobs are defined in Slipway’s source."
+            @choose-job="chooseJob"
+            @run="ask"
+            @clear-filters="clearFilters"
+          />
+          <QuestJobDetail
+            v-if="selectedJob && activeTab === 'jobs'"
+            v-model:tab="jobTab"
+            :csrf="csrf || ''"
+            :selected-job="selectedJob"
+            :selected-run-job="selectedRunJob"
+            :jobs="jobs"
+            :live="live"
+            :active-tab="activeTab"
+            :fresh="fresh"
+            :job-state="state(selectedJob)"
+            :disabled-reason="runDisabledReason(selectedJob)"
+            :can-run="canInvoke(selectedJob)"
+            :can-run-selected="canInvoke(selectedRunJob)"
+            :can-pause="false"
+            changing-schedule=""
+            :selected-run-id="selectedRunId"
+            selected-event-id=""
+            :detail-revision="detailRevision"
+            :api-url="apiUrl"
+            :job-runs="jobRuns"
+            :job-events="[]"
+            :scoped-job-history="{
+              loading: false,
+              error: '',
+              nextCursor: null
+            }"
+            :now="now"
+            @close-job="closeJob"
+            @run="ask(selectedJob)"
+            @close-run="selectedRunId = ''"
+            @run-again="ask(selectedRunJob)"
+            @select-run="chooseRun"
+          />
+        </div>
+      </div>
+      <div data-slot="tab-panel" data-value="runs" class="pt-4">
+        <template v-if="activeTab === 'runs'">
+          <QuestRunDetail
+            v-if="selectedRunId"
+            :api-url="apiUrl"
+            :run-id="selectedRunId"
+            :revision="detailRevision"
+            :job="selectedRunJob"
+            :can-run="canInvoke(selectedRunJob)"
+            :can-cancel="false"
+            :can-live-logs="false"
+            :csrf="csrf || ''"
+            @close="selectedRunId = ''"
+            @run-again="ask(selectedRunJob)"
+          />
+          <QuestGlobalRuns
+            v-else
+            v-model:job-filter="runJobFilter"
+            v-model:state-filter="runStateFilter"
+            :live="live"
+            :jobs="jobs"
+            :filtered-runs="filteredRuns"
+            :filtered-events="[]"
+            :selected-run-id="selectedRunId"
+            selected-event-id=""
+            :now="now"
+            :more-loading="false"
+            more-error=""
+            @select-run="chooseRun"
+          />
+        </template>
+      </div>
+    </Tabs>
     <ConfirmModal
       :show="Boolean(review)"
       :loading="submitting"
+      :confirm-disabled="!canInvoke(review)"
       :title="
         review?.name === 'retain-deployment-images'
           ? 'Clean up deployment images?'

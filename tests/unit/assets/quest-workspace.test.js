@@ -564,6 +564,9 @@ test('Quest unknown overlap metadata never implies concurrent execution is allow
   expect(questOverlapLabel({ withoutOverlapping: true })).toBe(
     'Prevent overlap in this app process'
   )
+  expect(
+    questOverlapLabel({ withoutOverlapping: true, executionScope: 'instance' })
+  ).toBe('Prevent overlap in this instance process')
 })
 
 test('Quest server failures and explicit uncertain admission never enable a blind retry', async ({

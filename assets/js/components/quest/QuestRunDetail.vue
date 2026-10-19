@@ -120,7 +120,8 @@ async function load(reset = false) {
     if (
       !legacy.value &&
       run.value?.runId === detail.runId &&
-      run.value.updatedAt !== detail.updatedAt
+      (run.value.updatedAt !== detail.updatedAt ||
+        run.value.revision !== detail.revision)
     ) {
       logs.value = null
       logsError.value = ''

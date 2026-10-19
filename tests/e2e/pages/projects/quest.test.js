@@ -17,6 +17,24 @@ test(
   async (context) => {
     const { page, login, expect } = context
     const state = await installQuestFixture(context)
+    // Correlated safe run for comparison with the instance workspace.
+    const comparisonRun = syntheticQuestRun(
+      state,
+      '00000000-0000-4000-8000-000000000108',
+      {
+        result: {
+          status: 'available',
+          value: { mode: 'dry-run', candidates: 2, removed: [] }
+        }
+      }
+    )
+    state.workspace.runs = [comparisonRun]
+    state.details[comparisonRun.runId] = comparisonRun
+    state.logs[comparisonRun.runId] = {
+      available: true,
+      stdout: 'Safe fixture: dry-run complete. 2 candidates, 0 removed.',
+      stderr: ''
+    }
     const fs = require('node:fs')
     const path = require('node:path')
     const phase = process.env.SLIPWAY_QUEST_DESIGN_CAPTURE_PHASE || 'after'
@@ -87,6 +105,45 @@ test(
           animations: 'disabled',
           fullPage: false
         })
+        if (phase !== 'before') {
+          await page.raw.setViewportSize({ width: capture.width, height: 1100 })
+          await strip
+            .getByRole('button', { name: '1 job running', exact: true })
+            .click()
+          const detail = page.raw.locator('[data-test="quest-job-detail"]')
+          await detail.getByRole('tab', { name: 'Runs', exact: true }).click()
+          await page.screenshot(
+            path.join(root, `shared-job-runs-${capture.name}.png`),
+            { animations: 'disabled', fullPage: true }
+          )
+          await detail.locator('[data-test="quest-run-row"]').click()
+          const run = page.raw.locator('[data-test="quest-run-detail"]')
+          await run.getByRole('tab', { name: 'Logs', exact: true }).click()
+          await expect(run).toContainText('2 candidates, 0 removed')
+          await page.screenshot(
+            path.join(root, `shared-run-logs-${capture.name}.png`),
+            { animations: 'disabled', fullPage: true }
+          )
+          await detail
+            .getByRole('button', { name: 'Close job details', exact: true })
+            .click()
+          await page.screenshot(
+            path.join(root, `shared-jobs-${capture.name}.png`),
+            { animations: 'disabled', fullPage: true }
+          )
+          await page.raw
+            .getByRole('button', {
+              name: 'View Export account report',
+              exact: true
+            })
+            .click()
+          await page.raw
+            .getByRole('tab', { name: 'Schedule', exact: true })
+            .click()
+          await strip
+            .getByRole('button', { name: '1 job running', exact: true })
+            .click()
+        }
       }
       if (phase === 'before') return
       // A disconnect preserves the last observation without calling it current.

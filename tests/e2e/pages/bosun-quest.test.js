@@ -54,6 +54,10 @@ test(
         cleanupEnabled: true
       }
     ]
+    for (const job of jobs) {
+      job.paused = false
+      job.withoutOverlapping = true
+    }
     const runs = [
       {
         id: randomUUID(),
@@ -145,234 +149,203 @@ test(
       const panel = page.raw.locator('[data-test="instance-quest"]')
       const output = path.resolve('output/bosun-quest')
       fs.mkdirSync(output, { recursive: true })
+      const workspace = panel.getByRole('tablist', { name: 'Quest workspace' })
+      const jobDetail = panel.locator('[data-test="quest-job-detail"]')
+      const runDetail = panel.locator('[data-test="quest-run-detail"]')
+      const cleanupRun = panel.getByRole('button', {
+        name: 'Run Clean up deployment images',
+        exact: true
+      })
+      await expect(cleanupRun).toBeEnabled()
       await expect(
-        panel.getByRole('heading', {
-          name: 'Clean up deployment images',
+        panel.getByRole('button', {
+          name: 'Run Run scheduled backups',
           exact: true
         })
-      ).toBeVisible()
-      await expect(panel.getByRole('button', { name: /preview/i })).toHaveCount(
-        0
-      )
-      await expect(
-        panel.getByRole('button', { name: /^Actions for / })
-      ).toHaveCount(jobs.length)
-      expect(starts).toBe(0)
-      const cleanupActions = panel.getByRole('button', {
-        name: 'Actions for Clean up deployment images',
-        exact: true
-      })
-      const backupActions = panel.getByRole('button', {
-        name: 'Actions for Run scheduled backups',
-        exact: true
-      })
-      const cleanupMenu = page.raw.getByRole('menu', {
-        name: 'Actions for Clean up deployment images',
-        exact: true
-      })
-      const backupMenu = page.raw.getByRole('menu', {
-        name: 'Actions for Run scheduled backups',
-        exact: true
-      })
-      await backupActions.click()
-      await expect(
-        backupMenu.getByRole('menuitem', { name: 'Run now', exact: true })
       ).toBeDisabled()
-      await page.raw.keyboard.press('Escape')
-      await expect(backupActions).toBeFocused()
-      await panel
-        .getByRole('button', {
-          name: 'Runs for Run scheduled backups',
-          exact: true
-        })
-        .click()
-      const backupRuns = panel.getByRole('region', {
-        name: 'Runs for Run scheduled backups',
-        exact: true
-      })
-      await expect(backupRuns.getByLabel('Instance run detail')).toHaveCount(0)
-      await backupRuns.getByRole('button', { name: /^scheduled run/ }).click()
-      await expect(backupRuns.getByLabel('Instance run detail')).toContainText(
-        'Safe fixture: processing backup 2 of 3'
-      )
-      runs[0].logs.stdout += '\nSafe fixture: live output refreshed'
-      await expect(backupRuns.getByLabel('Instance run detail')).toContainText(
-        'Safe fixture: live output refreshed'
-      )
-      const failedRun = backupRuns.getByRole('button', { name: /^manual run/ })
-      await failedRun.click()
-      const failureDetail = backupRuns
-        .locator(`[data-run="${runs[2].id}"]`)
-        .getByLabel('Instance run detail')
-      await expect(failureDetail).toContainText(
-        'Safe fixture: backup destination unavailable'
-      )
-      await expect(failureDetail).toContainText(
-        'Safe fixture: retry after checking destination'
-      )
-      await expect(failureDetail).toContainText(
-        'Showing the retained output tail'
-      )
-      await expect(failureDetail).toContainText(
-        'The return value exceeded the capture limit'
-      )
-      await expect(backupRuns.getByLabel('Instance run detail')).toHaveCount(2)
-      await failedRun.click()
-      const cleanupJob = panel.getByRole('button', {
-        name: 'Runs for Clean up deployment images',
-        exact: true
-      })
-      await cleanupJob.click()
-      const cleanupRuns = panel.getByRole('region', {
-        name: 'Runs for Clean up deployment images',
-        exact: true
-      })
-      await cleanupRuns.getByRole('button', { name: /^scheduled run/ }).click()
-      await expect(cleanupRuns.getByLabel('Instance run detail')).toContainText(
-        '2 candidates, 0 removed'
-      )
-      await expect(backupRuns.getByLabel('Instance run detail')).toBeVisible()
-      await cleanupJob.click()
-      await expect(cleanupRuns).toHaveCount(0)
-      await expect(backupRuns.getByLabel('Instance run detail')).toBeVisible()
-      await cleanupJob.click()
-      await expect(cleanupRuns.getByLabel('Instance run detail')).toContainText(
-        '2 candidates, 0 removed'
-      )
-      await cleanupRuns.getByRole('button', { name: /^scheduled run/ }).click()
-      await expect(cleanupRuns.getByLabel('Instance run detail')).toHaveCount(0)
-      const emptyJob = panel.getByRole('button', {
-        name: 'Runs for Maintain observability',
-        exact: true
-      })
-      await emptyJob.focus()
-      await page.raw.keyboard.press('Enter')
       await expect(
-        panel.getByRole('region', { name: 'Runs for Maintain observability' })
-      ).toContainText('No runs recorded yet')
-      await emptyJob.click()
-      for (const width of [1440, 390]) {
+        panel.locator('[data-test="instance-job-caret"]')
+      ).toHaveCount(0)
+      await panel
+        .getByRole('searchbox', { name: 'Search jobs' })
+        .fill('observability')
+      await expect(panel.locator('[data-test="quest-job-row"]')).toHaveCount(1)
+      await panel.getByRole('searchbox', { name: 'Search jobs' }).fill('')
+      const stateSelect = panel.getByRole('combobox', {
+        name: 'Filter jobs by state'
+      })
+      await stateSelect.click()
+      await page.raw
+        .getByRole('option', { name: 'Running', exact: true })
+        .click()
+      await expect(panel.locator('[data-test="quest-job-row"]')).toHaveCount(1)
+      await stateSelect.click()
+      await page.raw
+        .getByRole('option', { name: 'All states', exact: true })
+        .click()
+      await expect(panel.locator('[data-test="quest-job-row"]')).toHaveCount(
+        jobs.length
+      )
+      const openJob = (name) =>
+        panel.getByRole('button', { name: `View ${name}`, exact: true })
+      const shot = async (name) => {
+        await page.raw.evaluate(() => document.fonts.ready)
+        expect(
+          await panel.evaluate(
+            (node) => node.scrollWidth <= node.clientWidth + 1
+          )
+        ).toBe(true)
+        await page.raw.screenshot({
+          path: path.join(output, name + '.png'),
+          fullPage: true,
+          animations: 'disabled'
+        })
+      }
+      for (const width of [1440, 390])
         for (const theme of ['light', 'dark']) {
           await page.raw.setViewportSize({ width, height: 1100 })
           await page.raw.emulateMedia({ colorScheme: theme })
           await panel
             .getByRole('heading', { name: 'Instance jobs', exact: true })
             .scrollIntoViewIfNeeded()
-          await emptyJob.blur()
-          await page.raw.screenshot({
-            path: path.join(output, `inline-runs-${width}-${theme}.png`),
-            animations: 'disabled'
-          })
-          expect(
-            await panel.evaluate((node) => node.scrollWidth <= node.clientWidth)
-          ).toBe(true)
-        }
-      }
-      for (const [width, theme] of [
-        [1440, 'light'],
-        [390, 'dark']
-      ]) {
-        await page.raw.setViewportSize({ width, height: 1100 })
-        await page.raw.emulateMedia({ colorScheme: theme })
-        await cleanupActions.scrollIntoViewIfNeeded()
-        await cleanupActions.click()
-        await expect(
-          cleanupMenu.getByRole('menuitem', { name: 'Run now', exact: true })
-        ).toBeEnabled()
-        await expect(cleanupMenu.getByRole('menuitem')).toHaveCount(1)
-        await expect(cleanupMenu).toBeVisible()
-        await page.raw.waitForFunction(() => {
-          const menu = document
-            .getElementById('instance-job-actions-retain-deployment-images')
-            ?.getBoundingClientRect()
-          const trigger = document
-            .querySelector(
-              '[popovertarget="instance-job-actions-retain-deployment-images"]'
-            )
-            ?.getBoundingClientRect()
-          return Boolean(
-            menu &&
-              trigger &&
-              menu.y >= trigger.bottom &&
-              Math.abs(menu.right - trigger.right) < 3
+          await shot(`shared-jobs-${width}-${theme}`)
+          await openJob('Clean up deployment images').focus()
+          await page.raw.keyboard.press('Enter')
+          await expect(jobDetail).toBeVisible()
+          await expect(
+            jobDetail.getByRole('tab', { name: 'Runs', exact: true })
+          ).toHaveAttribute('aria-selected', 'true')
+          await shot(`shared-job-runs-${width}-${theme}`)
+          await jobDetail
+            .getByRole('tab', { name: 'Schedule', exact: true })
+            .click()
+          await expect(jobDetail).toContainText('UTC')
+          await expect(jobDetail).toContainText(
+            'Schedule defined in Slipway source.'
           )
+          await expect(
+            jobDetail.getByRole('button', { name: 'Pause job', exact: true })
+          ).toBeDisabled()
+          await shot(`shared-schedule-${width}-${theme}`)
+          await jobDetail
+            .getByRole('tab', { name: 'Inputs', exact: true })
+            .click()
+          await expect(jobDetail.getByRole('textbox')).toHaveCount(0)
+          await jobDetail
+            .getByRole('tab', { name: 'Runs', exact: true })
+            .click()
+          await jobDetail.locator('[data-test="quest-run-row"]').click()
+          await expect(
+            runDetail.locator('[data-test="quest-run-result"]')
+          ).toContainText('dry-run')
+          await runDetail
+            .getByRole('tab', { name: 'Logs', exact: true })
+            .click()
+          await expect(
+            runDetail.locator('[data-test="quest-run-logs"]')
+          ).toContainText('2 candidates, 0 removed')
+          await shot(`shared-run-logs-${width}-${theme}`)
+          await jobDetail
+            .getByRole('button', { name: 'Close job details', exact: true })
+            .click()
+        }
+      await page.raw.setViewportSize({ width: 1440, height: 1100 })
+      await openJob('Run scheduled backups').click()
+      await jobDetail
+        .getByRole('button', {
+          name: /Open run: Run scheduled backups, running/
         })
-        await page.raw.screenshot({
-          path: path.join(output, `instance-jobs-menu-${width}-${theme}.png`),
-          animations: 'disabled'
-        })
-        expect(
-          await panel.evaluate((node) => node.scrollWidth <= node.clientWidth)
-        ).toBe(true)
-        await page.raw.keyboard.press('Escape')
-        await expect(cleanupActions).toBeFocused()
-      }
-      await cleanupActions.focus()
-      await page.raw.keyboard.press('Enter')
+        .click()
+      await runDetail.getByRole('tab', { name: 'Logs', exact: true }).click()
+      await expect(runDetail).toContainText(
+        'Safe fixture: processing backup 2 of 3'
+      )
+      runs[0].logs.stdout += '\nSafe fixture: live output refreshed'
+      await expect(runDetail).toContainText(
+        'Safe fixture: live output refreshed'
+      )
       await expect(
-        cleanupMenu.getByRole('menuitem', { name: 'Run now', exact: true })
-      ).toBeFocused()
-      await page.raw.keyboard.press('Enter')
+        runDetail.getByRole('button', { name: 'Cancel run', exact: true })
+      ).toHaveCount(0)
+      await runDetail
+        .getByRole('button', { name: 'Close run details', exact: true })
+        .click()
+      await jobDetail
+        .getByRole('button', {
+          name: /Open run: Run scheduled backups, failed/
+        })
+        .click()
+      await expect(runDetail).toContainText(
+        'Safe fixture: backup destination unavailable'
+      )
+      await runDetail.getByRole('tab', { name: 'Logs', exact: true }).click()
+      await expect(runDetail).toContainText(
+        'Safe fixture: retry after checking destination'
+      )
+      await expect(runDetail).toContainText('truncated')
+      await shot('shared-failed-run-desktop-dark')
+      await jobDetail
+        .getByRole('button', { name: 'Close job details', exact: true })
+        .click()
+      await panel.getByRole('tab', { name: 'Runs', exact: true }).click()
+      await expect(
+        panel.locator('[data-test="quest-history-scope"]')
+      ).toHaveText('Last 100 retained instance runs')
+      await expect(panel.locator('[data-test="quest-run-row"]')).toHaveCount(3)
+      await panel.getByRole('tab', { name: /^Jobs/ }).click()
+      expect(starts).toBe(0)
+      await cleanupRun.click()
       const review = panel.locator('[data-test="confirm-modal"]')
       await expect(review).toBeVisible()
       await expect(review).toContainText(
         'Remove eligible old deployment images now'
       )
+      await page.raw.keyboard.press('Escape')
+      await expect(review).not.toBeVisible()
       expect(starts).toBe(0)
+      await cleanupRun.click()
       await review
         .getByRole('button', { name: 'Clean up', exact: true })
         .click()
       await expect(review).not.toBeVisible()
-      await expect(
-        cleanupRuns.getByLabel('Instance run detail').last()
-      ).toContainText(
-        'Safe fixture: cleanup complete; removed 2, skipped 1, errors 0, deferred 1.'
-      )
+      await expect(runDetail).toBeVisible()
+      await runDetail.getByRole('tab', { name: 'Logs', exact: true }).click()
+      await expect(runDetail).toContainText('Safe fixture: cleanup complete')
       expect(starts).toBe(1)
-      expect(requests[0]).toEqual({})
-      await cleanupRuns
-        .getByLabel('Instance run detail')
-        .last()
-        .scrollIntoViewIfNeeded()
-      await cleanupRuns
-        .getByLabel('Instance run detail')
-        .last()
-        .screenshot({
-          path: path.join(output, 'instance-cleanup-menu-mobile-dark.png'),
-          animations: 'disabled'
-        })
-      jobs[0].cleanupEnabled = false
-      await cleanupActions.click()
-      await expect(
-        cleanupMenu.getByRole('menuitem', { name: 'Run now', exact: true })
-      ).toBeDisabled()
-      await page.raw.keyboard.press('Escape')
-      const cacheActions = panel.getByRole('button', {
-        name: 'Actions for Clean up old build cache',
-        exact: true
-      })
-      const cacheMenu = page.raw.getByRole('menu', {
-        name: 'Actions for Clean up old build cache',
-        exact: true
-      })
-      await cacheActions.click()
-      await cacheMenu.getByRole('menuitem', { name: 'Run now' }).click()
-      await expect(review).toContainText('Clean up old build cache?')
-      await expect(review).toContainText('Remove only unused old build cache')
-      await review.screenshot({
-        path: path.join(output, 'instance-cache-review-mobile-dark.png'),
-        animations: 'disabled'
-      })
+      expect(requests).toEqual([{}])
+      await runDetail
+        .getByRole('button', { name: 'Run again', exact: true })
+        .click()
+      await expect(review).toBeVisible()
       await review.getByRole('button', { name: 'Cancel', exact: true }).click()
-      expect(starts).toBe(1)
-      jobs[3].cleanupEnabled = false
-      await cacheActions.click()
+      jobs[0].cleanupEnabled = false
       await expect(
-        cacheMenu.getByRole('menuitem', { name: 'Run now', exact: true })
+        jobDetail.getByRole('button', {
+          name: 'Run Clean up deployment images',
+          exact: true
+        })
       ).toBeDisabled()
-      await page.raw.keyboard.press('Escape')
+      await jobDetail
+        .getByRole('button', { name: 'Close job details', exact: true })
+        .click()
+      await expect(cleanupRun).toBeDisabled()
+      await page.raw.route('**/api/v1/bosun/quest', (route) =>
+        route.fulfill({ status: 503, json: { error: 'Unavailable' } })
+      )
+      await panel.getByRole('button', { name: 'Refresh instance jobs' }).click()
+      await expect(panel.getByRole('alert')).toContainText(
+        'Could not load instance jobs'
+      )
+      await expect(
+        panel.getByRole('button', {
+          name: 'Run Maintain observability',
+          exact: true
+        })
+      ).toBeDisabled()
+      await shot('shared-unavailable-desktop-dark')
       expect(page).toHaveNoJavascriptErrors()
     } finally {
+      await page.raw.goto('about:blank')
       sails.instanceQuest = previous
     }
   }

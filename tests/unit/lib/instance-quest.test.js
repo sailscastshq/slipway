@@ -118,14 +118,18 @@ test('simultaneous requests admit one invocation and retain redacted bounded liv
   ])
   assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1)
   assert.equal(calls(), 1)
+  const before = (await adapter.snapshot()).runs[0]
   sails.emit('quest:job:log', {
     name: 'maintain-wake',
     runId: native(),
     trigger: 'manual',
+    sequence: 12,
     logs: { stdout: 'x'.repeat(50000) + ' fixture-secret-12345', stderr: '' }
   })
   const run = (await adapter.snapshot()).runs[0]
   assert.equal(run.state, 'running')
+  assert.equal(run.sequence, 12)
+  assert.ok(run.updatedAt > before.updatedAt)
   assert.equal(run.logs.truncated, true)
   assert.ok(Buffer.byteLength(run.logs.stdout) <= 32768)
   assert.doesNotMatch(JSON.stringify(run), /fixture-secret-12345/)
