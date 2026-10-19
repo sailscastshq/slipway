@@ -6,7 +6,7 @@ import DateInput from '@/components/DateInput.vue'
 import Textarea from '@/components/ui/textarea/Textarea.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { router } from '@inertiajs/vue3'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import RichText from '@/components/ui/rich-text/RichText.vue'
 import BridgeRelationshipCombobox from '@/components/bridge/BridgeRelationshipCombobox.vue'
 import Select from '@/components/ui/select/Select.vue'
@@ -81,9 +81,15 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:modelValue', 'blur', 'clear-error'])
+const emit = defineEmits([
+  'update:modelValue',
+  'blur',
+  'clear-error',
+  'uploading'
+])
 
 const uploading = ref(false)
+watch(uploading, (value) => emit('uploading', value), { flush: 'sync' })
 const uploadError = ref('')
 const uploadPhase = ref('')
 const uploadedBytes = ref(0)
@@ -175,8 +181,11 @@ const uploadPathValues = computed(() => {
       .map((constraint) => constraint?.fromField)
       .filter(Boolean)
   )
+  const visibilityRoots = Object.keys(attribute.value.visibleWhen || {})
+    .filter((name) => name.startsWith('form.'))
+    .map((name) => name.slice(5))
   return Object.fromEntries(
-    Array.from(new Set([...roots, ...dependencyRoots]))
+    Array.from(new Set([...roots, ...dependencyRoots, ...visibilityRoots]))
       .filter((name) =>
         Object.prototype.hasOwnProperty.call(props.uploadValues, name)
       )
@@ -194,6 +203,11 @@ const richTextUploadsConfigured = computed(
 const uploadHint = computed(() => {
   const accepted = attribute.value.field?.upload?.accept || []
   const labels = accepted.map((value) => {
+    if (
+      value ===
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    )
+      return 'pptx'
     if (value.endsWith('/*')) return value.slice(0, -2)
     return value.split('/').pop()?.replace('jpeg', 'jpg') || value
   })
@@ -291,6 +305,8 @@ async function uploadRichTextImage(file, { signal }) {
   const body = new FormData()
   body.append('file', file)
   body.append('values', JSON.stringify(uploadPathValues.value))
+  if (props.isEdit && props.recordId !== null)
+    body.append('recordId', String(props.recordId))
   const response = await fetch(props.uploadUrl, {
     method: 'POST',
     body,
@@ -704,6 +720,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  emit('uploading', false)
   uploadAbortController.value?.abort()
   window.removeEventListener('beforeunload', guardBrowserNavigation)
   removeInertiaGuard?.()

@@ -25,6 +25,7 @@ module.exports = {
     'Authorize a Bridge file and create a resumable direct object-store upload.',
 
   inputs: {
+    actionName: { type: 'string' },
     slug: { type: 'string', required: true },
     envSlug: { type: 'string', defaultsTo: 'production' },
     appSlug: { type: 'string' },
@@ -55,6 +56,7 @@ module.exports = {
     envSlug,
     appSlug,
     modelIdentity,
+    actionName,
     fieldName,
     recordId,
     values,
@@ -71,6 +73,7 @@ module.exports = {
         environmentSlug: envSlug,
         ...(appSlug ? { appSlug } : {}),
         modelIdentity,
+        ...(actionName ? { actionName } : {}),
         fieldName,
         ...(recordId ? { recordId } : {}),
         values
@@ -132,7 +135,7 @@ module.exports = {
             projectId: target.project.id,
             environmentId: target.environment.id,
             appId: target.app.id,
-            resource: target.loaded.resource.identity,
+            resource: target.uploadResource || target.loaded.resource.identity,
             field: fieldName
           },
           upload: {

@@ -21,6 +21,7 @@ module.exports = {
   files: ['file'],
 
   inputs: {
+    actionName: { type: 'string' },
     slug: {
       type: 'string',
       required: true
@@ -76,6 +77,7 @@ module.exports = {
     envSlug,
     appSlug,
     modelIdentity,
+    actionName,
     fieldName,
     recordId,
     values
@@ -88,6 +90,7 @@ module.exports = {
         environmentSlug: envSlug,
         ...(appSlug ? { appSlug } : {}),
         modelIdentity,
+        ...(actionName ? { actionName } : {}),
         fieldName,
         ...(recordId ? { recordId } : {}),
         values: parseUploadValues(values)
@@ -183,7 +186,10 @@ module.exports = {
         actorId,
         projectId: project.id,
         environmentId: environment.id,
-        resource: loaded.resource.identity,
+        resource: target.uploadResource || loaded.resource.identity,
+        ...(actionName
+          ? { recordId: loaded.recordId, appId: target.app.id }
+          : {}),
         field: fieldName
       }
     })

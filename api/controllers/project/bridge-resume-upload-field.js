@@ -5,6 +5,7 @@ module.exports = {
     'List authoritative uploaded parts and refresh short-lived URLs for the missing parts.',
 
   inputs: {
+    actionName: { type: 'string' },
     slug: { type: 'string', required: true },
     envSlug: { type: 'string', defaultsTo: 'production' },
     appSlug: { type: 'string' },
@@ -30,6 +31,7 @@ module.exports = {
         environmentSlug: inputs.envSlug,
         ...(inputs.appSlug ? { appSlug: inputs.appSlug } : {}),
         modelIdentity: inputs.modelIdentity,
+        ...(inputs.actionName ? { actionName: inputs.actionName } : {}),
         fieldName: inputs.fieldName,
         ...(inputs.recordId ? { recordId: inputs.recordId } : {}),
         uploadIntent: inputs.uploadIntent

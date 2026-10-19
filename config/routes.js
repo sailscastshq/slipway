@@ -574,6 +574,36 @@ module.exports.routes = {
     'project/view-bridge-edit',
   'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/create':
     'project/bridge-create-record',
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/actions/:actionName/fields/:fieldName/upload':
+    'project/bridge-upload-field',
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/actions/:actionName/fields/:fieldName/upload/prepare':
+    'project/bridge-prepare-upload-field',
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/actions/:actionName/fields/:fieldName/upload/resume':
+    'project/bridge-resume-upload-field',
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/actions/:actionName/fields/:fieldName/upload/complete':
+    'project/bridge-complete-upload-field',
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/actions/:actionName/fields/:fieldName/upload/abort':
+    'project/bridge-abort-upload-field',
+  'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/actions/:actionName/fields/:fieldName/upload':
+    'project/bridge-upload-field',
+  'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/actions/:actionName/fields/:fieldName/upload/prepare':
+    'project/bridge-prepare-upload-field',
+  'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/actions/:actionName/fields/:fieldName/upload/resume':
+    'project/bridge-resume-upload-field',
+  'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/actions/:actionName/fields/:fieldName/upload/complete':
+    'project/bridge-complete-upload-field',
+  'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/actions/:actionName/fields/:fieldName/upload/abort':
+    'project/bridge-abort-upload-field',
+  'POST /projects/:slug/bridge/:modelIdentity/actions/:actionName/fields/:fieldName/upload':
+    'project/bridge-upload-field',
+  'POST /projects/:slug/bridge/:modelIdentity/actions/:actionName/fields/:fieldName/upload/prepare':
+    'project/bridge-prepare-upload-field',
+  'POST /projects/:slug/bridge/:modelIdentity/actions/:actionName/fields/:fieldName/upload/resume':
+    'project/bridge-resume-upload-field',
+  'POST /projects/:slug/bridge/:modelIdentity/actions/:actionName/fields/:fieldName/upload/complete':
+    'project/bridge-complete-upload-field',
+  'POST /projects/:slug/bridge/:modelIdentity/actions/:actionName/fields/:fieldName/upload/abort':
+    'project/bridge-abort-upload-field',
   'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/:fieldName/upload':
     'project/bridge-upload-field',
   'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/:fieldName/upload/prepare':

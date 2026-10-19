@@ -5,6 +5,7 @@ module.exports = {
     'Authorize a Bridge upload field and resolve its scoped object-store directory.',
 
   inputs: {
+    actionName: { type: 'string' },
     req: {
       type: 'ref',
       required: true
@@ -49,6 +50,7 @@ module.exports = {
     environmentSlug,
     appSlug,
     modelIdentity,
+    actionName,
     fieldName,
     recordId,
     values
@@ -67,16 +69,41 @@ module.exports = {
       containerName: app.containerName,
       environmentId: environment.id,
       modelIdentity,
-      action: recordId ? 'update' : 'create',
+      action: actionName || (recordId ? 'update' : 'create'),
       actor,
       ...(recordId ? { recordId } : {})
     })
 
+    if (actionName) {
+      if (
+        !loaded.actionDefinition ||
+        loaded.actionDefinition.scope === 'bulk'
+      ) {
+        const error = new Error('This Bridge upload action is not available.')
+        error.code = 'BRIDGE_UPLOAD_FIELD_NOT_FOUND'
+        throw error
+      }
+      const context = await sails.helpers.bridge.loadActionContext.with({
+        containerName: app.containerName,
+        resource: loaded.resource,
+        action: loaded.actionDefinition,
+        actor,
+        recordId: loaded.recordId
+      })
+      loaded.actionDefinition = context.action
+    }
     const surface = recordId ? 'edit' : 'create'
-    const attribute = loaded.resource.attributes?.[fieldName]
+    const attribute = actionName
+      ? loaded.actionDefinition.fields?.[fieldName]
+      : loaded.resource.attributes?.[fieldName]
+    const uploadResource = actionName
+      ? `${loaded.resource.identity}.${loaded.actionDefinition.name}`
+      : loaded.resource.identity
     const fieldType = attribute?.field?.type
     if (
-      !loaded.resource[surface]?.includes(fieldName) ||
+      !(actionName
+        ? Object.hasOwn(loaded.actionDefinition.fields, fieldName)
+        : loaded.resource[surface]?.includes(fieldName)) ||
       !(
         ['file', 'image', 'upload'].includes(fieldType) ||
         (fieldType === 'richtext' &&
@@ -84,6 +111,19 @@ module.exports = {
           attribute.field.upload?.kind === 'image')
       ) ||
       attribute.field.upload?.storage !== 'bridge'
+    ) {
+      const error = new Error('This Bridge upload field is not available.')
+      error.code = 'BRIDGE_UPLOAD_FIELD_NOT_FOUND'
+      throw error
+    }
+
+    if (
+      actionName &&
+      !sails.helpers.bridge.matchesActionConditions.with({
+        condition: attribute.visibleWhen,
+        form: values,
+        scope: 'form'
+      })
     ) {
       const error = new Error('This Bridge upload field is not available.')
       error.code = 'BRIDGE_UPLOAD_FIELD_NOT_FOUND'
@@ -101,7 +141,7 @@ module.exports = {
       environmentId: environment.id,
       resource: loaded.resource,
       actor,
-      values
+      values: actionName && recordId ? {} : values
     })
     const objectPathConfig =
       await sails.helpers.bridge.resolveUploadObjectPath.with({
@@ -111,7 +151,7 @@ module.exports = {
           [loaded.resource.identity]: loaded.resource
         },
         upload,
-        values,
+        values: actionName && recordId ? {} : values,
         ...(recordId ? { recordId: loaded.recordId } : {})
       })
 
@@ -137,6 +177,7 @@ module.exports = {
       actor,
       actorId,
       loaded,
+      uploadResource,
       attribute,
       upload,
       storage,
