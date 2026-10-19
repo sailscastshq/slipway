@@ -85,6 +85,15 @@ protection or expands eligibility.
 
 ## Interrupted-operation holds
 
+A held run removed nothing unless its summary explicitly records earlier successful
+removals. Mode is still reported as `remove` or `dry-run`; it describes policy, not
+permission to bypass the hold. Summaries and CLI logs include the hold reason:
+`image-use-guard-present`, `image-cleanup-guard-present`, or
+`image-admission-guard-busy`. The separate cleanup lock reports
+`image-retention-lock-present`. These describe recorded guards, not proof that an
+owner is alive or stale. Inventory holds also retain their bounded, redacted reasons.
+Protected and skipped reason counts explain why an image backlog remains.
+
 Guard files are under `db/image-operation-guard/`; cleanup also uses
 `db/image-retention.lock`. They deliberately have no automatic stale timeout.
 A crashed or interrupted owner leaves a conservative hold rather than allowing a

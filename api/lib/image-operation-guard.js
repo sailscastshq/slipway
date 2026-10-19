@@ -15,18 +15,16 @@ async function acquire(appPath, mode = 'use') {
       break
     } catch (error) {
       if (error.code !== 'EEXIST') throw error
-      if (attempt >= 100) throw busy()
+      if (attempt >= 100) throw busy('image-admission-guard-busy')
       await new Promise((resolve) => setTimeout(resolve, 10))
     }
   }
   let marker
   try {
     const entries = await fs.readdir(root)
-    if (
-      entries.includes('cleanup') ||
-      (mode === 'cleanup' && entries.some((name) => name.startsWith('use-')))
-    )
-      throw busy()
+    if (entries.includes('cleanup')) throw busy('image-cleanup-guard-present')
+    if (mode === 'cleanup' && entries.some((name) => name.startsWith('use-')))
+      throw busy('image-use-guard-present')
     marker = path.join(
       root,
       mode === 'cleanup' ? 'cleanup' : `use-${randomUUID()}`
@@ -43,12 +41,12 @@ async function acquire(appPath, mode = 'use') {
     await fs.unlink(marker)
   }
 }
-function busy() {
+function busy(reason) {
   return Object.assign(
     new Error(
       'Image operations are busy; retry after deployment or maintenance completes.'
     ),
-    { code: 'E_IMAGE_OPERATIONS_BUSY' }
+    { code: 'E_IMAGE_OPERATIONS_BUSY', reason }
   )
 }
 function guard(fn) {
