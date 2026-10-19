@@ -126,3 +126,73 @@ test('Instance retained logs stay bounded at valid UTF-8 boundaries and preserve
   assert.equal(logs.stderr, 'warning')
   assert.equal(adapter.logs(run({ logs: undefined })).available, false)
 })
+
+test('Dashboard Quest projection matches the independently packaged hook contract', () => {
+  const dashboard = require('../../../api/lib/contracts/quest-metadata')
+  const hook = require('../../../packages/hook/lib/quest-runtime')
+  const variants = [
+    { name: 'manual' },
+    {
+      name: 'scheduled',
+      schedule: { cron: '0 2 * * *', timezone: 'UTC' },
+      runningCount: 0,
+      paused: false,
+      scheduled: true,
+      withoutOverlapping: true
+    },
+    {
+      name: 'inputs',
+      inputMetadataAvailable: true,
+      inputs: {
+        preview: { type: 'boolean', defaultsTo: false },
+        token: { type: 'string', defaultsTo: 'private' },
+        filter: {
+          type: 'json',
+          defaultsTo: { password: 'hidden', nested: ['safe'] }
+        }
+      }
+    },
+    {
+      name: 'invalid',
+      schedule: { interval: '5 minutes' },
+      scheduleState: {
+        registration: 'failed',
+        validation: 'invalid',
+        validationErrors: [
+          { code: 'QUEST_SCHEDULE_INVALID', message: 'Invalid schedule' }
+        ]
+      }
+    }
+  ]
+  for (const job of variants)
+    assert.deepEqual(dashboard.describeJob(job), hook.describeJob(job))
+  for (const value of [
+    false,
+    null,
+    { password: 'hidden', array: [1, 'Bearer example-token'] },
+    'TOKEN=example-token'
+  ])
+    assert.deepEqual(dashboard.safeValue(value), hook.safeValue(value))
+})
+test('Instance workspace loads without hook source in the dashboard image', () => {
+  const { execFileSync } = require('node:child_process')
+  const file = require.resolve('../../../api/lib/instance-quest-workspace')
+  execFileSync(
+    process.execPath,
+    [
+      '-e',
+      `
+  const Module = require('node:module')
+  const resolve = Module._resolveFilename
+  Module._resolveFilename = function(request,...args) {
+   if (request.includes('packages/hook')) throw new Error('Hook source is absent from the dashboard image')
+   return resolve.call(this,request,...args)
+  }
+  const adapter = require(${JSON.stringify(file)})
+  const workspace = adapter.normalize({available:true,jobs:[],runs:[]})
+  if (workspace.mode !== 'resident') throw new Error('Dashboard adapter unavailable')
+ `
+    ],
+    { stdio: 'pipe' }
+  )
+})

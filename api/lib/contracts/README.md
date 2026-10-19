@@ -12,3 +12,7 @@ fixtures before either side changes its contract behavior.
 Quest diagnostic redaction also has independent dashboard and hook copies.
 The Quest diagnostic contract test keeps byte/whitespace/redaction behavior
 in parity, and the Docker smoke test loads the ledger without hook source.
+
+Quest metadata and safe JSON projections also have independent dashboard and hook
+copies. The instance workspace unit trial checks parity and loads the adapter
+with hook source explicitly unavailable. Neither copy creates a scheduler.

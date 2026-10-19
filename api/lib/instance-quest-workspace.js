@@ -1,10 +1,7 @@
 // Read-only projection of retained instance Quest evidence into the shared UI
 // contract. It owns no scheduler, remote app identity, or operational controls.
 const { createHash } = require('node:crypto')
-const {
-  describeJob,
-  safeValue
-} = require('../../packages/hook/lib/quest-runtime')
+const { describeJob, safeValue } = require('./contracts/quest-metadata')
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/
 const LOG_BYTES = 32768
 const terminal = new Set([
