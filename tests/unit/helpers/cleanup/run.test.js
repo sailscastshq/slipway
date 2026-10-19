@@ -1,4 +1,7 @@
 const { test } = require('sounding')
+const assert = require('node:assert/strict')
+const recovery = require('../../../../api/lib/deployment-recovery')
+const { prepare, image } = require('../../../support/recovery-fixture')
 
 function cleanupWorld(slug) {
   return {
@@ -580,5 +583,378 @@ test(
         'complete'
       )
     })
+  }
+)
+
+for (const scopeType of ['app', 'environment', 'project']) {
+  for (const retentionPolicy of ['retain', 'purge']) {
+    test(
+      `recovery metadata ${scopeType} deletion ${retentionPolicy} preserves scope and retention continuity`,
+      {
+        world: cleanupWorld(`recovery-delete-${scopeType}-${retentionPolicy}`)
+      },
+      async ({ sails, world }) => {
+        const setup = await prepare({ sails, world })
+        try {
+          const extra = await unrelatedRecoveryApp(sails, world)
+          const pending = await world.create('deployment').with({
+            app: setup.app.id,
+            environment: setup.environment.id,
+            status: 'failed'
+          })
+          const intentKey = `rollbackIntent:v1:${pending.id}`
+          await sails.models.setting.create({
+            key: intentKey,
+            value: JSON.stringify({
+              appId: setup.app.id,
+              environmentId: setup.environment.id,
+              imageId: image(3)
+            })
+          })
+          const inputs = recoveryCleanupInputs(
+            world,
+            scopeType,
+            retentionPolicy
+          )
+          await withCleanupStubs(sails, {}, async () => {
+            const result = await sails.helpers.cleanup.run.with(inputs)
+            assert.equal(result.status, 'complete')
+            assert.equal(
+              await sails.models.app.findOne({ id: setup.app.id }),
+              undefined
+            )
+            assert.equal(
+              await sails.models.setting.findOne({
+                key: recovery.key(setup.app.id)
+              }),
+              undefined
+            )
+            assert.equal(
+              await sails.models.setting.findOne({ key: intentKey }),
+              undefined
+            )
+            assert.ok(
+              await sails.models.setting.findOne({
+                key: recovery.key(extra.app.id)
+              })
+            )
+            const operation = await sails.models.cleanupoperation.findOne({
+              id: result.id
+            })
+            assert.deepEqual(
+              new Set(operation.snapshot.artifacts.recoveryImageIds),
+              new Set([image(1), image(2), image(3)])
+            )
+            const plan = await recoveryRetentionPlan(sails, setup, extra)
+            assert.equal(plan.status, 'planned', plan.holds.join('; '))
+            assert.ok(
+              plan.candidates.some((candidate) => candidate.id === image(9))
+            )
+            if (retentionPolicy === 'retain') {
+              for (const id of [image(1), image(2), image(3)])
+                assert.ok(
+                  plan.protected
+                    .find((candidate) => candidate.id === id)
+                    .reasons.includes('retained-recovery')
+                )
+              assert.deepEqual(
+                new Set(result.retainedArtifacts.recoveryImageIds),
+                new Set([image(1), image(2), image(3)])
+              )
+            } else assert.deepEqual(result.retainedArtifacts, {})
+            assert.equal(
+              (await sails.helpers.cleanup.run.with(inputs)).id,
+              result.id
+            )
+          })
+        } finally {
+          setup.restore()
+        }
+      }
+    )
+  }
+}
+
+test(
+  'recovery metadata deletion rolls back settings and refreshed snapshot on transaction failure then retries safely',
+  { world: cleanupWorld('recovery-delete-transaction') },
+  async ({ sails, world }) => {
+    const setup = await prepare({ sails, world })
+    const originalDestroy = sails.models.app.destroy
+    const originalRecords = sails.helpers.cleanup.removeRecords
+    const inputs = recoveryCleanupInputs(world, 'project', 'retain')
+    try {
+      let refreshed = false
+      sails.helpers.cleanup.removeRecords = {
+        with: async (input) => {
+          if (!refreshed) {
+            refreshed = true
+            const next = structuredClone(setup.state)
+            next.previous.imageId = image(3)
+            await sails.models.setting
+              .updateOne({ key: recovery.key(setup.app.id) })
+              .set({ value: JSON.stringify(next) })
+          }
+          return originalRecords.with(input)
+        }
+      }
+      sails.models.app.destroy = () => {
+        throw new Error('Safe fixture: record transaction failure')
+      }
+      await withCleanupStubs(sails, {}, async () => {
+        const failure = await captureError(
+          sails.helpers.cleanup.run.with(inputs)
+        )
+        assert.match(failure.message, /record transaction failure/)
+        assert.ok(await sails.models.app.findOne({ id: setup.app.id }))
+        assert.equal(
+          JSON.parse(
+            (
+              await sails.models.setting.findOne({
+                key: recovery.key(setup.app.id)
+              })
+            ).value
+          ).previous.imageId,
+          image(3)
+        )
+        const failed = await sails.models.cleanupoperation.findOne({
+          targetKey: inputs.targetKey
+        })
+        assert.deepEqual(
+          new Set(failed.snapshot.artifacts.recoveryImageIds),
+          new Set([image(1), image(2)])
+        )
+        sails.models.app.destroy = originalDestroy
+        const result = await sails.helpers.cleanup.run.with(inputs)
+        assert.equal(result.status, 'complete')
+        const complete = await sails.models.cleanupoperation.findOne({
+          id: result.id
+        })
+        assert.deepEqual(
+          new Set(complete.snapshot.artifacts.recoveryImageIds),
+          new Set([image(1), image(2), image(3)])
+        )
+        assert.equal(
+          await sails.models.setting.findOne({
+            key: recovery.key(setup.app.id)
+          }),
+          undefined
+        )
+        // Simulate a crash after the record transaction committed but before the
+        // stage completion was persisted: replay the same durable record stage.
+        await originalRecords.with({
+          snapshot: complete.snapshot,
+          operationId: complete.id
+        })
+        assert.deepEqual(
+          new Set(
+            (
+              await sails.models.cleanupoperation.findOne({ id: complete.id })
+            ).snapshot.artifacts.recoveryImageIds
+          ),
+          new Set([image(1), image(2), image(3)])
+        )
+      })
+    } finally {
+      sails.models.app.destroy = originalDestroy
+      sails.helpers.cleanup.removeRecords = originalRecords
+      setup.restore()
+    }
+  }
+)
+
+test(
+  'recovery metadata deletion refuses operator holds and mismatched metadata before removing traffic',
+  { world: cleanupWorld('recovery-delete-held') },
+  async ({ sails, world }) => {
+    const setup = await prepare({ sails, world })
+    const holdKey = recovery.HOLD_PREFIX + setup.app.id
+    try {
+      await sails.models.setting.create({ key: holdKey, value: '{}' })
+      await withCleanupStubs(sails, {}, async (calls) => {
+        const failure = await captureError(
+          sails.helpers.cleanup.run.with(
+            recoveryCleanupInputs(world, 'project', 'retain')
+          )
+        )
+        assert.match(failure.message, /operator inspection/)
+        assert.equal(calls.removeRoute.length, 0)
+        assert.equal(calls.stopContainer.length, 0)
+        assert.ok(await sails.models.setting.findOne({ key: holdKey }))
+        await sails.models.setting.destroy({ key: holdKey })
+        const invalid = { ...setup.state, environmentId: '999999' }
+        await sails.models.setting
+          .updateOne({ key: recovery.key(setup.app.id) })
+          .set({ value: JSON.stringify(invalid) })
+        const mismatch = await captureError(
+          sails.helpers.cleanup.run.with(
+            recoveryCleanupInputs(world, 'project', 'retain')
+          )
+        )
+        assert.match(mismatch.message, /does not match/)
+        assert.equal(calls.removeRoute.length, 0)
+        assert.ok(await sails.models.app.findOne({ id: setup.app.id }))
+      })
+    } finally {
+      setup.restore()
+    }
+  }
+)
+
+function recoveryCleanupInputs(world, scopeType, retentionPolicy) {
+  const current = world.current
+  const resourceId =
+    scopeType === 'app'
+      ? current.apps.web.id
+      : scopeType === 'environment'
+      ? current.environments.production.id
+      : current.projects.deploymentTarget.id
+  return {
+    scopeType,
+    resourceId,
+    targetKey: `${scopeType}:${resourceId}`,
+    retentionPolicy,
+    userId: current.users.genesisUser.id,
+    teamId: current.teams.genesisTeam.id
+  }
+}
+
+async function unrelatedRecoveryApp(sails, world) {
+  const project = await world.create('project').with({
+    name: 'Unrelated',
+    slug: `unrelated-recovery-${world.current.apps.web.id}`,
+    team: world.current.teams.genesisTeam.id,
+    createdBy: world.current.users.genesisUser.id
+  })
+  const environment = await world
+    .create('environment')
+    .with({ project: project.id, name: 'Production', slug: 'production' })
+  const app = await world
+    .create('app')
+    .with({ environment: environment.id, name: 'Other', slug: 'web' })
+  const current = await world.create('deployment').with({
+    app: app.id,
+    environment: environment.id,
+    status: 'running',
+    imageId: image(8),
+    imageName: 'slipway/unrelated-production-web:current'
+  })
+  await sails.models.app.updateOne({ id: app.id }).set({
+    currentDeployment: current.id,
+    imageId: image(8),
+    imageName: current.imageName
+  })
+  await sails.models.setting.create({
+    key: recovery.key(app.id),
+    value: JSON.stringify({
+      version: 1,
+      appId: String(app.id),
+      environmentId: String(environment.id),
+      current: {
+        deploymentId: String(current.id),
+        imageId: image(8),
+        compatibility: null,
+        promotedAt: Date.now()
+      },
+      previous: null,
+      rejectedImages: []
+    })
+  })
+  const failed = await world.create('deployment').with({
+    app: app.id,
+    environment: environment.id,
+    status: 'failed',
+    imageId: image(9)
+  })
+  failed.imageName = `slipway/unrelated-production-web:${failed.id}`
+  await sails.models.deployment
+    .updateOne({ id: failed.id })
+    .set({ imageName: failed.imageName })
+  return { app, current, failed }
+}
+
+async function recoveryRetentionPlan(sails, setup, extra) {
+  const images = [
+    [1, setup.previous.imageName],
+    [2, setup.current.imageName],
+    [3, null],
+    [8, extra.current.imageName],
+    [9, extra.failed.imageName]
+  ].map(([number, tag]) => ({
+    id: image(number),
+    tags: tag ? [tag] : [],
+    digests: [],
+    size: 1,
+    created: '2020-01-01T00:00:00Z'
+  }))
+  // Project only this test's persisted records into the planner. Sounding keeps
+  // earlier worlds' retained artifacts in the same database; they are not part
+  // of this fixture's deliberately bounded Docker inventory.
+  const appIds = [setup.app.id, extra.app.id]
+  const deploymentIds = [
+    setup.previous.id,
+    setup.current.id,
+    extra.current.id,
+    extra.failed.id
+  ]
+  const rows = {
+    App: await sails.models.app.find({ id: { in: appIds } }),
+    Deployment: await sails.models.deployment.find({
+      id: { in: deploymentIds }
+    }),
+    Setting: await sails.models.setting.find({
+      key: { in: appIds.map(recovery.key) }
+    }),
+    CleanupOperation: (await sails.models.cleanupoperation.find()).filter(
+      (operation) => operation.snapshot.records.appIds.includes(setup.app.id)
+    ),
+    Service: [],
+    DeploymentJob: []
+  }
+  const originals = Object.fromEntries(
+    Object.keys(rows).map((name) => [name, global[name]])
+  )
+  try {
+    for (const [name, records] of Object.entries(rows))
+      global[name] = {
+        find: () => ({ select: () => ({ limit: async () => records }) })
+      }
+    return await require('../../../../api/helpers/image-retention/get-plan').fn(
+      {
+        inventory: { images, containers: [] },
+        policy: await sails.helpers.imageRetention.getPolicy(),
+        now: Date.now()
+      }
+    )
+  } finally {
+    Object.assign(global, originals)
+  }
+}
+
+test(
+  'recovery metadata resource deletion waits for the shared image retention guard',
+  { world: cleanupWorld('recovery-delete-guard') },
+  async ({ sails, world }) => {
+    const release =
+      await require('../../../../api/lib/image-operation-guard').acquire(
+        sails.config.appPath,
+        'cleanup'
+      )
+    try {
+      await withCleanupStubs(sails, {}, async (calls) => {
+        const error = await captureError(
+          sails.helpers.cleanup.run.with(
+            recoveryCleanupInputs(world, 'project', 'retain')
+          )
+        )
+        assert.equal(error.code, 'E_IMAGE_OPERATIONS_BUSY')
+        assert.equal(calls.removeRoute.length, 0)
+        assert.ok(
+          await sails.models.app.findOne({ id: world.current.apps.web.id })
+        )
+      })
+    } finally {
+      await release()
+    }
   }
 )

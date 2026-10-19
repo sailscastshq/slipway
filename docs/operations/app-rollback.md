@@ -92,6 +92,14 @@ not prerequisites. Where proof is absent, the UI explains why recovery is unavai
 it never guesses from the current contents of a mutable tag.
 
 No records, pins, images or containers are deleted merely by installing this feature.
+Explicit app, environment and project deletion captures current/previous recovery
+image IDs and rollback-intent image IDs in its durable cleanup snapshot. The final
+snapshot refresh and retirement of the scoped recovery/intent settings commit with
+App deletion in one transaction. Retain policy continues protecting those immutable
+IDs after the App records disappear; purge does not expand its image deletion scope.
+Resource deletion shares the image-operation guard with deployment image retention.
+Operator holds or mismatched metadata block deletion for inspection. Unexplained
+orphan recovery settings still hold retention; they are not silently ignored.
 The API now requires `expectedCurrent` with the chosen `deploymentId` and app slug;
 clients must refresh after a stale-target rejection. Unknown compatibility additionally requires the explicit acknowledgement field described above.
 

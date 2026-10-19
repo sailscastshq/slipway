@@ -58,6 +58,12 @@ module.exports = {
         ? await Deployment.find({ app: app.id })
         : await findByIds(Deployment, 'environment', environmentIds)
     const deploymentIds = uniqueIds(deployments)
+    const recovery =
+      await require('../../lib/cleanup-deployment-recovery').capture({
+        apps,
+        appIds,
+        deploymentIds
+      })
     const deploymentJobs = await findByIds(
       DeploymentJob,
       'deployment',
@@ -183,6 +189,7 @@ module.exports = {
         appIds,
         serviceIds,
         deploymentIds,
+        recoverySettingKeys: recovery.settingKeys,
         deploymentJobIds: uniqueIds(deploymentJobs),
         deploymentLeaseIds: uniqueIds(deploymentLeases),
         backupIds: uniqueIds(backups),
@@ -206,6 +213,7 @@ module.exports = {
         containerNames,
         volumeNames,
         imageNames,
+        recoveryImageIds: recovery.imageIds,
         backupObjects,
         sourcePaths,
         buildContexts,

@@ -545,3 +545,33 @@ test('explicit previous recovery image survives beyond recent-success floor and 
   assert.equal(result.status, 'held')
   assert.deepEqual(result.candidates, [])
 })
+
+test('unexplained orphan recovery metadata still holds all image retention', async (t) => {
+  const { state, deployment, plan } = await fixture(t)
+  for (let n = 1; n <= 5; n++) deployment(n, { status: 'failed' })
+  assert.equal((await plan()).candidates.length, 5)
+  state.recovery.push({
+    key: 'deploymentRecovery:v1:999',
+    value: JSON.stringify({
+      version: 1,
+      appId: '999',
+      environmentId: '999',
+      current: {
+        deploymentId: '999',
+        imageId: id(1),
+        promotedAt: NOW,
+        compatibility: null
+      },
+      previous: null,
+      rejectedImages: []
+    })
+  })
+  const result = await plan()
+  assert.equal(result.status, 'held')
+  assert.deepEqual(result.candidates, [])
+  assert.ok(
+    result.holds.includes(
+      'Recovery metadata does not match the app traffic owner'
+    )
+  )
+})

@@ -156,6 +156,8 @@ module.exports = {
       collectRecovery(service.customRecovery, 'custom-service-recovery')
     }
     for (const cleanup of cleanups) {
+      for (const ref of cleanup.snapshot?.artifacts?.recoveryImageIds || [])
+        protect(ref, 'retained-recovery')
       for (const ref of cleanup.snapshot?.artifacts?.imageNames || [])
         protect(ref, 'retained-resource')
       for (const service of cleanup.snapshot?.services || []) {
