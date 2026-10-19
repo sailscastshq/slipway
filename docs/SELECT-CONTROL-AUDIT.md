@@ -1,38 +1,45 @@
 # Select control underline audit (#803)
 
-The app uses Klean's class-first Select and Combobox primitives. Match the
-existing field pattern: transparent background, square corners, zero top/side
-borders, one dashed bottom border, gray-200/gray-700 colors and brand focus.
-Keep the primitive's keyboard navigation, popup positioning, ARIA state and
-validation. Do not change selection logic or options.
+Audit against `main` at `3b89df42`. The app uses Klean's class-first Select and
+Combobox primitives. Fields use transparent backgrounds, square corners, zero
+top/side borders, one dashed bottom border, gray-200/gray-700 colors and brand
+focus. Native time fields retain native controls and keyboard behavior.
 
-| Surface                                              | Result                                                                                                                                                                    |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Audit log event filter                               | Replace boxed/ring styling with the field underline                                                                                                                       |
-| Bridge access invitation role                        | Replace outlined card styling with the field underline                                                                                                                    |
-| Bearing workspace filter                             | Replace filled rounded styling with the field underline                                                                                                                   |
-| Public Bearing feedback select                       | Replace filled rounded styling with the field underline                                                                                                                   |
-| Shared BareSelect                                    | Add underline; removes its inline border reset                                                                                                                            |
-| BareSelect consumers                                 | Covers Dock database, Bridge app/model/pagination and filter operators/choices, app settings route choices, deploy-token scope, log level, public feedback mobile filters |
-| Shared relationship combobox                         | Add underline in resource forms and relationship filters; preserve loading, search and invalid states                                                                     |
-| Schedule picker hour/minute/period                   | Underline native selects; remove enclosing segmented border; preserve native controls, labels, time parsing and focus                                                     |
-| Recipient combobox                                   | Updated separately in owning picker PR #801 (commit 2b71ec8c); no missing-component dependency in this branch                                                             |
-| Lookout request-status filter and new Decoys selects | Assigned to the Decoys owner through the parent task; this branch deliberately does not edit lookout.vue                                                                  |
+The earlier audit already aligned the application fields. This follow-up routes
+remaining application Select consumers through the existing `BareSelect`
+wrapper, retaining sizing, options, event handlers and validation attributes.
+The wrapper also supplies red invalid borders in light/dark mode, including
+focus, and forwards named slots. No selection implementation changes.
 
-Already consistent, retained: settings team/uploads; environment app/service
-creation; configuration metadata; backup storage; external PostgreSQL; Wake;
-Quest filters/global runs/run dialog; Bridge scalar select fields.
+| Surface                             | Fields / result                                                                                                                                          |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Settings audit log                  | Event filter uses BareSelect                                                                                                                             |
+| Settings team                       | Invitation role uses BareSelect                                                                                                                          |
+| Settings uploads                    | Backup interval and retention use BareSelect; existing invalid state and revalidation handlers retained                                                  |
+| BackupStorageSettings               | Provider and authentication use BareSelect                                                                                                               |
+| ExternalPostgresFields              | TLS uses BareSelect                                                                                                                                      |
+| ConfigVariableMenu                  | Metadata choices use BareSelect                                                                                                                          |
+| Project environment                 | App route, deployment branch, service type and service version use BareSelect                                                                            |
+| Bridge access                       | Invitation role uses BareSelect; disabled condition retained                                                                                             |
+| Bearing workspace / public feedback | Status controls use BareSelect; existing feedback mobile filters already use it                                                                          |
+| Wake                                | Currency and privacy mode use BareSelect; management permissions retained                                                                                |
+| Quest                               | Job state filter, global run job/state filters and run-dialog choices use BareSelect; invalid/disabled/help attributes retained                          |
+| Existing BareSelect consumers       | Dock database, Bridge app/model/pagination and filter operators/choices, app settings routes, deploy-token scope and log level retain the shared pattern |
+| Bridge scalar choices               | Already dashed; retained in BridgeFieldInput, owned by #763 lane                                                                                         |
+| Bridge relationship combobox        | Already dashed; coordinated with #763 owner, no overlapping edits                                                                                        |
+| Bridge recipient picker             | BridgeActionMultiselect already dashed. Real picker search and selection verified in the synthetic fixture; no duplicate styling change                  |
+| Lookout project filter              | Already completed in #819; retained                                                                                                                      |
+| Lookout request-status and Decoys   | Already dashed; retained; no edits to the Decoys owner’s components                                                                                      |
+| Schedule picker                     | Hour/minute/period already dashed; retain native controls, labels, parsing and focus                                                                     |
+| InstanceQuest                       | Remaining outlier assigned to #817 owner; no overlapping edits                                                                                           |
 
-For the Decoys owner, the existing request-status select in
-`assets/js/pages/projects/lookout.vue` uses a rounded outline and filled
-background. Keep its compact `text-[10px]` size and existing change handler, but
-use `rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent
-shadow-none focus:border-brand focus:outline-none dark:border-gray-700
-dark:bg-transparent dark:focus:border-brand`. Apply the same pattern to new
-Decoys select fields. No other branch should overwrite that worktree.
+## Verification
 
-Browser checks: audit light/dark/mobile computed borders and keyboard selection;
-Dock popup collision/resize and keyboard navigation; creation-field widths;
-Bridge setup access; schedule parsing and mobile overlays. Seven trials passed.
-The picker has an additional passing native selection/underline check in #801.
-Review screenshots use synthetic local fixtures under `docs/images/select-underlines`.
+- `sounding test --file tests/unit/assets/select-measurement.test.js --test-concurrency=1`: 3 passed (popup width, resizing, controlled state).
+- `sounding test --file tests/e2e/pages/select-underlines.test.js --test-concurrency=1`: 1 passed (real audit-log page in light/dark/mobile, keyboard selection).
+- `node --test tests/local-review/select-audit.test.cjs`: builds the real wrapper and recipient components with app CSS, serves only local synthetic choices and verifies all four 1440px/390px light/dark combinations. Checks border geometry, viewport fit, invalid color, disabled state, skipping disabled options, Escape/Tab focus, native form serialization, and recipient search/selection.
+
+The synthetic fixture writes screenshots to `.tmp/select803-evidence/`. It uses
+no application database, accounts or production endpoints. Screenshots show an
+open select plus closed-field states. These are component-level review evidence;
+they do not claim full-page coverage of every inventory row.

@@ -12,7 +12,7 @@ const forwardedAttrs = computed(() => {
 })
 const triggerClasses = computed(() =>
   twMerge(
-    'focus:border-brand dark:focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent text-gray-900 shadow-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-transparent dark:text-white',
+    'focus:border-brand dark:focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent text-gray-900 shadow-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-red-500 aria-invalid:focus:border-red-500 dark:aria-invalid:border-red-400 dark:aria-invalid:focus:border-red-400 dark:border-gray-700 dark:bg-transparent dark:text-white',
     attrs.class
   )
 )
@@ -28,5 +28,9 @@ const chromeReset = {
     v-bind="forwardedAttrs"
     :class="triggerClasses"
     :style="[chromeReset, attrs.style]"
-  />
+  >
+    <template v-for="(_, name) in $slots" #[name]="slotProps">
+      <slot :name="name" v-bind="slotProps || {}" />
+    </template>
+  </Select>
 </template>

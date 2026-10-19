@@ -1,7 +1,7 @@
 <script setup>
 import EllipsisHorizontal from '@/components/ui/icons/EllipsisHorizontal.vue'
 import Input from '@/components/ui/input/Input.vue'
-import Select from '@/components/ui/select/Select.vue'
+import BareSelect from '@/components/BareSelect.vue'
 import Popover from '@/components/ui/popover/Popover.vue'
 import { nextTick, ref, useId } from 'vue'
 
@@ -91,7 +91,7 @@ function previewPolicyDescription(policy) {
           <span class="text-xs font-medium text-gray-700 dark:text-gray-300"
             >Value type</span
           >
-          <Select
+          <BareSelect
             :model-value="metadata.kind"
             :options="[
               { value: 'secret', label: 'Secret' },
@@ -106,7 +106,7 @@ function previewPolicyDescription(policy) {
           <span class="text-xs font-medium text-gray-700 dark:text-gray-300"
             >Preview environments</span
           >
-          <Select
+          <BareSelect
             :model-value="metadata.previewPolicy"
             :options="[
               { value: 'omit', label: 'Omit' },
@@ -128,7 +128,7 @@ function previewPolicyDescription(policy) {
           <span class="text-xs font-medium text-gray-700 dark:text-gray-300"
             >Response redaction</span
           >
-          <Select
+          <BareSelect
             :model-value="metadata.redaction || 'unclassified'"
             :options="[
               { value: 'unclassified', label: 'No global matching' },

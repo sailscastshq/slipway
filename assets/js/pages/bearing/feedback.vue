@@ -21,7 +21,6 @@ import {
   watch
 } from 'vue'
 import ShareLinkButton from '@/components/ShareLinkButton.vue'
-import Select from '@/components/ui/select/Select.vue'
 import BareSelect from '@/components/BareSelect.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import FileUpload from '@/components/ui/file-upload/FileUpload.vue'
@@ -947,12 +946,12 @@ function shortDate(value) {
                   <div
                     class="[&_[data-slot=select-content]]:min-w-44 max-w-[16rem] [&>[data-slot=select]]:w-auto [&_[data-slot=select-content]]:rounded-xl [&_[data-slot=select-content]]:shadow-xl [&_[data-slot=select-content]]:shadow-gray-950/10 dark:[&_[data-slot=select-content]]:shadow-black/30"
                   >
-                    <Select
+                    <BareSelect
                       id="bearing-feedback-category"
                       v-model="form.category"
                       aria-label="Category"
                       :options="categoryOptions"
-                      class="focus:border-brand dark:focus:border-brand min-h-10 w-auto max-w-[16rem] rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm font-semibold text-gray-900 shadow-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-transparent dark:text-white"
+                      class="min-h-10 w-auto max-w-[16rem] px-1 py-2 text-sm font-semibold"
                     />
                   </div>
                 </div>

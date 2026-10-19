@@ -4,7 +4,7 @@ import Dialog from '@/components/ui/dialog/Dialog.vue'
 import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/input/Input.vue'
 import Textarea from '@/components/ui/textarea/Textarea.vue'
-import Select from '@/components/ui/select/Select.vue'
+import BareSelect from '@/components/BareSelect.vue'
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import X from '@/components/ui/icons/X.vue'
@@ -224,7 +224,7 @@ async function submit() {
               />
               Use null
             </label>
-            <Select
+            <BareSelect
               v-if="
                 !input.sensitive &&
                 (input.isIn?.length || questInputType(input) === 'boolean')

@@ -5,7 +5,7 @@ import { useToast } from '@/composables/toast'
 import Button from '@/components/ui/button/Button.vue'
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import Input from '@/components/ui/input/Input.vue'
-import Select from '@/components/ui/select/Select.vue'
+import BareSelect from '@/components/BareSelect.vue'
 const props = defineProps({ configuration: Object })
 const emit = defineEmits(['saved'])
 const form = reactive({
@@ -113,7 +113,7 @@ async function submit(testOnly) {
           <label for="backup-provider" class="mb-1 block text-xs text-gray-500"
             >Provider</label
           >
-          <Select
+          <BareSelect
             id="backup-provider"
             v-model="form.provider"
             :class="field"
@@ -162,7 +162,7 @@ async function submit(testOnly) {
               <label for="backup-auth" class="mb-1 block text-xs text-gray-500"
                 >Authentication</label
               >
-              <Select
+              <BareSelect
                 id="backup-auth"
                 v-model="form.authMethod"
                 :class="field"
