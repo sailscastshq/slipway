@@ -463,7 +463,8 @@ async function releasePorts(operation) {
 
 async function removeRecords(operation) {
   return sails.helpers.cleanup.removeRecords.with({
-    snapshot: operation.snapshot
+    snapshot: operation.snapshot,
+    operationId: operation.id
   })
 }
 
@@ -576,3 +577,8 @@ function humanize(value) {
 function normalizeId(value) {
   return value && typeof value === 'object' ? value.id : value
 }
+
+// Keep image retention out of resource deletion's snapshot/record transition.
+module.exports.fn = require('../../lib/image-operation-guard').guard(
+  module.exports.fn
+)

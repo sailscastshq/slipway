@@ -51,6 +51,7 @@ module.exports = {
         ),
         volumeNames: artifacts.volumeNames || [],
         imageNames: artifacts.imageNames || [],
+        recoveryImageIds: artifacts.recoveryImageIds || [],
         sourcePaths: artifacts.sourcePaths || []
       }
       return result

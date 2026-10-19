@@ -57,11 +57,27 @@ module.exports = {
       deployment
     })
 
+    const app = outcome.appId
+      ? await App.findOne({ id: outcome.appId, environment: environment.id })
+      : null
+    const recovery = app
+      ? await sails.helpers.deploy.resolveRecoveryTarget.with({
+          app,
+          ...(outcome.isCurrent ? {} : { deploymentId: String(deployment.id) })
+        })
+      : {
+          available: false,
+          reason: 'This legacy deployment has no verified app recovery target.'
+        }
+    const { target, bootstrapState, ...recoveryDisplay } = recovery
+    if (target) recoveryDisplay.gitCommit = target.gitCommit || null
+
     return {
       page: 'projects/deployment',
       props: {
         project,
         environment,
+        recovery: recoveryDisplay,
         deployment: {
           ...deployment,
           duration,

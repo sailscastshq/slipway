@@ -222,6 +222,12 @@ module.exports = {
         signal
       })
 
+      const builtArtifact =
+        await sails.helpers.docker.inspectDeploymentImage.with({
+          imageReference: imageName
+        })
+      await updateDeployment({ imageId: builtArtifact.imageId })
+
       // 4b. Detect Sails features (sails-content, sails-quest, etc.)
       await assertLease()
       const detectedFeatures = await sails.helpers.sails.detectFeatures(
@@ -370,7 +376,8 @@ module.exports = {
 
       // 9. Run the new container with deploy-scoped name (old container still running)
       const containerResult = await sails.helpers.docker.runContainer.with({
-        imageName,
+        imageName: builtArtifact.imageId,
+        pullPolicy: 'never',
         containerName: deployContainerName,
         port: 1337,
         hostPort: deployHostPort,
@@ -434,6 +441,8 @@ module.exports = {
           containerId: containerResult.containerId,
           containerName: deployContainerName,
           imageName,
+          imageId: builtArtifact.imageId,
+          recoveryCompatibility: builtArtifact.compatibility,
           port: 1337,
           hostPort: deployHostPort,
           slug: appSlug || 'app',
@@ -605,6 +614,13 @@ module.exports = {
       }
 
       // Rollback: stop and remove the new (unhealthy) container
+      // Failed restoration is an operator hold: preserve both candidates/artifacts.
+      if (
+        failure.code === 'TRAFFIC_CUTOVER_ROLLBACK_FAILED' ||
+        failure.rollbackError
+      )
+        deployContainerName = null
+
       if (deployContainerName) {
         try {
           await sails.helpers.docker.stopContainer.with({

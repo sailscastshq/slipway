@@ -1,3 +1,4 @@
+const recovery = require('../../lib/deployment-recovery')
 const ACTIVE = new Set(['pending', 'building', 'pushing', 'deploying'])
 const SUCCESSFUL = new Set(['running', 'stopped'])
 const TERMINAL_JOBS = new Set(['complete', 'failed', 'cancelled'])
@@ -16,41 +17,49 @@ module.exports = {
 
   fn: async function ({ inventory, policy, now }) {
     now ||= Date.now()
-    const [deployments, apps, jobs, services, cleanups] = await Promise.all([
-      read(Deployment, {}, [
-        'id',
-        'app',
-        'environment',
-        'status',
-        'imageName',
-        'imageId',
-        'createdAt'
-      ]),
-      read(App, {}, [
-        'id',
-        'environment',
-        'imageName',
-        'imageId',
-        'currentDeployment'
-      ]),
-      read(DeploymentJob, {}, [
-        'id',
-        'deployment',
-        'targetDeploymentId',
-        'imageName',
-        'stage'
-      ]),
-      read(Service, {}, [
-        'id',
-        'type',
-        'status',
-        'managementMode',
-        'imageReference',
-        'imageMetadata',
-        'customRecovery'
-      ]),
-      read(CleanupOperation, { retentionPolicy: 'retain' }, ['id', 'snapshot'])
-    ])
+    const [deployments, apps, jobs, services, cleanups, recoveryRows] =
+      await Promise.all([
+        read(Deployment, {}, [
+          'id',
+          'app',
+          'environment',
+          'status',
+          'imageName',
+          'imageId',
+          'createdAt'
+        ]),
+        read(App, {}, [
+          'id',
+          'environment',
+          'imageName',
+          'imageId',
+          'currentDeployment'
+        ]),
+        read(DeploymentJob, {}, [
+          'id',
+          'deployment',
+          'targetDeploymentId',
+          'imageName',
+          'stage'
+        ]),
+        read(Service, {}, [
+          'id',
+          'type',
+          'status',
+          'managementMode',
+          'imageReference',
+          'imageMetadata',
+          'customRecovery'
+        ]),
+        read(CleanupOperation, { retentionPolicy: 'retain' }, [
+          'id',
+          'snapshot'
+        ]),
+        read(Setting, { key: { startsWith: 'deploymentRecovery' } }, [
+          'key',
+          'value'
+        ])
+      ])
     const aliases = new Map()
     const holds = new Set()
     const protectedIds = new Map()
@@ -71,6 +80,33 @@ module.exports = {
       protectRecord(app, 'current-app')
       if (app.currentDeployment)
         protectDeployment(app.currentDeployment, 'current-release')
+    }
+    for (const row of recoveryRows) {
+      if (row.key.startsWith(recovery.HOLD_PREFIX)) {
+        holds.add('Traffic recovery requires operator inspection')
+        continue
+      }
+      let state
+      try {
+        state = recovery.parse(row.value)
+      } catch {
+        holds.add('Recovery metadata could not be verified')
+        continue
+      }
+      const app = apps.find((item) => recovery.id(item.id) === state.appId)
+      if (
+        row.key !== recovery.key(state.appId) ||
+        !app ||
+        recovery.id(app.environment) !== state.environmentId ||
+        recovery.id(app.currentDeployment) !==
+          recovery.id(state.current.deploymentId) ||
+        app.imageId !== state.current.imageId
+      ) {
+        holds.add('Recovery metadata does not match the app traffic owner')
+        continue
+      }
+      protect(state.current.imageId, 'recovery-current')
+      if (state.previous) protect(state.previous.imageId, 'recovery-previous')
     }
     for (const deployment of deployments) {
       if (ACTIVE.has(deployment.status))
@@ -120,6 +156,8 @@ module.exports = {
       collectRecovery(service.customRecovery, 'custom-service-recovery')
     }
     for (const cleanup of cleanups) {
+      for (const ref of cleanup.snapshot?.artifacts?.recoveryImageIds || [])
+        protect(ref, 'retained-recovery')
       for (const ref of cleanup.snapshot?.artifacts?.imageNames || [])
         protect(ref, 'retained-resource')
       for (const service of cleanup.snapshot?.services || []) {
@@ -147,6 +185,9 @@ module.exports = {
       // All control-plane releases, unknown aliases and untagged legacy images stay.
       if (!image.tags.length || image.tags.some((tag) => !ownedNames.has(tag)))
         reasons.push('unknown-or-out-of-scope')
+      // Tag removal can also detach repository-digest aliases, which are not
+      // deployment-owned tags. Retain the whole image instead.
+      if (image.digests.length) reasons.push('digest-reference')
       if (Date.parse(image.created) >= cutoff) reasons.push('minimum-age')
       return { id: image.id, tags: image.tags, sizeBytes: image.size, reasons }
     })

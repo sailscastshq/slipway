@@ -58,6 +58,68 @@ async function prepareCutover({ sails, world }) {
   }
 }
 
+async function prepareRollback({ sails, setup, world }) {
+  const recovery = require('../../../../api/lib/deployment-recovery')
+  const image = (n) => 'sha256:' + String(n).padStart(64, '0')
+  const target = await world.create('deployment').with({
+    status: 'stopped',
+    imageName: 'slipway/web:healthy',
+    imageId: image(1),
+    finishedAt: Date.now() - 1000,
+    environment: setup.environment.id,
+    app: setup.app.id
+  })
+  await sails.models.deployment
+    .updateOne({ id: setup.app.currentDeployment })
+    .set({ imageId: image(2) })
+  setup.app = await sails.models.app
+    .updateOne({ id: setup.app.id })
+    .set({ imageId: image(2) })
+  const state = recovery.parse(
+    {
+      version: 1,
+      appId: String(setup.app.id),
+      environmentId: String(setup.environment.id),
+      current: {
+        deploymentId: String(setup.app.currentDeployment),
+        imageId: image(2),
+        compatibility: 'schema-1',
+        promotedAt: Date.now()
+      },
+      previous: {
+        deploymentId: String(target.id),
+        imageId: image(1),
+        compatibility: 'schema-1',
+        promotedAt: Date.now() - 1000
+      },
+      rejectedImages: []
+    },
+    setup.app
+  )
+  await sails.models.setting.create({
+    key: recovery.key(setup.app.id),
+    value: JSON.stringify(state)
+  })
+  await sails.models.setting.create({
+    key: `rollbackIntent:v1:${setup.deployment.id}`,
+    value: JSON.stringify({
+      appId: setup.app.id,
+      environmentId: setup.environment.id,
+      expectedCurrent: String(setup.app.currentDeployment),
+      targetDeploymentId: target.id,
+      imageId: image(1),
+      compatibility: 'schema-1'
+    })
+  })
+  await sails.models.deploymentjob.create({
+    deployment: setup.deployment.id,
+    targetKey: `environment:${setup.environment.id}`,
+    kind: 'rollback',
+    targetDeploymentId: target.id
+  })
+  return target
+}
+
 function machineStub(fn) {
   fn.with = fn
   return fn
@@ -453,6 +515,7 @@ test(
   async ({ sails, world, expect }) => {
     const setup = await prepareCutover({ sails, world })
     const originals = {
+      inspectDeploymentImage: sails.helpers.docker.inspectDeploymentImage,
       ensureNetwork: sails.helpers.docker.ensureNetwork,
       prepareCandidateContainer: sails.helpers.deploy.prepareCandidateContainer,
       ensureBuildContext: sails.helpers.deploy.ensureBuildContext,
@@ -477,6 +540,14 @@ test(
     sails.helpers.docker.captureStartupDiagnostics = machineStub(async () => ({
       captured: true
     }))
+    sails.helpers.docker.inspectDeploymentImage = machineStub(
+      async ({ imageReference }) => ({
+        imageId: imageReference.startsWith('sha256:')
+          ? imageReference
+          : 'sha256:' + '4'.padStart(64, '0'),
+        compatibility: 'schema-1'
+      })
+    )
     sails.helpers.docker.ensureNetwork = machineStub(async () => {})
     sails.helpers.deploy.prepareCandidateContainer = machineStub(async () => ({
       action: 'ready'
@@ -557,6 +628,8 @@ test(
         'Cancellation acknowledged during health check'
       )
     } finally {
+      sails.helpers.docker.inspectDeploymentImage =
+        originals.inspectDeploymentImage
       sails.helpers.docker.ensureNetwork = originals.ensureNetwork
       sails.helpers.deploy.prepareCandidateContainer =
         originals.prepareCandidateContainer
@@ -581,10 +654,9 @@ test(
   { world: cutoverWorld('transactional-rollback') },
   async ({ sails, world, expect }) => {
     const setup = await prepareCutover({ sails, world })
-    const previousDeployment = await sails.models.deployment.findOne({
-      id: setup.app.currentDeployment
-    })
+    const previousDeployment = await prepareRollback({ sails, setup, world })
     const originals = {
+      inspectDeploymentImage: sails.helpers.docker.inspectDeploymentImage,
       ensureNetwork: sails.helpers.docker.ensureNetwork,
       prepareCandidateContainer: sails.helpers.deploy.prepareCandidateContainer,
       allocatePort: sails.helpers.docker.allocatePort,
@@ -604,12 +676,22 @@ test(
     sails.helpers.docker.captureStartupDiagnostics = machineStub(async () => ({
       captured: true
     }))
+    sails.helpers.docker.inspectDeploymentImage = machineStub(
+      async ({ imageReference }) => ({
+        imageId: imageReference.startsWith('sha256:')
+          ? imageReference
+          : 'sha256:' + '4'.padStart(64, '0'),
+        compatibility: 'schema-1'
+      })
+    )
     sails.helpers.docker.ensureNetwork = machineStub(async () => {})
     sails.helpers.deploy.prepareCandidateContainer = machineStub(async () => ({
       action: 'ready'
     }))
     sails.helpers.docker.allocatePort = machineStub(async () => 1403)
     sails.helpers.docker.runContainer = machineStub(async (inputs) => {
+      expect(inputs.imageName).toBe(previousDeployment.imageId)
+      expect(inputs.pullPolicy).toBe('never')
       sequence.push('candidate-started')
       candidateName = inputs.containerName
       return {
@@ -668,6 +750,16 @@ test(
       expect(candidateName === 'slipway-web-previous').toBe(false)
       expect(app.containerName).toBe(candidateName)
       expect(rollback.status).toBe('running')
+      const recovery = require('../../../../api/lib/deployment-recovery')
+      const retained = JSON.parse(
+        (await sails.models.setting.findOne({ key: recovery.key(app.id) }))
+          .value
+      )
+      expect(retained.current.deploymentId).toBe(String(rollback.id))
+      expect(retained.current.imageId).toBe(previousDeployment.imageId)
+      expect(retained.previous).toBe(null)
+      expect(retained.rejectedImages).toContain(setup.app.imageId)
+
       expect(sequence).toEqual([
         'candidate-started',
         'candidate-healthy',
@@ -677,6 +769,8 @@ test(
         'stopped:slipway-web-previous'
       ])
     } finally {
+      sails.helpers.docker.inspectDeploymentImage =
+        originals.inspectDeploymentImage
       sails.helpers.docker.ensureNetwork = originals.ensureNetwork
       sails.helpers.deploy.prepareCandidateContainer =
         originals.prepareCandidateContainer
@@ -700,10 +794,9 @@ test(
   { world: cutoverWorld('transactional-rollback-failure') },
   async ({ sails, world, expect }) => {
     const setup = await prepareCutover({ sails, world })
-    const previousDeployment = await sails.models.deployment.findOne({
-      id: setup.app.currentDeployment
-    })
+    const previousDeployment = await prepareRollback({ sails, setup, world })
     const originals = {
+      inspectDeploymentImage: sails.helpers.docker.inspectDeploymentImage,
       ensureNetwork: sails.helpers.docker.ensureNetwork,
       prepareCandidateContainer: sails.helpers.deploy.prepareCandidateContainer,
       allocatePort: sails.helpers.docker.allocatePort,
@@ -722,6 +815,14 @@ test(
     sails.helpers.docker.captureStartupDiagnostics = machineStub(async () => ({
       captured: true
     }))
+    sails.helpers.docker.inspectDeploymentImage = machineStub(
+      async ({ imageReference }) => ({
+        imageId: imageReference.startsWith('sha256:')
+          ? imageReference
+          : 'sha256:' + '4'.padStart(64, '0'),
+        compatibility: 'schema-1'
+      })
+    )
     sails.helpers.docker.ensureNetwork = machineStub(async () => {})
     sails.helpers.deploy.prepareCandidateContainer = machineStub(async () => ({
       action: 'ready'
@@ -782,6 +883,8 @@ test(
       ])
       expect(sequence.includes('stopped:slipway-web-previous')).toBe(false)
     } finally {
+      sails.helpers.docker.inspectDeploymentImage =
+        originals.inspectDeploymentImage
       sails.helpers.docker.ensureNetwork = originals.ensureNetwork
       sails.helpers.deploy.prepareCandidateContainer =
         originals.prepareCandidateContainer
@@ -814,6 +917,7 @@ test(
   async ({ sails, world, expect }) => {
     const setup = await prepareCutover({ sails, world })
     const originals = {
+      inspectDeploymentImage: sails.helpers.docker.inspectDeploymentImage,
       ensureNetwork: sails.helpers.docker.ensureNetwork,
       prepareCandidateContainer: sails.helpers.deploy.prepareCandidateContainer,
       ensureBuildContext: sails.helpers.deploy.ensureBuildContext,
@@ -849,6 +953,14 @@ test(
         sequence.push('diagnostics-captured')
         return { captured: true }
       }
+    )
+    sails.helpers.docker.inspectDeploymentImage = machineStub(
+      async ({ imageReference }) => ({
+        imageId: imageReference.startsWith('sha256:')
+          ? imageReference
+          : 'sha256:' + '4'.padStart(64, '0'),
+        compatibility: 'schema-1'
+      })
     )
     sails.helpers.docker.ensureNetwork = machineStub(async () => {})
     sails.helpers.deploy.prepareCandidateContainer = machineStub(async () => ({
@@ -925,6 +1037,8 @@ test(
       ])
       expect(deployment.deployLogs).toContain('ERROR [health check]')
     } finally {
+      sails.helpers.docker.inspectDeploymentImage =
+        originals.inspectDeploymentImage
       sails.helpers.docker.ensureNetwork = originals.ensureNetwork
       sails.helpers.deploy.prepareCandidateContainer =
         originals.prepareCandidateContainer
@@ -943,6 +1057,327 @@ test(
       sails.helpers.notification.sendDeploymentNotification =
         originals.sendDeploymentNotification
       sails.log.error = originalLogError
+    }
+  }
+)
+
+test(
+  'failed final route commit restores App and recovery metadata together; failed restoration creates a durable operator hold',
+  { world: cutoverWorld('recovery-metadata-transaction') },
+  async ({ sails, world, expect }) => {
+    const setup = await prepareCutover({ sails, world })
+    const target = await prepareRollback({ sails, setup, world })
+    const recovery = require('../../../../api/lib/deployment-recovery')
+    const originalUpdate = sails.helpers.caddy.updateRoute
+    const originalFinish = sails.helpers.caddy.finishRouteUpdate
+    const before = (
+      await sails.models.setting.findOne({ key: recovery.key(setup.app.id) })
+    ).value
+    let failRestore = false
+    sails.helpers.caddy.updateRoute = machineStub(async () => stagedRoute())
+    sails.helpers.caddy.finishRouteUpdate = machineStub(async ({ action }) => {
+      if (action === 'commit' || failRestore)
+        throw new Error('Safe fixture route failure')
+      return { action: 'rolled_back' }
+    })
+    const perform = () =>
+      sails.helpers.deploy.cutoverTraffic.with({
+        deploymentId: setup.deployment.id,
+        environmentId: setup.environment.id,
+        appId: setup.app.id,
+        candidate: {
+          ...setup.candidate,
+          imageId: target.imageId,
+          recoveryCompatibility: 'schema-1'
+        }
+      })
+    try {
+      await captureError(perform())
+      expect(
+        (await sails.models.app.findOne({ id: setup.app.id })).currentDeployment
+      ).toBe(setup.app.currentDeployment)
+      expect(
+        (
+          await sails.models.setting.findOne({
+            key: recovery.key(setup.app.id)
+          })
+        ).value
+      ).toBe(before)
+      failRestore = true
+      const error = await captureError(perform())
+      expect(error.code).toBe('TRAFFIC_CUTOVER_ROLLBACK_FAILED')
+      expect(
+        Boolean(
+          await sails.models.setting.findOne({
+            key: recovery.HOLD_PREFIX + setup.app.id
+          })
+        )
+      ).toBe(true)
+      const eligibility = await sails.helpers.deploy.resolveRecoveryTarget.with(
+        { app: setup.app }
+      )
+      expect(eligibility.available).toBe(false)
+      expect(eligibility.reason).toContain('operator')
+    } finally {
+      sails.helpers.caddy.updateRoute = originalUpdate
+      sails.helpers.caddy.finishRouteUpdate = originalFinish
+    }
+  }
+)
+
+test(
+  'a queued rollback rejects a changed current generation before network or container work',
+  { world: cutoverWorld('stale-recovery-intent') },
+  async ({ sails, world, expect }) => {
+    const setup = await prepareCutover({ sails, world })
+    const target = await prepareRollback({ sails, setup, world })
+    const newer = await world.create('deployment').with({
+      app: setup.app.id,
+      environment: setup.environment.id,
+      status: 'running'
+    })
+    await sails.models.app
+      .updateOne({ id: setup.app.id })
+      .set({ currentDeployment: newer.id })
+    const originalNetwork = sails.helpers.docker.ensureNetwork
+    let networkCalls = 0
+    sails.helpers.docker.ensureNetwork = machineStub(async () => {
+      networkCalls++
+    })
+    try {
+      const error = await captureError(
+        sails.helpers.deploy.executeRollback.with({
+          rollbackId: setup.deployment.id,
+          targetDeployment: target,
+          environment: setup.environment,
+          app: setup.app
+        })
+      )
+      expect(error.message).toContain('changed')
+      expect(networkCalls).toBe(0)
+      expect(
+        (await sails.models.app.findOne({ id: setup.app.id })).currentDeployment
+      ).toBe(newer.id)
+    } finally {
+      sails.helpers.docker.ensureNetwork = originalNetwork
+    }
+  }
+)
+
+test(
+  'operator recovery holds prevent restart finalization from retiring either container',
+  { world: cutoverWorld('held-restart-finalization') },
+  async ({ sails, world, expect }) => {
+    const setup = await prepareCutover({ sails, world })
+    const recovery = require('../../../../api/lib/deployment-recovery')
+    await sails.models.app.updateOne({ id: setup.app.id }).set({
+      currentDeployment: setup.deployment.id,
+      containerName: setup.candidate.containerName
+    })
+    await sails.models.setting.create({
+      key: recovery.HOLD_PREFIX + setup.app.id,
+      value: '{}'
+    })
+    const original = sails.helpers.docker.stopContainer
+    let stops = 0
+    sails.helpers.docker.stopContainer = machineStub(async () => {
+      stops++
+    })
+    try {
+      const error = await captureError(
+        sails.helpers.deploy.finalizeCurrentCandidate.with({
+          deploymentId: setup.deployment.id,
+          appId: setup.app.id,
+          environmentId: setup.environment.id
+        })
+      )
+      expect(error.message).toContain('operator')
+      expect(stops).toBe(0)
+      expect(
+        (await sails.models.app.findOne({ id: setup.app.id })).containerName
+      ).toBe(setup.candidate.containerName)
+    } finally {
+      sails.helpers.docker.stopContainer = original
+    }
+  }
+)
+
+test(
+  'real App/recovery commits retain the last healthy release across deploy, failed candidate, rollback and redeploy',
+  { world: cutoverWorld('recovery-promotion-sequence') },
+  async ({ sails, world, expect }) => {
+    const setup = await prepareCutover({ sails, world })
+    await prepareRollback({ sails, setup, world })
+    const recovery = require('../../../../api/lib/deployment-recovery')
+    const image = (n) => 'sha256:' + String(n).padStart(64, '0')
+    const originalUpdate = sails.helpers.caddy.updateRoute
+    const originalFinish = sails.helpers.caddy.finishRouteUpdate
+    let failRoute = false
+    sails.helpers.caddy.updateRoute = machineStub(async () => {
+      if (failRoute) throw new Error('Safe fixture rejected route')
+      return stagedRoute()
+    })
+    sails.helpers.caddy.finishRouteUpdate = machineStub(async () => ({
+      action: 'committed'
+    }))
+    const read = async () =>
+      JSON.parse(
+        (
+          await sails.models.setting.findOne({
+            key: recovery.key(setup.app.id)
+          })
+        ).value
+      )
+    const promote = async (n, kind = 'deploy') => {
+      const deployment = await world.create('deployment').with({
+        app: setup.app.id,
+        environment: setup.environment.id,
+        status: 'deploying',
+        imageName: `slipway/recovery:${n}`,
+        imageId: image(n)
+      })
+      await sails.models.deploymentjob.create({
+        deployment: deployment.id,
+        targetKey: `environment:${setup.environment.id}`,
+        kind
+      })
+      await sails.helpers.deploy.cutoverTraffic.with({
+        deploymentId: deployment.id,
+        environmentId: setup.environment.id,
+        appId: setup.app.id,
+        candidate: {
+          ...setup.candidate,
+          containerName: `safe-fixture-${deployment.id}`,
+          imageName: deployment.imageName,
+          imageId: image(n),
+          recoveryCompatibility: 'schema-1'
+        }
+      })
+      return deployment
+    }
+    try {
+      const healthy = await promote(3)
+      let state = await read()
+      expect(state.current.deploymentId).toBe(String(healthy.id))
+      expect(state.previous.imageId).toBe(image(2))
+      failRoute = true
+      await captureError(promote(4))
+      expect(await read()).toEqual(state)
+      failRoute = false
+      const rollback = await promote(2, 'rollback')
+      state = await read()
+      expect(state.current.deploymentId).toBe(String(rollback.id))
+      expect(state.previous).toBe(null)
+      expect(state.rejectedImages).toContain(image(3))
+      await promote(5)
+      state = await read()
+      expect(state.previous.deploymentId).toBe(String(rollback.id))
+      expect(state.previous.imageId).toBe(image(2))
+      expect(state.current.imageId).toBe(image(5))
+    } finally {
+      sails.helpers.caddy.updateRoute = originalUpdate
+      sails.helpers.caddy.finishRouteUpdate = originalFinish
+    }
+  }
+)
+
+test(
+  'an immutable committed candidate that fails restart readiness preserves both containers under an operator hold',
+  { world: cutoverWorld('recovery-restart-readiness') },
+  async ({ sails, world, expect }) => {
+    const setup = await prepareCutover({ sails, world })
+    const recovery = require('../../../../api/lib/deployment-recovery')
+    const app = await sails.models.app.updateOne({ id: setup.app.id }).set({
+      currentDeployment: setup.deployment.id,
+      containerName: setup.candidate.containerName,
+      imageId: 'sha256:' + '9'.repeat(64)
+    })
+    const originalHealth = sails.helpers.docker.healthCheck
+    const originalStop = sails.helpers.docker.stopContainer
+    let stops = 0
+    sails.helpers.docker.healthCheck = machineStub(async () => {
+      throw new Error('Safe fixture: unhealthy candidate after restart')
+    })
+    sails.helpers.docker.stopContainer = machineStub(async () => {
+      stops++
+    })
+    try {
+      const error = await captureError(
+        sails.helpers.deploy.finalizeCurrentCandidate.with({
+          deploymentId: setup.deployment.id,
+          appId: app.id,
+          environmentId: setup.environment.id
+        })
+      )
+      expect(error.code).toBe('TRAFFIC_RECOVERY_HEALTH_FAILED')
+      expect(stops).toBe(0)
+      expect(
+        Boolean(
+          await sails.models.setting.findOne({
+            key: recovery.HOLD_PREFIX + app.id
+          })
+        )
+      ).toBe(true)
+    } finally {
+      sails.helpers.docker.healthCheck = originalHealth
+      sails.helpers.docker.stopContainer = originalStop
+    }
+  }
+)
+
+test(
+  'a normal promotion preserves a provable unlabelled legacy current image without requiring a rebuild or configuration',
+  { world: cutoverWorld('legacy-current-promotion') },
+  async ({ sails, world, expect }) => {
+    const fixture = await require('../../../support/recovery-fixture').prepare({
+      sails,
+      world,
+      legacy: true
+    })
+    const recovery = require('../../../../api/lib/deployment-recovery')
+    const originalUpdate = sails.helpers.caddy.updateRoute
+    const originalFinish = sails.helpers.caddy.finishRouteUpdate
+    sails.helpers.caddy.updateRoute = machineStub(async () => stagedRoute())
+    sails.helpers.caddy.finishRouteUpdate = machineStub(async () => ({
+      action: 'committed'
+    }))
+    try {
+      const candidate = await world.create('deployment').with({
+        app: fixture.app.id,
+        environment: fixture.environment.id,
+        status: 'deploying'
+      })
+      await sails.helpers.deploy.cutoverTraffic.with({
+        deploymentId: candidate.id,
+        appId: fixture.app.id,
+        environmentId: fixture.environment.id,
+        candidate: {
+          containerName: 'safe-legacy-candidate',
+          containerId: 'safe-fixture-id',
+          imageName: 'slipway/legacy:9',
+          imageId: 'sha256:' + '3'.padStart(64, '0'),
+          port: 1337,
+          hostPort: 1448,
+          recoveryCompatibility: null
+        }
+      })
+      const state = JSON.parse(
+        (
+          await sails.models.setting.findOne({
+            key: recovery.key(fixture.app.id)
+          })
+        ).value
+      )
+      expect(state.previous.deploymentId).toBe(String(fixture.current.id))
+      expect(state.previous.compatibility).toBe(null)
+      expect(
+        (await sails.models.deployment.findOne({ id: fixture.current.id }))
+          .imageId
+      ).toBe(state.previous.imageId)
+    } finally {
+      sails.helpers.caddy.updateRoute = originalUpdate
+      sails.helpers.caddy.finishRouteUpdate = originalFinish
+      fixture.restore()
     }
   }
 )

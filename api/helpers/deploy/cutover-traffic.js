@@ -1,3 +1,5 @@
+const recovery = require('../../lib/deployment-recovery')
+const transaction = require('../../lib/with-datastore-transaction')
 module.exports = {
   friendlyName: 'Cut over traffic',
 
@@ -56,7 +58,7 @@ module.exports = {
       id: previousApp?.id,
       environment: environmentId,
       status: 'running',
-      imageId: null,
+      imageId: candidate.imageId || null,
       lastDeployedAt: Date.now(),
       currentDeployment: deploymentId,
       slug: candidate.slug || previousApp?.slug || 'app',
@@ -89,6 +91,23 @@ module.exports = {
     let stagedRoute = null
     let appStateCommitted = false
     let committedApp = null
+    let previousRecovery = null
+    let legacyCurrentState = null
+    if (
+      previousApp?.currentDeployment &&
+      recovery.IMAGE_ID.test(candidateApp.imageId || '') &&
+      !(await Setting.findOne({ key: recovery.key(previousApp.id) }))
+    ) {
+      try {
+        const legacy = await sails.helpers.deploy.resolveLegacyRecovery.with({
+          app: previousApp,
+          currentOnly: true
+        })
+        if (legacy.available) legacyCurrentState = legacy.state
+      } catch {
+        // A new healthy deployment can proceed; do not invent unavailable legacy identity.
+      }
+    }
 
     await appendDeployLog(
       deploymentId,
@@ -118,11 +137,87 @@ module.exports = {
       // The route has been staged but App state has not changed yet. Recheck
       // ownership so a newer worker can never inherit this candidate.
       await assertLease(deploymentId, leaseToken)
-      committedApp = previousApp
-        ? await App.updateOne({ id: previousApp.id }).set(
-            appValues(candidateApp)
+      await transaction(async (db) => {
+        if (leaseToken) {
+          const owner = await DeploymentLease.findOne({
+            deployment: deploymentId,
+            token: leaseToken,
+            expiresAt: { '>': Date.now() }
+          }).usingConnection(db)
+          if (!owner)
+            throw Object.assign(
+              new Error(
+                'The deployment lease expired before App/recovery commit.'
+              ),
+              { code: 'DEPLOYMENT_LEASE_LOST' }
+            )
+        }
+        if (previousApp)
+          previousRecovery = await Setting.findOne({
+            key: recovery.key(previousApp.id)
+          }).usingConnection(db)
+        if (
+          previousRecovery &&
+          !recovery.IMAGE_ID.test(candidateApp.imageId || '')
+        )
+          throw new Error(
+            'A verified immutable image is required to advance recovery state.'
           )
-        : await App.create(appValues(candidateApp)).fetch()
+        committedApp = previousApp
+          ? await App.updateOne({
+              id: previousApp.id,
+              currentDeployment: previousApp.currentDeployment || null
+            })
+              .set(appValues(candidateApp))
+              .usingConnection(db)
+          : await App.create(appValues(candidateApp))
+              .fetch()
+              .usingConnection(db)
+        if (
+          committedApp &&
+          recovery.IMAGE_ID.test(candidateApp.imageId || '')
+        ) {
+          if (legacyCurrentState && !previousRecovery) {
+            const release = legacyCurrentState.current
+            const source = await Deployment.findOne({
+              id: release.deploymentId,
+              app: previousApp.id,
+              environment: environmentId
+            }).usingConnection(db)
+            if (
+              !require('../../lib/legacy-deployment-artifact').verifyBinding(
+                source,
+                release,
+                previousApp
+              )
+            )
+              throw new Error(
+                'The previous successful deployment identity changed before promotion.'
+              )
+            await Deployment.updateOne({ id: source.id })
+              .set({ imageId: release.imageId })
+              .usingConnection(db)
+          }
+          const job = await DeploymentJob.findOne({
+            deployment: deploymentId
+          }).usingConnection(db)
+          await recovery.write(
+            previousApp || committedApp,
+            {
+              deploymentId: String(deploymentId),
+              imageId: candidateApp.imageId,
+              promotedAt: candidateApp.lastDeployedAt,
+              compatibility: candidate.recoveryCompatibility || null
+            },
+            job?.kind || 'deploy',
+            db,
+            legacyCurrentState
+          )
+          await Deployment.updateOne({ id: deploymentId })
+            .set({ imageId: candidateApp.imageId, app: committedApp.id })
+            .usingConnection(db)
+        }
+      })
 
       if (!committedApp) {
         throw new Error(
@@ -190,13 +285,34 @@ module.exports = {
 
       if (appStateCommitted) {
         try {
-          if (previousApp) {
-            await App.updateOne({ id: previousApp.id }).set(
-              appValues(previousApp)
+          await transaction(async (db) => {
+            const owner = committedApp
+              ? await App.findOne({ id: committedApp.id }).usingConnection(db)
+              : null
+            if (
+              owner &&
+              String(owner.currentDeployment) !== String(deploymentId)
             )
-          } else if (committedApp) {
-            await App.destroyOne({ id: committedApp.id })
-          }
+              throw new Error(
+                'A different deployment owns App state; do not overwrite its recovery metadata.'
+              )
+            if (previousApp)
+              await App.updateOne({ id: previousApp.id })
+                .set(appValues(previousApp))
+                .usingConnection(db)
+            else if (committedApp)
+              await App.destroyOne({ id: committedApp.id }).usingConnection(db)
+            if (committedApp) {
+              await Setting.destroy({
+                key: recovery.key(committedApp.id)
+              }).usingConnection(db)
+              if (previousRecovery)
+                await Setting.create({
+                  key: previousRecovery.key,
+                  value: previousRecovery.value
+                }).usingConnection(db)
+            }
+          })
         } catch (error) {
           rollbackError = combineErrors(rollbackError, error)
         }
@@ -216,6 +332,21 @@ module.exports = {
       })
 
       if (rollbackError) {
+        const heldAppId = previousApp?.id || committedApp?.id
+        if (heldAppId)
+          await sails.helpers.setting
+            .set(
+              recovery.HOLD_PREFIX + String(heldAppId),
+              JSON.stringify({
+                deploymentId: String(deploymentId),
+                createdAt: Date.now(),
+                reason:
+                  'Traffic or App restoration could not be verified. Inspect both containers and routing before clearing this hold.'
+              })
+            )
+            .catch((error) => {
+              rollbackError = combineErrors(rollbackError, error)
+            })
         await appendDeployLog(
           deploymentId,
           `Cutover rollback failed: ${rollbackError.message || rollbackError}\n`

@@ -16,6 +16,7 @@ const tag = (n) => `slipway/demo-production-web:${n}`
 async function fixture(t, config = {}) {
   const keys = [
     'sails',
+    'Setting',
     'Deployment',
     'App',
     'DeploymentJob',
@@ -36,6 +37,7 @@ async function fixture(t, config = {}) {
     await fs.rm(root, { recursive: true, force: true })
   })
   const state = {
+    recovery: [],
     deployments: [],
     apps: [],
     jobs: [],
@@ -49,6 +51,7 @@ async function fixture(t, config = {}) {
     logs: []
   }
   for (const [name, key] of [
+    ['Setting', 'recovery'],
     ['Deployment', 'deployments'],
     ['App', 'apps'],
     ['DeploymentJob', 'jobs'],
@@ -83,9 +86,10 @@ async function fixture(t, config = {}) {
         },
         getPlan: { with: (input) => getPlan.fn(input) },
         removeImage: {
-          with: async ({ imageId }) => {
+          with: async ({ imageId, tags = [] }) => {
             state.removed.push(imageId)
             state.images = state.images.filter((image) => image.id !== imageId)
+            return { removed: true, untagged: tags }
           }
         }
       }
@@ -121,7 +125,7 @@ async function fixture(t, config = {}) {
   return { state, policy, plan, deployment, root }
 }
 
-test('defaults clean up daily with a bounded backlog and preserve 14 days and three successful images', async (t) => {
+test('explicit removal keeps a bounded daily backlog, 14 days and three successful images', async (t) => {
   const { policy } = await fixture(t)
   assert.equal(policy.remove, true)
   assert.equal(policy.minimumAgeDays, 14)
@@ -242,7 +246,7 @@ test('incomplete bounded records, missing job targets and retained resource snap
   )
 })
 
-test('daily default removes only eligible images and returns a compact plain summary', async (t) => {
+test('explicitly enabled daily cleanup removes only eligible images and returns a compact plain summary', async (t) => {
   const { state, deployment } = await fixture(t)
   for (let n = 1; n <= 5; n++) deployment(n)
   const result = await job.fn()
@@ -290,7 +294,7 @@ test('default backlog sweep removes at most 100 and reports deferred images for 
   assert.equal(state.removed.length, 105)
 })
 
-test('upgrade config enables cleanup when unset and preserves explicit preview-only opt-out', async () => {
+test('startup config enables removal by default and preserves explicit opt-out', async () => {
   const vm = require('node:vm')
   const source = await fs.readFile(
     require.resolve('../../../../config/image-retention'),
@@ -360,9 +364,9 @@ test('removal rechecks fresh references, skips a new pin and honors its batch bo
   }
   const first = await run.fn()
   assert.equal(first.status, 'complete')
-  assert.deepEqual(state.removed, [])
+  assert.deepEqual(state.removed, [id(2)])
   assert.equal(first.skipped[0].reason, 'protection-or-inventory-changed')
-  assert.equal(calls, 2)
+  assert.equal(calls, 3)
   state.containers = []
   const second = await run.fn()
   assert.deepEqual(second.removed, [id(1)])
@@ -426,4 +430,148 @@ test('a failed removal records each candidate as removed, failed or skipped', as
     [id(3), id(4)]
   )
   assert.equal(outcome.status, 'failed')
+})
+
+test('multi-tag deferral performs no removal and later independent candidates still proceed', async (t) => {
+  const { state, deployment } = await fixture(t, { maxRemovals: 2 })
+  for (let n = 1; n <= 7; n++) deployment(n)
+  state.images[0].tags.push(tag(2))
+  state.images = state.images.filter((image) => image.id !== id(2))
+  const original = sails.helpers.imageRetention.removeImage.with
+  sails.helpers.imageRetention.removeImage.with = async (input) =>
+    input.tags.length > 1 ? removeImage.fn(input) : original(input)
+  const result = await run.fn()
+  assert.deepEqual(state.removed, [id(3), id(4)])
+  assert.deepEqual(result.removed, [id(3), id(4)])
+  assert.equal(result.status, 'complete')
+  assert.equal(result.summary.errors, 0)
+  assert.equal(result.summary.deferred, 1)
+  assert.equal(result.skipped[0].reason, 'multiple-image-tags')
+  assert.deepEqual(state.images.find((image) => image.id === id(1)).tags, [
+    tag(1),
+    tag(2)
+  ])
+})
+
+test('expected Docker conflicts defer one image and continue independent candidates up to confirmed-removal bound', async (t) => {
+  const { state, deployment } = await fixture(t, { maxRemovals: 2 })
+  for (let n = 1; n <= 7; n++) deployment(n)
+  const original = sails.helpers.imageRetention.removeImage.with
+  sails.helpers.imageRetention.removeImage.with = async (input) =>
+    input.imageId === id(1)
+      ? {
+          removed: false,
+          reason: 'docker-conflict',
+          deferred: true,
+          untagged: []
+        }
+      : original(input)
+  const result = await run.fn()
+  assert.deepEqual(result.removed, [id(2), id(3)])
+  assert.equal(result.status, 'complete')
+  assert.equal(result.summary.errors, 0)
+  assert.equal(result.summary.deferred, 2)
+  assert.equal(
+    result.skipped.find((item) => item.id === id(1)).reason,
+    'docker-conflict'
+  )
+  assert.equal(
+    result.skipped.find((item) => item.id === id(4)).reason,
+    'batch-limit'
+  )
+})
+
+test('all eligible shared tags are candidates, but any protected, unknown or digest alias protects the whole ID', async (t) => {
+  const { state, deployment, plan, policy } = await fixture(t)
+  for (let n = 1; n <= 6; n++) deployment(n)
+  state.images[0].tags.push(tag(2))
+  state.images = state.images.filter((item) => item.id !== id(2))
+  assert.ok((await plan()).candidates.some((item) => item.id === id(1)))
+  policy.pinnedImages = [tag(2)]
+  assert.ok(!(await plan()).candidates.some((item) => item.id === id(1)))
+  policy.pinnedImages = []
+  state.images[0].tags.push('unrelated/keep:latest')
+  assert.ok(!(await plan()).candidates.some((item) => item.id === id(1)))
+  state.images[0].tags.pop()
+  state.images[0].digests.push('unrelated/keep@' + id(1))
+  assert.ok(
+    (await plan()).protected
+      .find((item) => item.id === id(1))
+      .reasons.includes('digest-reference')
+  )
+})
+
+test('explicit previous recovery image survives beyond recent-success floor and recovery holds stop cleanup', async (t) => {
+  const { state, deployment, plan } = await fixture(t)
+  const recovery = require('../../../../api/lib/deployment-recovery')
+  for (let n = 1; n <= 8; n++) deployment(n)
+  state.apps.push({
+    id: 1,
+    environment: 1,
+    currentDeployment: 8,
+    imageId: id(8),
+    imageName: tag(8)
+  })
+  state.recovery.push({
+    key: recovery.key(1),
+    value: JSON.stringify({
+      version: 1,
+      appId: '1',
+      environmentId: '1',
+      rejectedImages: [],
+      current: {
+        deploymentId: '8',
+        imageId: id(8),
+        promotedAt: 800,
+        compatibility: 'schema-1'
+      },
+      previous: {
+        deploymentId: '1',
+        imageId: id(1),
+        promotedAt: 100,
+        compatibility: 'schema-1'
+      }
+    })
+  })
+  let result = await plan()
+  assert.ok(
+    result.protected
+      .find((item) => item.id === id(1))
+      .reasons.includes('recovery-previous')
+  )
+  assert.ok(!result.candidates.some((item) => item.id === id(1)))
+  state.recovery.push({ key: recovery.HOLD_PREFIX + '1', value: '{}' })
+  result = await plan()
+  assert.equal(result.status, 'held')
+  assert.deepEqual(result.candidates, [])
+})
+
+test('unexplained orphan recovery metadata still holds all image retention', async (t) => {
+  const { state, deployment, plan } = await fixture(t)
+  for (let n = 1; n <= 5; n++) deployment(n, { status: 'failed' })
+  assert.equal((await plan()).candidates.length, 5)
+  state.recovery.push({
+    key: 'deploymentRecovery:v1:999',
+    value: JSON.stringify({
+      version: 1,
+      appId: '999',
+      environmentId: '999',
+      current: {
+        deploymentId: '999',
+        imageId: id(1),
+        promotedAt: NOW,
+        compatibility: null
+      },
+      previous: null,
+      rejectedImages: []
+    })
+  })
+  const result = await plan()
+  assert.equal(result.status, 'held')
+  assert.deepEqual(result.candidates, [])
+  assert.ok(
+    result.holds.includes(
+      'Recovery metadata does not match the app traffic owner'
+    )
+  )
 })

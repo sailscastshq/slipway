@@ -82,12 +82,55 @@ module.exports = {
     }
 
     try {
+      const liveApp = appInput?.id
+        ? await App.findOne({ id: appInput.id })
+        : null
+      if (!liveApp) throw new Error('Rollback requires the original app.')
+      const intentRow = await Setting.findOne({
+        key: `rollbackIntent:v1:${rollbackId}`
+      })
+      const intent = intentRow?.value ? JSON.parse(intentRow.value) : null
+      if (
+        !intent ||
+        String(intent.appId) !== String(liveApp.id) ||
+        String(intent.environmentId) !== String(environment.id) ||
+        String(intent.targetDeploymentId) !== String(targetDeployment.id)
+      )
+        throw new Error(
+          'The durable rollback intent is missing or does not match this app.'
+        )
+      if (String(liveApp.currentDeployment) !== String(rollbackId)) {
+        const resolved = await sails.helpers.deploy.resolveRecoveryTarget.with({
+          app: liveApp,
+          deploymentId: String(targetDeployment.id),
+          expectedCurrent: String(intent.expectedCurrent),
+          checkBusy: false
+        })
+        if (
+          !resolved.available ||
+          resolved.imageId !== intent.imageId ||
+          resolved.compatibility !== intent.compatibility
+        )
+          throw new Error(
+            resolved.reason || 'The rollback artifact changed after admission.'
+          )
+        if (
+          resolved.requiresCompatibilityAcknowledgement &&
+          intent.acknowledgeUnknownCompatibility !== true
+        )
+          throw new Error(
+            'Unknown schema compatibility was not acknowledged for this rollback.'
+          )
+      }
+      const imageId = intent.imageId
+      const compatibility = intent.compatibility
       await recordStage('initialization', {
-        imageName: targetDeployment.imageName
+        imageName: targetDeployment.imageName || imageId
       })
       await updateDeployment({
         status: 'deploying',
-        imageName: targetDeployment.imageName
+        imageId,
+        imageName: targetDeployment.imageName || imageId
       })
 
       sails.hooks?.secrets?.rememberPublicRecord?.('environment', environment)
@@ -103,13 +146,7 @@ module.exports = {
 
       await sails.helpers.docker.ensureNetwork()
 
-      const existingApp =
-        appInput ||
-        (await App.findOne({
-          environment: environment.id,
-          isDefault: true
-        })) ||
-        (await App.findOne({ environment: environment.id }))
+      const existingApp = liveApp
       const appSlug = existingApp?.slug
       const isPubliclyRoutable = !existingApp || existingApp.routePath !== null
       const appBindHost = isPubliclyRoutable
@@ -256,7 +293,8 @@ module.exports = {
       )
 
       const containerResult = await sails.helpers.docker.runContainer.with({
-        imageName: targetDeployment.imageName,
+        imageName: imageId,
+        pullPolicy: 'never',
         containerName: candidateContainerName,
         port: 1337,
         hostPort,
@@ -290,7 +328,9 @@ module.exports = {
         candidate: {
           containerId: containerResult.containerId,
           containerName: candidateContainerName,
-          imageName: targetDeployment.imageName,
+          imageName: targetDeployment.imageName || imageId,
+          imageId,
+          recoveryCompatibility: compatibility,
           port: 1337,
           hostPort,
           slug: appSlug || 'app',
@@ -421,6 +461,13 @@ module.exports = {
           /* Preserve original rollback failure. */
         }
       }
+
+      // Failed restoration is an operator hold: preserve both candidates/artifacts.
+      if (
+        failure.code === 'TRAFFIC_CUTOVER_ROLLBACK_FAILED' ||
+        failure.rollbackError
+      )
+        candidateContainerName = null
 
       if (candidateContainerName) {
         try {

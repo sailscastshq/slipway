@@ -148,6 +148,15 @@ async function recoverLease(lease) {
         environment: deployment.environment,
         slug: job.appSlug
       })
+  if (
+    app &&
+    (await Setting.findOne({
+      key: require('../../lib/deployment-recovery').HOLD_PREFIX + String(app.id)
+    }))
+  )
+    throw new Error(
+      'Traffic recovery requires operator inspection; preserve both containers.'
+    )
   const candidateIsCurrent = Boolean(
     app &&
       app.currentDeployment === deployment.id &&
@@ -156,6 +165,10 @@ async function recoverLease(lease) {
   )
 
   if (candidateIsCurrent) {
+    await sails.helpers.deploy.verifyRecoveryCurrent.with({
+      app,
+      deploymentId: String(deployment.id)
+    })
     await restoreRouteFromAppState(deployment.environment, deployment.id, {
       candidateIsCurrent: true
     })
@@ -232,6 +245,15 @@ async function recoverLegacyDeployment(deployment) {
     deployment.id,
     app?.slug
   )
+  if (
+    app &&
+    (await Setting.findOne({
+      key: require('../../lib/deployment-recovery').HOLD_PREFIX + String(app.id)
+    }))
+  )
+    throw new Error(
+      'Traffic recovery requires operator inspection; preserve both containers.'
+    )
   const candidateIsCurrent = Boolean(
     app &&
       app.currentDeployment === deployment.id &&
@@ -239,6 +261,10 @@ async function recoverLegacyDeployment(deployment) {
   )
 
   if (candidateIsCurrent) {
+    await sails.helpers.deploy.verifyRecoveryCurrent.with({
+      app,
+      deploymentId: String(deployment.id)
+    })
     await restoreRouteFromAppState(deployment.environment, deployment.id, {
       candidateIsCurrent: true
     })

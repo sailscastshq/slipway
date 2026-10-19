@@ -19,7 +19,8 @@ test(
         scheduled: true,
         nextRunAt: '2026-10-22T03:30:00Z',
         runningCount: 0,
-        manualAllowed: true
+        manualAllowed: true,
+        cleanupEnabled: true
       },
       {
         name: 'run-scheduled-backups',
@@ -116,19 +117,43 @@ test(
       await page.raw.waitForURL((url) => !url.pathname.startsWith('/login'))
       await page.goto('/bosun?tab=quest')
       const panel = page.raw.locator('[data-test="instance-quest"]')
+      const output = path.resolve('output/bosun-quest')
+      fs.mkdirSync(output, { recursive: true })
       await expect(
         panel.getByRole('heading', {
           name: 'Clean up deployment images',
           exact: true
         })
       ).toBeVisible()
+      await expect(panel.getByRole('button', { name: /preview/i })).toHaveCount(
+        0
+      )
       await expect(
-        panel.getByRole('button', {
-          name: 'Run Run scheduled backups',
-          exact: true
-        })
-      ).toBeDisabled()
+        panel.getByRole('button', { name: /^Actions for / })
+      ).toHaveCount(jobs.length)
       expect(starts).toBe(0)
+      const cleanupActions = panel.getByRole('button', {
+        name: 'Actions for Clean up deployment images',
+        exact: true
+      })
+      const backupActions = panel.getByRole('button', {
+        name: 'Actions for Run scheduled backups',
+        exact: true
+      })
+      const cleanupMenu = page.raw.getByRole('menu', {
+        name: 'Actions for Clean up deployment images',
+        exact: true
+      })
+      const backupMenu = page.raw.getByRole('menu', {
+        name: 'Actions for Run scheduled backups',
+        exact: true
+      })
+      await backupActions.click()
+      await expect(
+        backupMenu.getByRole('menuitem', { name: 'Run now', exact: true })
+      ).toBeDisabled()
+      await page.raw.keyboard.press('Escape')
+      await expect(backupActions).toBeFocused()
       await panel
         .getByRole('button', { name: /^Run scheduled backups/ })
         .click()
@@ -139,83 +164,77 @@ test(
       await expect(panel.getByLabel('Instance run detail')).toContainText(
         'Safe fixture: live output refreshed'
       )
-      const output = path.resolve('output/bosun-quest')
-      fs.mkdirSync(output, { recursive: true })
       for (const [width, theme] of [
         [1440, 'light'],
         [390, 'dark']
       ]) {
         await page.raw.setViewportSize({ width, height: 1100 })
         await page.raw.emulateMedia({ colorScheme: theme })
+        await cleanupActions.scrollIntoViewIfNeeded()
+        await cleanupActions.click()
         await expect(
-          page.raw.getByRole('tab', { name: 'Quest', exact: true })
-        ).toBeInViewport()
+          cleanupMenu.getByRole('menuitem', { name: 'Run now', exact: true })
+        ).toBeEnabled()
+        await expect(cleanupMenu.getByRole('menuitem')).toHaveCount(1)
+        await expect(cleanupMenu).toBeVisible()
+        await page.raw.waitForFunction(() => {
+          const menu = document
+            .getElementById('instance-job-actions-retain-deployment-images')
+            ?.getBoundingClientRect()
+          const trigger = document
+            .querySelector(
+              '[popovertarget="instance-job-actions-retain-deployment-images"]'
+            )
+            ?.getBoundingClientRect()
+          return Boolean(
+            menu &&
+              trigger &&
+              menu.y >= trigger.bottom &&
+              Math.abs(menu.right - trigger.right) < 3
+          )
+        })
         await page.raw.screenshot({
-          path: path.join(output, `instance-jobs-${width}-${theme}.png`),
+          path: path.join(output, `instance-jobs-menu-${width}-${theme}.png`),
           animations: 'disabled'
         })
         expect(
           await panel.evaluate((node) => node.scrollWidth <= node.clientWidth)
         ).toBe(true)
+        await page.raw.keyboard.press('Escape')
+        await expect(cleanupActions).toBeFocused()
       }
-      await panel
-        .getByRole('button', {
-          name: 'Preview deployment image cleanup',
-          exact: true
-        })
-        .click()
+      await cleanupActions.focus()
+      await page.raw.keyboard.press('Enter')
+      await expect(
+        cleanupMenu.getByRole('menuitem', { name: 'Run now', exact: true })
+      ).toBeFocused()
+      await page.raw.keyboard.press('Enter')
       const review = panel.locator('[data-test="confirm-modal"]')
       await expect(review).toBeVisible()
-      expect(starts).toBe(0)
-      await review.getByRole('button', { name: 'Preview', exact: true }).click()
-      await expect(review).not.toBeVisible()
-      await expect(panel.getByLabel('Instance run detail')).toContainText(
-        'Safe fixture: preview only'
-      )
-      expect(starts).toBe(1)
-      expect(requests[0]).toEqual({ preview: true })
-      await panel
-        .getByLabel('Instance run detail')
-        .evaluate((node) => node.scrollIntoView({ block: 'start' }))
-      await panel.getByLabel('Instance run detail').screenshot({
-        path: path.join(output, 'instance-preview-mobile-dark.png'),
-        animations: 'disabled'
-      })
-      await panel
-        .getByRole('button', {
-          name: 'Clean up deployment images',
-          exact: true
-        })
-        .click()
       await expect(review).toContainText(
         'Remove eligible old deployment images now'
       )
+      expect(starts).toBe(0)
       await review
         .getByRole('button', { name: 'Clean up', exact: true })
         .click()
+      await expect(review).not.toBeVisible()
       await expect(panel.getByLabel('Instance run detail')).toContainText(
         'Safe fixture: cleanup complete; removed 2, skipped 1, errors 0, deferred 1.'
       )
-      expect(starts).toBe(2)
-      expect(requests[1]).toEqual({})
+      expect(starts).toBe(1)
+      expect(requests[0]).toEqual({})
       await panel.getByLabel('Instance run detail').scrollIntoViewIfNeeded()
       await panel.getByLabel('Instance run detail').screenshot({
-        path: path.join(output, 'instance-cleanup-mobile-dark.png'),
+        path: path.join(output, 'instance-cleanup-menu-mobile-dark.png'),
         animations: 'disabled'
       })
       jobs[0].cleanupEnabled = false
+      await cleanupActions.click()
       await expect(
-        panel.getByRole('button', {
-          name: 'Clean up deployment images',
-          exact: true
-        })
+        cleanupMenu.getByRole('menuitem', { name: 'Run now', exact: true })
       ).toBeDisabled()
-      await expect(
-        panel.getByRole('button', {
-          name: 'Preview deployment image cleanup',
-          exact: true
-        })
-      ).toBeEnabled()
+      await page.raw.keyboard.press('Escape')
       expect(page).toHaveNoJavascriptErrors()
     } finally {
       sails.instanceQuest = previous

@@ -8,6 +8,11 @@ module.exports = {
     snapshot: {
       type: 'ref',
       required: true
+    },
+    operationId: {
+      type: 'number',
+      description:
+        'Durable operation whose snapshot receives final recovery references.'
     }
   },
 
@@ -17,7 +22,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ snapshot }) {
+  fn: async function ({ snapshot, operationId }) {
     const { records, services, target } = snapshot
     const removed = {
       observability: await removeObservabilityRecords(snapshot),
@@ -36,6 +41,11 @@ module.exports = {
     const environmentVars = await getEnvironmentVarUpdates(services)
 
     await sails.getDatastore().transaction(async (db) => {
+      removed.default.recoverySettings = await retireRecovery(
+        snapshot,
+        operationId,
+        db
+      )
       for (const service of customServices)
         await require('../../lib/custom-service').links(
           { ...service, environment: service.environmentId },
@@ -162,6 +172,61 @@ module.exports = {
 
     return removed
   }
+}
+
+async function retireRecovery(snapshot, operationId, db) {
+  const { appIds = [], deploymentIds = [] } = snapshot.records
+  if (!appIds.length) return 0
+  const apps = await App.find({ id: { in: appIds } }).usingConnection(db)
+  const captured =
+    await require('../../lib/cleanup-deployment-recovery').capture({
+      apps,
+      appIds,
+      deploymentIds,
+      db
+    })
+  const retained = snapshot.artifacts?.recoveryImageIds || []
+  const { IMAGE_ID } = require('../../lib/deployment-recovery')
+  if (!Array.isArray(retained) || retained.some((id) => !IMAGE_ID.test(id)))
+    throw new Error('Deletion snapshot recovery image references are invalid.')
+  const refreshed = {
+    ...snapshot,
+    records: { ...snapshot.records, recoverySettingKeys: captured.settingKeys },
+    artifacts: {
+      ...snapshot.artifacts,
+      recoveryImageIds: [...new Set([...retained, ...captured.imageIds])]
+    }
+  }
+  if (operationId) {
+    const operation = await CleanupOperation.findOne({
+      id: operationId
+    }).usingConnection(db)
+    const sameIds = (a = [], b = []) =>
+      JSON.stringify(a.map(String).sort()) ===
+      JSON.stringify(b.map(String).sort())
+    if (
+      !operation ||
+      operation.snapshot.target.scopeType !== snapshot.target.scopeType ||
+      !sameIds(operation.snapshot.records.appIds, appIds) ||
+      !sameIds(operation.snapshot.records.deploymentIds, deploymentIds)
+    )
+      throw new Error(
+        'The durable deletion snapshot no longer matches its scope.'
+      )
+    await CleanupOperation.updateOne({ id: operationId })
+      .set({ snapshot: refreshed })
+      .usingConnection(db)
+  } else if (captured.imageIds.some((id) => !retained.includes(id))) {
+    throw new Error(
+      'Persist recovery image references before deleting their settings.'
+    )
+  }
+  if (!captured.settingKeys.length) return 0
+  return destroyCriteriaCount(
+    Setting,
+    { key: { in: captured.settingKeys } },
+    db
+  )
 }
 
 async function getEnvironmentVarUpdates(services) {

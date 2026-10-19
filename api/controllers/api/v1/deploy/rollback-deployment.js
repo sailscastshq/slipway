@@ -20,6 +20,8 @@ module.exports = {
       required: true,
       description: 'ID of the deployment to roll back to'
     },
+    expectedCurrent: { type: 'string', required: true },
+    acknowledgeUnknownCompatibility: { type: 'boolean', defaultsTo: false },
     appSlug: {
       type: 'string',
       description: 'Target app slug (defaults to default app)'
@@ -41,7 +43,14 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, deploymentId, appSlug }) {
+  fn: async function ({
+    projectSlug,
+    environmentSlug,
+    deploymentId,
+    appSlug,
+    expectedCurrent,
+    acknowledgeUnknownCompatibility
+  }) {
     const user = await User.forRequest(this.req)
     const project = await Project.findOne({ slug: projectSlug }).populate(
       'team'
@@ -63,12 +72,24 @@ module.exports = {
           isDefault: true
         })) || (await App.findOne({ environment: environment.id }))
 
-    const targetDeployment = await Deployment.findOne({
-      id: deploymentId,
-      environment: environment.id,
-      status: 'running'
+    if (!targetApp) throw 'notFound'
+    const recovery = await sails.helpers.deploy.resolveRecoveryTarget.with({
+      app: targetApp,
+      deploymentId,
+      expectedCurrent
     })
-    if (!targetDeployment?.imageName) throw 'badRequest'
+    if (!recovery.available) throw { badRequest: { message: recovery.reason } }
+    if (
+      recovery.requiresCompatibilityAcknowledgement &&
+      !acknowledgeUnknownCompatibility
+    )
+      throw {
+        badRequest: {
+          message:
+            'Confirm that the previous app can use the current schema and configuration. Rollback does not undo migrations or data changes.'
+        }
+      }
+    const targetDeployment = recovery.target
 
     const queued = await sails.helpers.deploy.queueDeployment
       .with({
@@ -78,11 +99,15 @@ module.exports = {
           gitMessage: `Rollback to deployment ${targetDeployment.id}`,
           triggeredBy: user.id,
           triggerType: 'api',
-          environment: environment.id
+          environment: environment.id,
+          imageId: recovery.imageId,
+          imageName: targetDeployment.imageName || recovery.imageId
         },
         app: targetApp,
         kind: 'rollback',
-        targetDeploymentId: targetDeployment.id
+        targetDeploymentId: targetDeployment.id,
+        expectedCurrent,
+        acknowledgeUnknownCompatibility
       })
       .intercept('cleanupInProgress', (error) => ({
         badRequest: error.raw || error

@@ -44,6 +44,7 @@ module.exports = {
       startedAt: Date.now(),
       status: 'planning',
       removed: [],
+      untagged: [],
       skipped: [],
       failed: []
     }
@@ -78,7 +79,11 @@ module.exports = {
         return await finish()
 
       result.status = 'running'
-      for (const candidate of plan.candidates.slice(0, policy.maxRemovals)) {
+      for (const candidate of plan.candidates) {
+        if (result.removed.length >= policy.maxRemovals) {
+          result.stopReason = 'batch-limit'
+          break
+        }
         if (Date.now() - result.startedAt >= policy.maxRunMs) {
           result.stopReason = 'run-time-limit'
           result.skipped.push({ id: candidate.id, reason: 'run-time-limit' })
@@ -99,7 +104,10 @@ module.exports = {
           result.holds = freshPlan.holds
           break
         }
-        if (!freshPlan.candidates.some((image) => image.id === candidate.id)) {
+        const freshCandidate = freshPlan.candidates.find(
+          (image) => image.id === candidate.id
+        )
+        if (!freshCandidate) {
           result.skipped.push({
             id: candidate.id,
             reason: 'protection-or-inventory-changed'
@@ -110,10 +118,41 @@ module.exports = {
           imageId: candidate.id
         })
         try {
-          await sails.helpers.imageRetention.removeImage.with({
-            imageId: candidate.id
+          const outcome = await sails.helpers.imageRetention.removeImage.with({
+            imageId: candidate.id,
+            tags: freshCandidate.tags,
+            policy,
+            deadline: result.startedAt + policy.maxRunMs
           })
+          if (
+            !outcome ||
+            typeof outcome.removed !== 'boolean' ||
+            !Array.isArray(outcome.untagged)
+          )
+            throw new Error(
+              'Image retention removal returned no confirmed outcome'
+            )
+          result.untagged.push(
+            ...outcome.untagged.map((tag) => ({ imageId: candidate.id, tag }))
+          )
+          if (!outcome.removed) {
+            result.skipped.push({
+              id: candidate.id,
+              reason: outcome.reason,
+              deferred: Boolean(outcome.deferred)
+            })
+            if (outcome.held) {
+              result.status = 'held'
+              result.holds = outcome.holds
+              break
+            }
+            continue
+          }
         } catch (error) {
+          if (Array.isArray(error.untagged))
+            result.untagged.push(
+              ...error.untagged.map((tag) => ({ imageId: candidate.id, tag }))
+            )
           result.failed.push({
             id: candidate.id,
             reason: 'docker-removal-failed'
@@ -124,8 +163,6 @@ module.exports = {
         await save()
         await audit('image-retention.image-removed', { imageId: candidate.id })
       }
-      for (const candidate of plan.candidates.slice(policy.maxRemovals))
-        result.skipped.push({ id: candidate.id, reason: 'batch-limit' })
       if (result.status === 'running') result.status = 'complete'
       return await finish()
     } catch (error) {
@@ -196,15 +233,18 @@ module.exports = {
         mode: result.mode,
         candidates: result.plan?.candidates.length || 0,
         removed: result.removed.length,
+        untagged: result.untagged.length,
         skipped: result.skipped.length,
         errors: Math.max(result.failed.length, result.error ? 1 : 0),
-        deferred: result.skipped.filter((item) =>
-          [
-            'batch-limit',
-            'run-time-limit',
-            'run-stopped',
-            'inventory-held'
-          ].includes(item.reason)
+        deferred: result.skipped.filter(
+          (item) =>
+            item.deferred ||
+            [
+              'batch-limit',
+              'run-time-limit',
+              'run-stopped',
+              'inventory-held'
+            ].includes(item.reason)
         ).length
       }
       await save()
@@ -212,6 +252,7 @@ module.exports = {
         status: result.status,
         mode: result.mode,
         removed: result.removed,
+        untagged: result.untagged,
         skipped: result.skipped,
         failed: result.failed,
         holds: result.holds || result.plan?.holds || [],
@@ -219,7 +260,7 @@ module.exports = {
       })
       const summary = result.summary
       sails.log.info(
-        `Clean up deployment images: ${summary.status} (${summary.mode}); candidates ${summary.candidates}, removed ${summary.removed}, skipped ${summary.skipped}, errors ${summary.errors}, deferred ${summary.deferred}.`
+        `Clean up deployment images: ${summary.status} (${summary.mode}); candidates ${summary.candidates}, removed ${summary.removed}, skipped ${summary.skipped}, errors ${summary.errors}, deferred ${summary.deferred}, untagged ${summary.untagged}.`
       )
       return result
     }

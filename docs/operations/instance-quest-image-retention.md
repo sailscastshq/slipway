@@ -21,27 +21,24 @@ are bounded to 16 KiB and may be unavailable when larger.
 
 ## How the daily cleanup works
 
-**Upgrade behavior:** from v0.0.104, **Clean up deployment images** removes eligible
-old Slipway app deployment images by default, every 24 hours. v0.0.103 only previewed.
-No database schema migration is needed. The internal `retain-deployment-images`
-script identity stays unchanged so schedules and existing history remain compatible.
+**Upgrade behavior:** from v0.0.104, cleanup removes eligible old Slipway app
+deployment images by default, every 24 hours. The internal
+`retain-deployment-images` script identity stays unchanged for schedule/history
+compatibility; Bosun calls it **Clean up deployment images**.
 
-In Bosun → Quest, **Clean up** runs cleanup immediately. **Preview** explicitly
-checks candidates without deleting anything and does not change the regular schedule.
-Both actions retain instance-admin authorization, CSRF, admission and shared guards.
-The only accepted cleanup input is `{ "preview": true }` (or boolean false for the
-normal configured mode); arbitrary removal overrides are rejected.
+Every job uses the existing horizontal ellipsis action menu with **Run now**.
+Cleanup uses the same menu and requires review before triggering. It has no
+separate Preview UI action or policy paragraph in the list.
 
-`SLIPWAY_IMAGE_RETENTION_REMOVE=false` opts the instance out of removal. Unset or
-`true` enables it; invalid values fail closed to preview. The installer now persists
-and forwards this variable from `/etc/slipway/.env` (or `SLIPWAY_ENV_FILE`). An explicit
-variable supplied to the installer takes precedence over its saved value. Existing
-self-update containers preserve their environment, including an explicit opt-out.
-For a custom Docker/Compose installation, change the container’s actual environment
-and recreate it using the same image; a plain `docker restart` cannot change its
-Docker environment. A new release is not required to change this configuration.
-Bosun’s generic Environment editor currently saves database overrides only and does
-not apply this startup setting. Preview is the supported per-run runtime option.
+`SLIPWAY_IMAGE_RETENTION_REMOVE=false` explicitly opts out of removal. Unset or
+`true` enables cleanup; invalid values fail closed to preview. The installer
+persists and forwards this variable from `/etc/slipway/.env` (or
+`SLIPWAY_ENV_FILE`), with an explicit installer variable taking precedence. For
+custom Docker/Compose installs, recreate the container to change its environment;
+a restart alone cannot do that. Bosun's generic Environment editor only saves
+database overrides and does not apply this startup setting. The backend retains
+the validated boolean `preview` diagnostic for API compatibility; ordinary UI
+triggers always send the configured defaults (`{}`).
 
 1. Acquire the cleanup lock and exclusive shared image-operation admission.
    Deployment enqueueing, reconciliation and deploy/rollback workers hold shared
@@ -60,9 +57,19 @@ not apply this startup setting. Preview is the supported per-run runtime option.
 4. Select images strictly older than 14 days. Persist the plan to
    `imageRetentionLastRun` and write its audit record before any removal.
 5. Process at most 100 images and stop after five minutes per run by default. Re-read policy, complete inventory and all references for each exact image
-   ID while retaining the exclusive guard. Use `docker image rm --no-prune ID`,
-   never force, blanket prune, volume pruning or build-cache pruning. Stop on
-   failure or a changed/held inventory; record removed, skipped and failed IDs.
+   ID while retaining the exclusive guard. All aliases must be known deployment
+   tags; pinned, unknown or digest aliases protect the whole image. Multi-tag
+   images are deferred without any removal commands. Eligible single-tag images
+   are inspected and removed only by complete immutable ID with
+   `docker image rm --no-prune ID`; no command removes a mutable tag. Untagged
+   legacy images remain outside the planner's eligibility rules. Count removal
+   only after a complete inventory confirms the exact ID is absent. Never force,
+   blanket prune, volume prune or build-cache prune. An extra tag arriving after
+   inspection is left to Docker's non-force conflict protection. Expected conflicts
+   defer that image and independent candidates continue; systemic failures or held
+   inventory stop the run. No multi-tag disk reclamation or freed-byte total is
+   claimed. The shared guard coordinates Slipway deployment/rollback writers;
+   external Docker actors still must not race protection/reference changes.
 
 Volumes, backups, build cache and unrelated images are outside the operation.
 Virtual image sizes share layers; a candidate-size sum is not reclaimed disk space.
@@ -71,7 +78,7 @@ plan and outcomes stay in the audit records and `imageRetentionLastRun`. No recl
 byte total is claimed. Review actual host usage separately.
 
 A run reports the backlog deferred by its image/time bound. The next daily run
-continues it, or an administrator can select **Clean up** again after completion.
+continues it, or an administrator can select **Run now** again after completion.
 The bound avoids holding deployment/rollback admission indefinitely. Inventory is
 still refreshed before every individual non-force removal; a backlog never weakens
 protection or expands eligibility.

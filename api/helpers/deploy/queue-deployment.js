@@ -25,6 +25,8 @@ module.exports = {
       type: 'number',
       description: 'Existing deployment whose image a rollback will reuse.'
     },
+    expectedCurrent: { type: 'string' },
+    acknowledgeUnknownCompatibility: { type: 'boolean', defaultsTo: false },
     dispatch: {
       type: 'boolean',
       defaultsTo: true,
@@ -41,7 +43,15 @@ module.exports = {
     }
   },
 
-  fn: async function ({ values, app, kind, targetDeploymentId, dispatch }) {
+  fn: async function ({
+    values,
+    app,
+    kind,
+    targetDeploymentId,
+    dispatch,
+    expectedCurrent,
+    acknowledgeUnknownCompatibility
+  }) {
     const environmentId = normalizeId(values.environment)
     if (!environmentId) {
       throw new Error('A queued deployment requires an environment.')
@@ -59,6 +69,58 @@ module.exports = {
     const initialCleanup = await findBlockingCleanup(cleanupScope)
     if (initialCleanup) throw { cleanupInProgress: initialCleanup }
 
+    if (
+      app &&
+      (await Setting.findOne({
+        key:
+          require('../../lib/deployment-recovery').HOLD_PREFIX + String(app.id)
+      }))
+    )
+      throw new Error(
+        'Traffic recovery requires operator inspection before another deployment or rollback.'
+      )
+    let recoveryIntent = null
+    let bootstrapState = null
+    if (kind === 'rollback') {
+      if (!app || !expectedCurrent)
+        throw new Error(
+          'Rollback requires an app and the expected current release.'
+        )
+      app = await App.findOne({ id: app.id, environment: environmentId })
+      if (!app) throw new Error('The rollback app no longer exists.')
+      const target = await sails.helpers.deploy.resolveRecoveryTarget.with({
+        app,
+        deploymentId: String(targetDeploymentId),
+        expectedCurrent
+      })
+      if (!target.available) throw new Error(target.reason)
+      if (
+        target.requiresCompatibilityAcknowledgement &&
+        !acknowledgeUnknownCompatibility
+      )
+        throw new Error(
+          'Unknown schema compatibility requires explicit acknowledgement; rollback does not undo migrations.'
+        )
+      bootstrapState = target.bootstrapState
+      recoveryIntent = {
+        appId: app.id,
+        environmentId,
+        expectedCurrent,
+        targetDeploymentId,
+        imageId: target.imageId,
+        compatibility: target.compatibility,
+        compatibilityStatus: target.compatibilityStatus,
+        acknowledgeUnknownCompatibility: Boolean(
+          acknowledgeUnknownCompatibility
+        )
+      }
+      values = {
+        ...values,
+        imageId: target.imageId,
+        imageName: target.target.imageName || target.imageId
+      }
+    }
+
     const appSlug = app?.slug || 'app'
     // The source cache and Caddy route are environment-wide resources. Keep
     // all app pipelines in the same environment queue so they cannot race at
@@ -68,6 +130,63 @@ module.exports = {
     let job
 
     await withDatastoreTransaction(async (db) => {
+      if (recoveryIntent) {
+        const currentApp = await App.findOne({ id: app.id }).usingConnection(db)
+        if (String(currentApp?.currentDeployment) !== expectedCurrent)
+          throw new Error(
+            'The current release changed before rollback admission.'
+          )
+        if (bootstrapState) {
+          const recovery = require('../../lib/deployment-recovery')
+          const existing = await Setting.findOne({
+            key: recovery.key(app.id)
+          }).usingConnection(db)
+          if (existing)
+            throw new Error(
+              'Recovery state changed during bootstrap; refresh before retrying.'
+            )
+          if (
+            currentApp.imageId &&
+            currentApp.imageId !== bootstrapState.current.imageId
+          )
+            throw new Error(
+              'The current immutable image changed during bootstrap.'
+            )
+          for (const release of [
+            bootstrapState.current,
+            bootstrapState.previous
+          ]) {
+            const source = await Deployment.findOne({
+              id: release.deploymentId,
+              app: app.id,
+              environment: environmentId
+            }).usingConnection(db)
+            if (
+              !require('../../lib/legacy-deployment-artifact').verifyBinding(
+                source,
+                release,
+                currentApp
+              )
+            )
+              throw new Error(
+                'Successful deployment provenance or immutable receipt changed during bootstrap.'
+              )
+            await Deployment.updateOne({ id: source.id })
+              .set({ imageId: release.imageId })
+              .usingConnection(db)
+          }
+          await App.updateOne({
+            id: app.id,
+            currentDeployment: currentApp.currentDeployment
+          })
+            .set({ imageId: bootstrapState.current.imageId })
+            .usingConnection(db)
+          await Setting.create({
+            key: recovery.key(app.id),
+            value: JSON.stringify(bootstrapState)
+          }).usingConnection(db)
+        }
+      }
       deployment = await Deployment.create({
         ...values,
         status: 'pending',
@@ -76,6 +195,12 @@ module.exports = {
       })
         .fetch()
         .usingConnection(db)
+
+      if (recoveryIntent)
+        await Setting.create({
+          key: `rollbackIntent:v1:${deployment.id}`,
+          value: JSON.stringify(recoveryIntent)
+        }).usingConnection(db)
 
       job = await DeploymentJob.create({
         deployment: deployment.id,
@@ -94,6 +219,9 @@ module.exports = {
       await withDatastoreTransaction(async (db) => {
         await DeploymentJob.destroyOne({ id: job.id }).usingConnection(db)
         await Deployment.destroyOne({ id: deployment.id }).usingConnection(db)
+        await Setting.destroy({
+          key: `rollbackIntent:v1:${deployment.id}`
+        }).usingConnection(db)
       })
       throw { cleanupInProgress: racedCleanup }
     }
