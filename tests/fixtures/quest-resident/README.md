@@ -95,9 +95,11 @@ public API by one owned fixture signal. It is never dynamically redefined.
 
 Recovery trials intentionally mark only the disposable dashboard App stopped or
 temporarily point it at a uniquely nonexistent container while a real child
-keeps running. They require uncertainty and exact same-sequence resident recovery
-without replay. A separate test withholds real terminal delivery, then uses a
-single bounded fixture signal to create 40 genuine paused Quest timer skips at
+keeps running. They require uncertainty and resident recovery without replay,
+with exact execution timestamps/results and a nondecreasing sequence because
+live log events may advance it while the child is running. The deliberately
+withheld receipt below must retain its exact sequence. A separate test withholds
+real terminal delivery, then uses a single bounded fixture signal to create 40 genuine paused Quest timer skips at
 100 ms intervals,
 evicting the old resident receipt without new children or a runtime restart.
 The timer stops afterward; its dynamically unavailable schema stays gated.
