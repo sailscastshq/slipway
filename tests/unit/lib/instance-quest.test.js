@@ -226,3 +226,22 @@ test('cleanup accepts only an explicit boolean preview and keeps request identit
   sails.config.imageRetention = { remove: false }
   assert.equal((await adapter.snapshot()).jobs[0].cleanupEnabled, false)
 })
+
+test('build cache maintenance is allowlisted with strict preview input and independent opt-out metadata', async (t) => {
+  const { adapter, job, finish, inputsSent, sails } = await fixture(t)
+  job.name = 'retain-build-cache'
+  assert.equal((await adapter.snapshot()).jobs[0].cleanupEnabled, true)
+  for (const input of [
+    { all: true },
+    { preview: 'true' },
+    { preview: true, minimumUnusedHours: 1 }
+  ])
+    await assert.rejects(adapter.trigger(job.name, randomUUID(), input), {
+      status: 400
+    })
+  await adapter.trigger(job.name, randomUUID(), { preview: true })
+  assert.deepEqual(inputsSent[0], { preview: true })
+  finish()
+  sails.config.buildCacheRetention = { remove: false }
+  assert.equal((await adapter.snapshot()).jobs[0].cleanupEnabled, false)
+})

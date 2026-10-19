@@ -2,11 +2,9 @@
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
-import Filter from '@/components/ui/icons/Filter.vue'
-import ChevronDown from '@/components/ui/icons/ChevronDown.vue'
-import Check from '@/components/ui/icons/Check.vue'
 import ChartBar from '@/components/ui/icons/ChartBar.vue'
 import Input from '@/components/ui/input/Input.vue'
+import Select from '@/components/ui/select/Select.vue'
 import { Link, Head, router, usePoll } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -48,7 +46,6 @@ usePoll(30000)
 // Search + project filter
 const searchQuery = ref('')
 const selectedProject = ref('all')
-const filterOpen = ref(false)
 
 const projects = computed(() => {
   const map = {}
@@ -102,18 +99,13 @@ const groupedByProject = computed(() => {
 
 const totalContainers = computed(() => filteredContainers.value.length)
 
-function selectProject(slug) {
-  selectedProject.value = slug
-  filterOpen.value = false
-}
-
-const selectedProjectName = computed(() => {
-  if (selectedProject.value === 'all') return 'All projects'
-  return (
-    projects.value.find((p) => p.slug === selectedProject.value)?.name ||
-    'All projects'
-  )
-})
+const projectOptions = computed(() => [
+  { value: 'all', label: 'All projects' },
+  ...projects.value.map((project) => ({
+    value: project.slug,
+    label: project.name
+  }))
+])
 
 function formatBytes(bytes) {
   if (!bytes) return '0 B'
@@ -241,7 +233,9 @@ function envTelemetry(container) {
     <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
       <div class="mx-auto max-w-6xl">
         <!-- Header -->
-        <div class="mb-8 flex items-start justify-between">
+        <div
+          class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
+        >
           <div>
             <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
               Infrastructure
@@ -251,74 +245,17 @@ function envTelemetry(container) {
             </p>
           </div>
 
-          <!-- Project filter dropdown -->
-          <div v-if="projects.length > 1" class="relative">
-            <button
-              @click.stop="filterOpen = !filterOpen"
-              class="flex items-center space-x-2 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-            >
-              <Filter class="h-4 w-4 text-gray-400" stroke-width="2" />
-              <span>{{ selectedProjectName }}</span>
-              <ChevronDown
-                :class="[
-                  'h-3.5 w-3.5 text-gray-400 transition-transform',
-                  filterOpen ? 'rotate-180' : ''
-                ]"
-                stroke-width="2"
-              />
-            </button>
-            <Transition
-              enter-active-class="transition ease-out duration-100"
-              enter-from-class="transform opacity-0 scale-95"
-              enter-to-class="transform opacity-100 scale-100"
-              leave-active-class="transition ease-in duration-75"
-              leave-from-class="transform opacity-100 scale-100"
-              leave-to-class="transform opacity-0 scale-95"
-            >
-              <div
-                v-if="filterOpen"
-                @click.stop
-                class="absolute right-0 top-full z-20 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
-              >
-                <button
-                  @click="selectProject('all')"
-                  :class="[
-                    'flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-800',
-                    selectedProject === 'all'
-                      ? 'text-gray-900 dark:text-white'
-                      : 'text-gray-600 dark:text-gray-400'
-                  ]"
-                >
-                  All projects
-                  <Check
-                    v-if="selectedProject === 'all'"
-                    class="ml-auto h-4 w-4 text-emerald-500"
-                    stroke-width="2"
-                  />
-                </button>
-                <div
-                  class="my-1 border-t border-gray-100 dark:border-gray-800"
-                ></div>
-                <button
-                  v-for="p in projects"
-                  :key="p.slug"
-                  @click="selectProject(p.slug)"
-                  :class="[
-                    'flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-800',
-                    selectedProject === p.slug
-                      ? 'text-gray-900 dark:text-white'
-                      : 'text-gray-600 dark:text-gray-400'
-                  ]"
-                >
-                  {{ p.name }}
-                  <Check
-                    v-if="selectedProject === p.slug"
-                    class="ml-auto h-4 w-4 text-emerald-500"
-                    stroke-width="2"
-                  />
-                </button>
-              </div>
-            </Transition>
+          <div
+            v-if="projects.length > 1"
+            data-test="lookout-project-filter"
+            class="w-full border-b border-dashed border-gray-300 dark:border-gray-700 sm:w-56"
+          >
+            <Select
+              v-model="selectedProject"
+              :options="projectOptions"
+              aria-label="Filter by project"
+              class="min-h-10 w-full bg-transparent py-2 text-sm text-gray-900 shadow-none dark:text-gray-300"
+            />
           </div>
         </div>
 

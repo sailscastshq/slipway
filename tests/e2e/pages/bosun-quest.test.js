@@ -41,6 +41,17 @@ test(
         nextRunAt: '2026-10-22T03:05:00Z',
         runningCount: 0,
         manualAllowed: true
+      },
+      {
+        name: 'retain-build-cache',
+        friendlyName: 'Clean up old build cache',
+        description: 'Remove only unused old build cache.',
+        schedule: { cron: '17 * * * *', timezone: 'UTC' },
+        scheduled: true,
+        nextRunAt: '2026-10-22T03:17:00Z',
+        runningCount: 0,
+        manualAllowed: true,
+        cleanupEnabled: true
       }
     ]
     const runs = [
@@ -233,6 +244,30 @@ test(
       await cleanupActions.click()
       await expect(
         cleanupMenu.getByRole('menuitem', { name: 'Run now', exact: true })
+      ).toBeDisabled()
+      await page.raw.keyboard.press('Escape')
+      const cacheActions = panel.getByRole('button', {
+        name: 'Actions for Clean up old build cache',
+        exact: true
+      })
+      const cacheMenu = page.raw.getByRole('menu', {
+        name: 'Actions for Clean up old build cache',
+        exact: true
+      })
+      await cacheActions.click()
+      await cacheMenu.getByRole('menuitem', { name: 'Run now' }).click()
+      await expect(review).toContainText('Clean up old build cache?')
+      await expect(review).toContainText('Remove only unused old build cache')
+      await review.screenshot({
+        path: path.join(output, 'instance-cache-review-mobile-dark.png'),
+        animations: 'disabled'
+      })
+      await review.getByRole('button', { name: 'Cancel', exact: true }).click()
+      expect(starts).toBe(1)
+      jobs[3].cleanupEnabled = false
+      await cacheActions.click()
+      await expect(
+        cacheMenu.getByRole('menuitem', { name: 'Run now', exact: true })
       ).toBeDisabled()
       await page.raw.keyboard.press('Escape')
       expect(page).toHaveNoJavascriptErrors()

@@ -130,6 +130,7 @@ async function applyUpdate() {
 
 async function waitForHealthy(expectedVersion) {
   const deadline = Date.now() + 360000
+  let lastHealthyVersion
   while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 2000))
     if (Date.now() >= deadline) break
@@ -146,15 +147,13 @@ async function waitForHealthy(expectedVersion) {
     const health = await res.json().catch(() => ({}))
     if (health.status !== 'ok' || health.mode === 'preflight') continue
     if (!expectedVersion || health.version === expectedVersion) return
-
-    if (health.version) {
-      throw new Error(
-        `Slipway came back on v${health.version}, so the update likely rolled back before v${expectedVersion} finished.`
-      )
-    }
-
+    // A stream can disconnect before the old server stops. Its healthy
+    // response does not prove rollback; keep waiting for the exact target.
+    lastHealthyVersion = health.version || null
+  }
+  if (lastHealthyVersion) {
     throw new Error(
-      `Slipway came back without version metadata, so v${expectedVersion} could not be confirmed.`
+      `Slipway is still serving v${lastHealthyVersion} after six minutes; v${expectedVersion} could not be confirmed. Check the server logs before retrying.`
     )
   }
   throw new Error(

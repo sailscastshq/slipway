@@ -10,6 +10,8 @@ module.exports = {
   exits: { success: { outputType: 'ref' } },
 
   fn: async function ({ preview = false } = {}) {
+    const policy = await sails.helpers.imageRetention.getPolicy()
+    const mode = policy.remove && !preview ? 'remove' : 'dry-run'
     const lockPath = path.join(
       sails.config.appPath,
       'db',
@@ -23,16 +25,22 @@ module.exports = {
     } catch (error) {
       if (error.code !== 'EEXIST') throw error
       sails.log.info(
-        'Clean up deployment images: busy; another cleanup run owns the instance lock.'
+        `Clean up deployment images: busy (${mode}); image-retention-lock-present. Inspect the recorded owner before retrying.`
       )
       return {
         status: 'busy',
         removed: [],
         skipped: [],
-        reason: 'Another image retention run owns the instance lock',
+        reason:
+          'The image retention lock is present; inspect its recorded owner.',
         summary: {
           status: 'busy',
+          mode,
+          holds: ['image-retention-lock-present'],
+          inventoryStatus: 'not-started',
+          candidates: 0,
           removed: 0,
+          untagged: 0,
           skipped: 0,
           errors: 0,
           deferred: 0
@@ -43,6 +51,8 @@ module.exports = {
       runId: token,
       startedAt: Date.now(),
       status: 'planning',
+      mode,
+      policy,
       removed: [],
       untagged: [],
       skipped: [],
@@ -54,11 +64,15 @@ module.exports = {
       )
       releaseImages = await require('../../lib/image-operation-guard').acquire(
         sails.config.appPath,
-        'cleanup'
+        'cleanup',
+        {
+          recovery:
+            mode === 'remove'
+              ? require('../../lib/image-guard-recovery')(sails)
+              : undefined
+        }
       )
-      const policy = await sails.helpers.imageRetention.getPolicy()
-      result.mode = policy.remove && !preview ? 'remove' : 'dry-run'
-      result.policy = policy
+      result.recoveredGuards = releaseImages.recoveredCount
       const inventory = await sails.helpers.imageRetention.getInventory.with({
         policy
       })
@@ -168,7 +182,7 @@ module.exports = {
     } catch (error) {
       if (error.code === 'E_IMAGE_OPERATIONS_BUSY') {
         result.status = 'held'
-        result.holds = ['deployment-or-maintenance-in-progress']
+        result.holds = [error.reason || 'deployment-or-maintenance-in-progress']
         return await finish()
       }
       result.status = 'failed'
@@ -228,9 +242,24 @@ module.exports = {
         }
       }
       result.finishedAt = Date.now()
+      const holds = (result.holds || result.plan?.holds || [])
+        .slice(0, 8)
+        .map((reason) => {
+          const value = String(reason)
+          return (sails.hooks?.secrets?.text?.(value) || value).slice(0, 256)
+        })
       result.summary = {
         status: result.status,
         mode: result.mode,
+        holds,
+        inventoryStatus: result.plan?.status || 'not-started',
+        recoveredGuards: result.recoveredGuards || 0,
+        skippedReasons: reasonCounts(
+          result.skipped.map((item) => [item.reason])
+        ),
+        protectedReasons: reasonCounts(
+          (result.plan?.protected || []).map((item) => item.reasons)
+        ),
         candidates: result.plan?.candidates.length || 0,
         removed: result.removed.length,
         untagged: result.untagged.length,
@@ -260,9 +289,28 @@ module.exports = {
       })
       const summary = result.summary
       sails.log.info(
-        `Clean up deployment images: ${summary.status} (${summary.mode}); candidates ${summary.candidates}, removed ${summary.removed}, skipped ${summary.skipped}, errors ${summary.errors}, deferred ${summary.deferred}, untagged ${summary.untagged}.`
+        `Clean up deployment images: ${summary.status} (${
+          summary.mode
+        }); inventory ${summary.inventoryStatus}; candidates ${
+          summary.candidates
+        }, removed ${summary.removed}, skipped ${summary.skipped}, errors ${
+          summary.errors
+        }, deferred ${summary.deferred}, untagged ${summary.untagged}.${
+          holds.length ? ` Hold: ${holds.join('; ')}. No hold was cleared.` : ''
+        }`
       )
       return result
     }
   }
+}
+
+function reasonCounts(groups) {
+  const counts = new Map()
+  for (const reasons of groups)
+    for (const value of reasons || []) {
+      const key = /^[a-z][a-z-]{0,63}$/.test(value || '') ? value : 'other'
+      const boundedKey = counts.has(key) || counts.size < 16 ? key : 'other'
+      counts.set(boundedKey, (counts.get(boundedKey) || 0) + 1)
+    }
+  return Object.fromEntries(counts)
 }
