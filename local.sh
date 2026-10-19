@@ -194,6 +194,7 @@ run_local_slipway() {
     -w /app \
     -e NODE_ENV=development \
     -e PORT=1337 \
+    -e SLIPWAY_IMAGE_RETENTION_REMOVE="${SLIPWAY_IMAGE_RETENTION_REMOVE:-true}" \
     -e SLIPWAY_URL="$SLIPWAY_URL" \
     -e SESSION_SECRET="$SESSION_SECRET" \
     -e DATA_ENCRYPTION_KEY="$DATA_ENCRYPTION_KEY" \
@@ -283,6 +284,7 @@ check_upgrade_from_previous_release() {
     -v "$apps_volume:/var/slipway/apps" \
     -e NODE_ENV=development \
     -e PORT=1337 \
+    -e SLIPWAY_IMAGE_RETENTION_REMOVE="${SLIPWAY_IMAGE_RETENTION_REMOVE:-true}" \
     -e SLIPWAY_URL="http://${seed_container}:1337" \
     -e SLIPWAY_APP_PORT_HOST=127.0.0.1 \
     -e SLIPWAY_APP_PORT_START=15500 \
@@ -302,6 +304,7 @@ check_upgrade_from_previous_release() {
     -v "$apps_volume:/var/slipway/apps" \
     -e NODE_ENV=production \
     -e PORT=1337 \
+    -e SLIPWAY_IMAGE_RETENTION_REMOVE="${SLIPWAY_IMAGE_RETENTION_REMOVE:-true}" \
     -e SLIPWAY_URL="http://${current_container}:1337" \
     -e SLIPWAY_APP_PORT_HOST=127.0.0.1 \
     -e SLIPWAY_APP_PORT_START=15500 \
@@ -327,6 +330,7 @@ check_upgrade_from_previous_release() {
     -v "$apps_volume:/var/slipway/apps" \
     -e NODE_ENV=production \
     -e PORT=1337 \
+    -e SLIPWAY_IMAGE_RETENTION_REMOVE="${SLIPWAY_IMAGE_RETENTION_REMOVE:-true}" \
     -e SLIPWAY_URL="http://${candidate_container}:1337" \
     -e SLIPWAY_APP_PORT_HOST=127.0.0.1 \
     -e SLIPWAY_APP_PORT_START=15500 \

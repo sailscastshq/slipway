@@ -9,7 +9,7 @@ module.exports = {
   inputs: { imageId: { type: 'string', required: true } },
   exits: { success: { outputType: 'ref' } },
   fn: async function ({ imageId }) {
-    if (sails.config.imageRetention?.remove !== true)
+    if (!(await sails.helpers.imageRetention.getPolicy()).remove)
       throw new Error('Image retention removal is disabled')
     if (!/^sha256:[a-f0-9]{64}$/.test(imageId))
       throw new Error('Image retention requires a complete immutable image ID')

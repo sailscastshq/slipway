@@ -45,7 +45,8 @@ async function fixture(t, config = {}) {
     writes: [],
     removed: [],
     images: [],
-    containers: []
+    containers: [],
+    logs: []
   }
   for (const [name, key] of [
     ['Deployment', 'deployments'],
@@ -65,7 +66,7 @@ async function fixture(t, config = {}) {
   }
   global.sails = {
     config: { appPath: root, imageRetention: config },
-    log: { info() {}, error() {} },
+    log: { info: (line) => state.logs.push(line), error() {} },
     helpers: {
       setting: {
         set: async (key, value) =>
@@ -73,7 +74,7 @@ async function fixture(t, config = {}) {
       },
       imageRetention: {
         getPolicy: () => getPolicy.fn(),
-        run: () => run.fn(),
+        run: { with: (input) => run.fn(input) },
         getInventory: {
           with: async () => ({
             images: structuredClone(state.images),
@@ -120,11 +121,12 @@ async function fixture(t, config = {}) {
   return { state, policy, plan, deployment, root }
 }
 
-test('defaults are daily dry-run, at least 14 days old and three successful images', async (t) => {
+test('defaults clean up daily with a bounded backlog and preserve 14 days and three successful images', async (t) => {
   const { policy } = await fixture(t)
-  assert.equal(policy.remove, false)
+  assert.equal(policy.remove, true)
   assert.equal(policy.minimumAgeDays, 14)
   assert.equal(policy.keepSuccessful, 3)
+  assert.equal(policy.maxRemovals, 100)
   assert.equal(job.quest.interval, '24 hours')
   assert.equal(job.quest.withoutOverlapping, true)
   sails.config.imageRetention.minimumAgeDays = 7
@@ -240,22 +242,84 @@ test('incomplete bounded records, missing job targets and retained resource snap
   )
 })
 
-test('daily default persists the explicit plan and audit outcome with no Docker removal', async (t) => {
+test('daily default removes only eligible images and returns a compact plain summary', async (t) => {
   const { state, deployment } = await fixture(t)
   for (let n = 1; n <= 5; n++) deployment(n)
   const result = await job.fn()
-  assert.equal(result.status, 'dry-run')
-  assert.equal(result.plan.candidates.length, 2)
-  assert.deepEqual(state.removed, [])
-  assert.deepEqual(
-    state.audits.map((x) => x.action),
-    ['image-retention.planned', 'image-retention.finished']
+  assert.equal(result.status, 'complete')
+  assert.equal(result.mode, 'remove')
+  assert.equal(result.candidates, 2)
+  assert.equal(result.removed, 2)
+  assert.equal(result.errors, 0)
+  assert.deepEqual(state.removed, [id(1), id(2)])
+  assert.ok(
+    state.audits.some((x) => x.action === 'image-retention.image-removed')
   )
   assert.ok(state.writes.every((x) => x.key === 'imageRetentionLastRun'))
+  assert.ok(JSON.stringify(result).length < 500)
+  assert.equal(state.logs.length, 1)
+  assert.match(
+    state.logs[0],
+    /Clean up deployment images: complete .*removed 2, skipped 0, errors 0/
+  )
+  assert.doesNotMatch(state.logs[0], /\u001b|sha256:|reclaimed/)
+})
+
+test('explicit per-run preview and server opt-out never invoke removal', async (t) => {
+  const { state, deployment } = await fixture(t)
+  for (let n = 1; n <= 5; n++) deployment(n)
+  assert.equal((await job.fn({ preview: true })).mode, 'dry-run')
+  sails.config.imageRetention.remove = false
+  assert.equal((await job.fn()).mode, 'dry-run')
+  assert.deepEqual(state.removed, [])
+  assert.ok(
+    !state.audits.some((x) => x.action === 'image-retention.removal-started')
+  )
+})
+
+test('default backlog sweep removes at most 100 and reports deferred images for the next run', async (t) => {
+  const { state, deployment } = await fixture(t)
+  for (let n = 1; n <= 108; n++) deployment(n)
+  const first = await job.fn()
+  assert.equal(first.removed, 100)
+  assert.equal(first.deferred, 5)
+  assert.equal(first.skipped, 5)
+  const next = await job.fn()
+  assert.equal(next.removed, 5)
+  assert.equal(next.deferred, 0)
+  assert.equal(state.removed.length, 105)
+})
+
+test('upgrade config enables cleanup when unset and preserves explicit preview-only opt-out', async () => {
+  const vm = require('node:vm')
+  const source = await fs.readFile(
+    require.resolve('../../../../config/image-retention'),
+    'utf8'
+  )
+  for (const [value, expected] of [
+    [undefined, true],
+    ['true', true],
+    ['false', false],
+    ['invalid', false]
+  ]) {
+    const context = {
+      module: { exports: {} },
+      process: {
+        env:
+          value === undefined ? {} : { SLIPWAY_IMAGE_RETENTION_REMOVE: value }
+      }
+    }
+    vm.runInNewContext(source, context)
+    const policy = context.module.exports.imageRetention
+    assert.equal(policy.remove, expected)
+    assert.equal(policy.minimumAgeDays, 14)
+    assert.equal(policy.keepSuccessful, 3)
+    assert.equal(policy.maxRemovals, 100)
+  }
 })
 
 test('single-flight lock excludes a simultaneous worker and is released after completion', async (t) => {
-  const { state, deployment, root } = await fixture(t)
+  const { state, deployment, root } = await fixture(t, { remove: false })
   for (let n = 1; n <= 5; n++) deployment(n)
   let release, entered
   const gate = new Promise((resolve) => {
@@ -281,7 +345,7 @@ test('single-flight lock excludes a simultaneous worker and is released after co
   assert.deepEqual(state.removed, [])
 })
 
-test('opt-in removal rechecks fresh references, skips a new pin and honors its batch bound', async (t) => {
+test('removal rechecks fresh references, skips a new pin and honors its batch bound', async (t) => {
   const { state, deployment } = await fixture(t, {
     remove: true,
     maxRemovals: 1
@@ -307,7 +371,7 @@ test('opt-in removal rechecks fresh references, skips a new pin and honors its b
   )
 })
 
-test('audit/inventory failures prevent removal and release the lock; removal helper also enforces opt-in', async (t) => {
+test('audit/inventory failures prevent removal and release the lock; removal helper also enforces opt-out', async (t) => {
   const { state, deployment, root } = await fixture(t, { remove: true })
   for (let n = 1; n <= 5; n++) deployment(n)
   AuditLog.create = async () => {

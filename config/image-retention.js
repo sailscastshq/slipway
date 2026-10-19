@@ -1,9 +1,11 @@
 /**
- * Daily deployment-image retention. Planning is enabled; removal is opt-in.
- * Review imageRetentionLastRun before enabling removal in a future rollout.
+ * Clean up eligible old deployment images daily. Set the environment variable
+ * to false for preview-only operation; Bosun also offers a per-run Preview.
  */
 module.exports.imageRetention = {
-  remove: process.env.SLIPWAY_IMAGE_RETENTION_REMOVE === 'true',
+  remove:
+    process.env.SLIPWAY_IMAGE_RETENTION_REMOVE === undefined ||
+    process.env.SLIPWAY_IMAGE_RETENTION_REMOVE === 'true',
   minimumAgeDays: 14,
   keepSuccessful: 3,
   // Exact image IDs, tags, or repository digests. Missing pins hold the run.
@@ -12,6 +14,6 @@ module.exports.imageRetention = {
   maxContainers: 1000,
   maxRecords: 20000,
   inspectBatchSize: 50,
-  maxRemovals: 10,
+  maxRemovals: 100,
   maxRunMs: 5 * 60 * 1000
 }
