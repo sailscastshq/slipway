@@ -109,6 +109,7 @@ module.exports = {
       identity: relatedResource.identity,
       primaryKey: relatedResource.primaryKey,
       title: relatedResource.title,
+      description: relationship.description || [],
       search: relationship.search,
       limit,
       page: normalizedPage,
@@ -138,7 +139,8 @@ module.exports = {
         : textSearch || definition.where;
       const fields = Array.from(new Set([
         definition.primaryKey,
-        definition.title
+        definition.title,
+        ...definition.description
       ].filter(Boolean)));
       const records = await model
         .find({
@@ -186,6 +188,14 @@ module.exports = {
           label: record[definition.title] == null
             ? '#' + record[definition.primaryKey]
             : String(record[definition.title]),
+          ...(definition.description.length ? {
+            description: definition.description
+              .map((field) => record[field])
+              .filter((value) => value !== null && value !== undefined && value !== '')
+              .map((value) => String(value).slice(0, 200))
+              .join(' · ')
+              .slice(0, 400)
+          } : {}),
           attached: attachedIds.has(String(record[definition.primaryKey]))
         })),
         page: definition.page,

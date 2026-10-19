@@ -1000,6 +1000,17 @@ The form receives only the first bounded page. Its combobox searches through a
 dedicated JSON transport and loads additional pages on demand, so a large user
 or course table is never serialized into an Inertia page.
 
+Opt into secondary picker text with `relation: { description: ['email', 'company'] }`
+(or `relationships: { speakers: { description: ['email'] } }` for a collection).
+The ordered field names must be scalar fields on the related resource's `show`
+surface. Hidden, sensitive, protected, encrypted, JSON, and association fields
+are rejected. Descriptions are absent by default and do not change search fields.
+Initial, selected, and paginated options return an optional `description` string,
+joined with `·` and bounded to 400 characters (200 per field). Empty values are
+omitted; `false` and `0` remain visible. Out-of-scope saved choices omit descriptions.
+Choice identity and submitted values always use the primary key, so identical
+names remain separate records.
+
 Use `where` when a belongs-to field should expose only eligible records. A
 fixed value or bounded `in` list is owned entirely by the server contract:
 

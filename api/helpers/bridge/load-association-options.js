@@ -66,6 +66,7 @@ module.exports = {
         identity: relatedResource.identity,
         primaryKey: relatedResource.primaryKey,
         title: relatedResource.title,
+        description: relationship.description || [],
         limit: relationship.limit,
         where: scope.where,
         scopeReady: scope.ready,
@@ -88,7 +89,8 @@ module.exports = {
 
         const fields = Array.from(new Set([
           definition.primaryKey,
-          definition.title
+          definition.title,
+          ...definition.description
         ].filter(Boolean)));
         const records = definition.scopeReady
           ? await model
@@ -125,7 +127,7 @@ module.exports = {
             .findOne({
               [definition.primaryKey]: definition.selectedId
             })
-            .select(fields);
+            .select([definition.primaryKey, definition.title]);
           if (selected) {
             records.unshift({
               ...selected,
@@ -138,6 +140,14 @@ module.exports = {
           label: record[definition.title] == null
             ? '#' + record[definition.primaryKey]
             : String(record[definition.title]),
+          ...(!record.__bridgeOutOfScope && definition.description.length ? {
+            description: definition.description
+              .map((field) => record[field])
+              .filter((value) => value !== null && value !== undefined && value !== '')
+              .map((value) => String(value).slice(0, 200))
+              .join(' · ')
+              .slice(0, 400)
+          } : {}),
           ...(record.__bridgeOutOfScope ? { outOfScope: true } : {})
         }));
       }
