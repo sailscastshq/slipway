@@ -140,7 +140,9 @@ const displayValue = (value) =>
           <div class="flex items-center gap-2">
             <QuestStatus :state="jobState" /><span
               v-if="selectedJob.withoutOverlapping && jobTab !== 'schedule'"
-              title="Prevents concurrent executions in this app process only."
+              :title="`Prevents concurrent executions in this ${
+                selectedJob.executionScope === 'instance' ? 'instance' : 'app'
+              } process only.`"
               class="text-[10px] text-gray-400"
               >No overlap</span
             >
@@ -472,13 +474,19 @@ const displayValue = (value) =>
             class="mt-5 flex flex-wrap items-center justify-between gap-3 pt-3"
           >
             <p class="text-[11px] text-gray-400">
-              Schedule defined in app source.
+              Schedule defined in
+              {{
+                selectedJob.executionScope === 'instance' ? 'Slipway' : 'app'
+              }}
+              source.
             </p>
             <Button
               v-if="typeof selectedJob.paused === 'boolean'"
               :disabled="!canPause || !!changingSchedule"
               :title="
-                selectedJob.paused
+                selectedJob.executionScope === 'instance'
+                  ? 'Schedule controls are unavailable for instance jobs.'
+                  : selectedJob.paused
                   ? 'Resume new runs in this app process.'
                   : 'Pause new runs in this app process. Active executions continue; pause resets on restart.'
               "

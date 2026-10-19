@@ -78,6 +78,10 @@ function create(sails) {
     const run = {
       ...prior,
       id,
+      updatedAt: Math.max(Date.now(), (prior?.updatedAt || 0) + 1),
+      ...(Number.isSafeInteger(data.sequence) && data.sequence >= 0
+        ? { sequence: data.sequence }
+        : {}),
       runtimeRunId: data.runId,
       name: data.name,
       trigger: data.trigger === 'scheduled' ? 'scheduled' : 'manual',
@@ -147,6 +151,7 @@ function create(sails) {
       if (`${run.id}.json` !== name || !JOBS.includes(run.name))
         throw new Error('Invalid instance Quest history.')
       if (ACTIVE.has(run.state)) {
+        run.updatedAt = Date.now()
         run.state = 'interrupted'
         run.error =
           'Slipway restarted; completion is unknown. Check effects before running again.'
@@ -187,6 +192,7 @@ function create(sails) {
             nextRunAt: job.nextRunAt,
             paused: job.paused,
             runningCount: job.runningCount,
+            withoutOverlapping: job.withoutOverlapping,
             ...(CLEANUP_POLICIES[job.name]
               ? {
                   cleanupEnabled:
@@ -274,6 +280,7 @@ function create(sails) {
       name,
       inputs: jobInputs,
       state: 'requested',
+      updatedAt: Date.now(),
       trigger: 'manual',
       startedAt: new Date().toISOString(),
       logs: { stdout: '', stderr: '' }
@@ -289,6 +296,10 @@ function create(sails) {
           enqueue(async () => {
             const current = runs.get(run.id)
             if (ACTIVE.has(current?.state)) {
+              current.updatedAt = Math.max(
+                Date.now(),
+                (current.updatedAt || 0) + 1
+              )
               current.state = 'failed'
               current.error = text(error.message, 4096)
               current.finishedAt = new Date().toISOString()
@@ -302,6 +313,7 @@ function create(sails) {
       pending.delete(name)
       // A persisted admission must remain visible, and cannot be replayed.
       if (runs.has(run.id)) {
+        run.updatedAt = Math.max(Date.now(), (run.updatedAt || 0) + 1)
         run.state = 'failed'
         run.error = text(error.message, 4096)
         runs.set(run.id, run)

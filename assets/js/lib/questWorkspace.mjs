@@ -177,7 +177,9 @@ export function questInputMetadataAvailable(job, workspace) {
 
 export function questOverlapLabel(job) {
   return job?.withoutOverlapping === true
-    ? 'Prevent overlap in this app process'
+    ? `Prevent overlap in this ${
+        job.executionScope === 'instance' ? 'instance' : 'app'
+      } process`
     : job?.withoutOverlapping === false
     ? 'Concurrent executions allowed'
     : 'Unavailable'
