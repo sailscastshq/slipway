@@ -429,6 +429,27 @@ test('a failed removal records each candidate as removed, failed or skipped', as
   assert.equal(outcome.status, 'failed')
 })
 
+test('multi-tag deferral performs no removal and later independent candidates still proceed', async (t) => {
+  const { state, deployment } = await fixture(t, { maxRemovals: 2 })
+  for (let n = 1; n <= 7; n++) deployment(n)
+  state.images[0].tags.push(tag(2))
+  state.images = state.images.filter((image) => image.id !== id(2))
+  const original = sails.helpers.imageRetention.removeImage.with
+  sails.helpers.imageRetention.removeImage.with = async (input) =>
+    input.tags.length > 1 ? removeImage.fn(input) : original(input)
+  const result = await run.fn()
+  assert.deepEqual(state.removed, [id(3), id(4)])
+  assert.deepEqual(result.removed, [id(3), id(4)])
+  assert.equal(result.status, 'complete')
+  assert.equal(result.summary.errors, 0)
+  assert.equal(result.summary.deferred, 1)
+  assert.equal(result.skipped[0].reason, 'multiple-image-tags')
+  assert.deepEqual(state.images.find((image) => image.id === id(1)).tags, [
+    tag(1),
+    tag(2)
+  ])
+})
+
 test('expected Docker conflicts defer one image and continue independent candidates up to confirmed-removal bound', async (t) => {
   const { state, deployment } = await fixture(t, { maxRemovals: 2 })
   for (let n = 1; n <= 7; n++) deployment(n)

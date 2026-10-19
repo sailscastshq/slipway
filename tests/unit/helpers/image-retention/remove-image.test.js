@@ -26,7 +26,7 @@ async function fixture(t, behavior = {}) {
   await fs.mkdir(path.join(root, 'db'))
   const image = {
     id: id(1),
-    tags: [tag(1), tag(2)],
+    tags: [tag(1)],
     digests: [],
     size: 1000,
     created: '2020-01-01T00:00:00Z'
@@ -45,8 +45,8 @@ const fail = (message) => { save(); console.error(message); process.exit(1) };
 if (args[1] === 'inspect') {
   if (data.behavior.newTagOnInspect) data.images[0].tags.push('outside/keep:latest');
   if (data.behavior.retargetOnInspect) {
-    data.images[0].tags = data.images[0].tags.filter((tag) => tag !== args.at(-1));
-    data.images.push({ ...data.images[0], id: 'sha256:' + '9'.repeat(64), tags: [args.at(-1)] });
+    data.images[0].tags = data.images[0].tags.filter((tag) => tag !== 'slipway/fixture-1:1');
+    data.images.push({ ...data.images[0], id: 'sha256:' + '9'.repeat(64), tags: ['slipway/fixture-1:1'] });
   }
   save();
   for (const ref of args.slice(4)) {
@@ -56,6 +56,7 @@ if (args[1] === 'inspect') {
   }
 } else if (args[1] === 'rm') {
   const ref = args.at(-1);
+  if (data.behavior.extraTagAtRemoval) data.images[0].tags.push('outside/racing:latest');
   if (data.behavior.systemError) fail('Cannot connect to the Docker daemon');
   if (data.behavior.conflict && (data.behavior.conflict === ref || data.behavior.conflict === true))
     fail('Error response from daemon: conflict: image is referenced in multiple repositories');
@@ -113,7 +114,7 @@ if (args[1] === 'inspect') {
   const policy = await getPolicy.fn()
   const input = {
     imageId: id(1),
-    tags: [tag(1), tag(2)],
+    tags: [tag(1)],
     policy,
     deadline: Date.now() + 30000
   }
@@ -127,37 +128,39 @@ if (args[1] === 'inspect') {
   return { root, read, write, input }
 }
 
-test('eligible aliases are untagged individually and the final immutable ID is confirmed absent without force', async (t) => {
+test('single-tag deletion uses only the immutable ID and confirms absence without force', async (t) => {
   const { read, input } = await fixture(t)
-  const result = await remove.fn(input)
-  assert.deepEqual(result, { removed: true, untagged: [tag(1), tag(2)] })
+  assert.deepEqual(await remove.fn(input), { removed: true, untagged: [] })
   const state = await read()
   assert.equal(state.images.length, 0)
   assert.deepEqual(
     state.commands.filter((args) => args[1] === 'rm'),
-    [
-      ['image', 'rm', '--no-prune', tag(1)],
-      ['image', 'rm', '--no-prune', id(1)]
-    ]
+    [['image', 'rm', '--no-prune', id(1)]]
   )
-  assert.ok(
-    !state.commands
-      .flat()
-      .some((arg) => arg === '-f' || arg === '--force' || arg === 'prune')
-  )
+})
+
+test('multi-tag candidates are deferred with no Docker removal commands', async (t) => {
+  const { read, write, input } = await fixture(t)
+  const state = await read()
+  state.images[0].tags.push(tag(2))
+  input.tags.push(tag(2))
+  await write(state)
+  const result = await remove.fn(input)
+  assert.equal(result.reason, 'multiple-image-tags')
+  assert.equal(result.deferred, true)
+  assert.deepEqual(result.untagged, [])
+  assert.deepEqual((await read()).commands, [])
 })
 
 for (const behavior of [
   { retargetOnInspect: true },
   { newTagOnInspect: true }
 ]) {
-  test(`a fresh mapping race is skipped before mutation: ${
+  test(`inspection detects mapping changes: ${
     Object.keys(behavior)[0]
   }`, async (t) => {
     const { read, input } = await fixture(t, behavior)
-    const result = await remove.fn(input)
-    assert.equal(result.removed, false)
-    assert.equal(result.reason, 'image-tags-changed')
+    assert.equal((await remove.fn(input)).reason, 'image-tags-changed')
     assert.equal(
       (await read()).commands.filter((args) => args[1] === 'rm').length,
       0
@@ -165,45 +168,46 @@ for (const behavior of [
   })
 }
 
-for (const kind of ['outside', 'digest', 'container', 'pin']) {
-  test(`any ${kind} reference protects the whole shared image`, async (t) => {
+for (const kind of ['outside', 'digest', 'container', 'pin', 'untagged']) {
+  test(`a protected ${kind} reference is not removed`, async (t) => {
     const { read, write, input } = await fixture(t)
     const state = await read()
     if (kind === 'outside') state.images[0].tags.push('outside/keep:latest')
     if (kind === 'digest') state.images[0].digests.push('outside/keep@' + id(1))
     if (kind === 'container')
       state.containers.push({ id: 'running', imageId: id(1) })
+    if (kind === 'untagged') {
+      state.images[0].tags = []
+      input.tags = []
+    }
     if (kind === 'pin') {
-      sails.config.imageRetention.pinnedImages = [tag(2)]
+      sails.config.imageRetention.pinnedImages = [tag(1)]
       input.policy = await getPolicy.fn()
     }
     await write(state)
-    const result = await remove.fn(input)
-    assert.equal(result.removed, false)
-    assert.equal(result.reason, 'protection-or-inventory-changed')
-    assert.equal((await read()).commands.length, 0)
+    assert.equal(
+      (await remove.fn(input)).reason,
+      'protection-or-inventory-changed'
+    )
+    assert.deepEqual((await read()).commands, [])
   })
 }
 
-test('a new container after one untag preserves the remaining alias and reports only partial untagging', async (t) => {
-  const { read, input } = await fixture(t, { protectAfterUntag: true })
+test('an extra tag arriving after inspection causes non-force ID conflict deferral', async (t) => {
+  const { read, input } = await fixture(t, { extraTagAtRemoval: true })
   const result = await remove.fn(input)
   assert.equal(result.removed, false)
-  assert.deepEqual(result.untagged, [tag(1)])
-  assert.equal(result.reason, 'protection-or-inventory-changed')
-  assert.deepEqual((await read()).images[0].tags, [tag(2)])
-})
-
-test('an expected conflict defers the image; a daemon error remains systemic', async (t) => {
-  const { read, input } = await fixture(t, { conflict: true })
-  const result = await remove.fn(input)
   assert.equal(result.reason, 'docker-conflict')
   assert.equal(result.deferred, true)
-  assert.deepEqual(result.untagged, [])
-  assert.equal((await read()).images.length, 1)
+  const state = await read()
+  assert.deepEqual(
+    state.commands.filter((args) => args[1] === 'rm'),
+    [['image', 'rm', '--no-prune', id(1)]]
+  )
+  assert.deepEqual(state.images[0].tags, [tag(1), 'outside/racing:latest'])
 })
 
-test('failed verification after a confirmed untag fails closed and preserves partial progress', async (t) => {
+test('failed post-removal verification stops without claiming confirmed removal', async (t) => {
   const { read, input } = await fixture(t)
   const inventory = sails.helpers.imageRetention.getInventory.with
   sails.helpers.imageRetention.getInventory.with = async () => {
@@ -211,18 +215,14 @@ test('failed verification after a confirmed untag fails closed and preserves par
       throw new Error('fixture incomplete inventory')
     return inventory()
   }
-  await assert.rejects(remove.fn(input), (error) => {
-    assert.match(error.message, /incomplete inventory/)
-    assert.deepEqual(error.untagged, [tag(1)])
-    return true
-  })
+  await assert.rejects(remove.fn(input), /incomplete inventory/)
   assert.equal(
     (await read()).commands.filter((args) => args[1] === 'rm').length,
     1
   )
 })
 
-test('the shared cleanup hold excludes deploy/rollback admission across every alias operation', async (t) => {
+test('the shared hold excludes deploy/rollback admission through removal verification', async (t) => {
   const { root, input } = await fixture(t)
   const release = await guard.acquire(root, 'cleanup')
   const inventory = sails.helpers.imageRetention.getInventory.with
@@ -239,32 +239,20 @@ test('the shared cleanup hold excludes deploy/rollback admission across every al
   } finally {
     await release()
   }
-  assert.ok(checks >= 4)
-  const use = await guard.acquire(root)
-  await use()
+  assert.ok(checks >= 2)
+  await (
+    await guard.acquire(root)
+  )()
 })
 
-test('daemon failures do not become expected conflicts', async (t) => {
+test('daemon failures remain systemic errors', async (t) => {
   const { input } = await fixture(t, { systemError: true })
   await assert.rejects(remove.fn(input), /Cannot connect to the Docker daemon/)
-})
-
-test('a conflict after one untag keeps partial progress separate from removed images', async (t) => {
-  const { read, input } = await fixture(t, { conflict: id(1) })
-  const outcome = await remove.fn(input)
-  assert.equal(outcome.removed, false)
-  assert.equal(outcome.reason, 'docker-conflict')
-  assert.equal(outcome.deferred, true)
-  assert.deepEqual(outcome.untagged, [tag(1)])
-  assert.deepEqual((await read()).images[0].tags, [tag(2)])
 })
 
 test('an expired run budget performs no Docker commands', async (t) => {
   const { read, input } = await fixture(t)
   input.deadline = Date.now() - 1
-  const outcome = await remove.fn(input)
-  assert.equal(outcome.removed, false)
-  assert.equal(outcome.reason, 'run-time-limit')
-  assert.equal(outcome.deferred, true)
+  assert.equal((await remove.fn(input)).reason, 'run-time-limit')
   assert.deepEqual((await read()).commands, [])
 })

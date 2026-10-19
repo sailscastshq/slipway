@@ -58,15 +58,18 @@ triggers always send the configured defaults (`{}`).
    `imageRetentionLastRun` and write its audit record before any removal.
 5. Process at most 100 images and stop after five minutes per run by default. Re-read policy, complete inventory and all references for each exact image
    ID while retaining the exclusive guard. All aliases must be known deployment
-   tags; pinned, unknown or digest aliases protect the whole image. With multiple
-   eligible tags, detach one verified tag at a time, refreshing protection and
-   exact tag-to-ID mappings between operations. Remove the final immutable ID with
-   `docker image rm --no-prune ID`; count removal only after a complete inventory
-   confirms its absence. Never force, blanket prune, volume pruning or build-cache
-   pruning. Defer expected Docker conflicts and continue independent candidates;
-   stop on systemic failure or held inventory. Record removed, untagged, skipped
-   and failed outcomes separately. External Docker operators must avoid retagging
-   concurrently: the shared guard coordinates Slipway's own image writers.
+   tags; pinned, unknown or digest aliases protect the whole image. Multi-tag
+   images are deferred without any removal commands. Eligible single-tag images
+   are inspected and removed only by complete immutable ID with
+   `docker image rm --no-prune ID`; no command removes a mutable tag. Untagged
+   legacy images remain outside the planner's eligibility rules. Count removal
+   only after a complete inventory confirms the exact ID is absent. Never force,
+   blanket prune, volume prune or build-cache prune. An extra tag arriving after
+   inspection is left to Docker's non-force conflict protection. Expected conflicts
+   defer that image and independent candidates continue; systemic failures or held
+   inventory stop the run. No multi-tag disk reclamation or freed-byte total is
+   claimed. The shared guard coordinates Slipway deployment/rollback writers;
+   external Docker actors still must not race protection/reference changes.
 
 Volumes, backups, build cache and unrelated images are outside the operation.
 Virtual image sizes share layers; a candidate-size sum is not reclaimed disk space.
