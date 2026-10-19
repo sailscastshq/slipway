@@ -34,7 +34,7 @@ module.exports = {
       let message = `\u26A0\uFE0F <b>Disk space is running low</b>\n\n`
       message += `<b>Used:</b> ${usedPercent}%\n`
       message += `<b>Available:</b> ${escapeHtml(availableGb)}\n`
-      message += `\nYour server is filling up. Consider cleaning up old images, pruning Docker, or expanding your disk.\n`
+      message += `\nYour server is filling up. Review Bosun cleanup outcomes and protected rollback images before reclaiming space, or expand your disk. Avoid blanket Docker image pruning.\n`
       message += `\n<b>\u2014 Slippy \uD83D\uDC19, from ${escapeHtml(
         instanceName
       )}</b>`
@@ -51,7 +51,7 @@ module.exports = {
       let message = `\u26A0\uFE0F *Disk space is running low*\n\n`
       message += `*Used:* ${usedPercent}%\n`
       message += `*Available:* ${availableGb}\n`
-      message += `Your server is filling up. Consider cleaning up old images, pruning Docker, or expanding your disk.\n`
+      message += `Your server is filling up. Review Bosun cleanup outcomes and protected rollback images before reclaiming space, or expand your disk. Avoid blanket Docker image pruning.\n`
       message += `\n*\u2014 Slippy \uD83D\uDC19, from ${instanceName}*`
       await sails.helpers.notification.sendSlack
         .with({ message })
@@ -76,7 +76,7 @@ module.exports = {
               {
                 title: '\u26A0\uFE0F Disk space is running low',
                 description:
-                  'Your server is filling up. Consider cleaning up old images, pruning Docker, or expanding your disk.',
+                  'Your server is filling up. Review Bosun cleanup outcomes and protected rollback images before reclaiming space, or expand your disk. Avoid blanket Docker image pruning.',
                 color: 0xef4444,
                 fields: [
                   { name: 'Used', value: `${usedPercent}%`, inline: true },
