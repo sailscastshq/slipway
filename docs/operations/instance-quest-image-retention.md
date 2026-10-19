@@ -49,12 +49,18 @@ triggers always send the configured defaults (`{}`).
    Resolve complete immutable IDs. Incomplete, ambiguous or unresolved protection
    references hold the run; no candidate is removed.
 3. Protect every container reference, active deployment/job and rollback target,
-   configured pin, current app and the latest three distinct successful images
-   per app/environment, plus service and recovery references. Only images whose
+   configured pin and the current app image. Keep one distinct previous successful
+   rollback image per app/environment. Validated traffic recovery metadata owns
+   this choice; an explicit null previous does not resurrect rejected releases.
+   For legacy apps without that metadata, select the latest distinct successful
+   image preceding the live deployment (timestamp, then deployment ID), never a
+   newer release. Preserve and report ambiguous legacy associations. Service,
+   retained-cleanup and explicit recovery references remain additional protections. Only images whose
    tags all match known Slipway deployment records can qualify. This also leaves
    control-plane release images (current and previous), Coolify, unknown aliases
    and untagged legacy images untouched.
-4. Select images strictly older than 14 days. Persist the plan to
+4. Select otherwise unreferenced, positively identified managed images regardless
+   of age. Persist the plan to
    `imageRetentionLastRun` and write its audit record before any removal.
 5. Process at most 100 images and stop after five minutes per run by default. Re-read policy, complete inventory and all references for each exact image
    ID while retaining the exclusive guard. All aliases must be known deployment
@@ -82,6 +88,27 @@ continues it, or an administrator can select **Run now** again after completion.
 The bound avoids holding deployment/rollback admission indefinitely. Inventory is
 still refreshed before every individual non-force removal; a backlog never weakens
 protection or expands eligibility.
+
+## Upgrading from the three-image policy
+
+This correction replaces the v0.0.107 blanket retention of three successful images
+and a 14-day minimum age. There is no database migration. The legacy
+`minimumAgeDays` and `keepSuccessful` configuration keys are ignored and reported
+in the plan's `ignoredLegacySettings`; remove obsolete overrides when updating.
+The fixed selection is reported as `current-plus-one-rollback`. Removal opt-out,
+100-image/five-minute bounds, explicit protections and shared admission are unchanged.
+If removal is enabled, the new selection applies at the next scheduled or manual
+run: a young, unreferenced managed image can now qualify immediately. Inspect a
+read-only inventory before enabling/running cleanup after the upgrade.
+
+“One rollback” does not mean only two images can exist: all containers (including
+stopped ones), active work, pins, retained resources and recovery references still
+win. Unknown, untagged, digest-linked and ambiguous legacy images remain protected.
+The planner reports these reasons instead of deleting them to reach a target count.
+
+See [read-only inventory procedure](image-retention-read-only-inventory.md). Ordinary
+Quest preview acquires locks and writes audit/history; it is not a read-only host
+diagnostic. Do not use it when only read-only inspection is authorized.
 
 ## Interrupted-operation holds
 
@@ -120,6 +147,48 @@ The explicit local installer destroy command can recover ownership of private
 container-created state before deleting its local fixture directory. Its recovery
 container has one bounded mount, no network and no Docker socket; production
 history permissions remain private.
+
+## Prevention coverage and limits
+
+The existing Quest scheduler auto-starts in UTC, uses console children and prevents
+overlap. Deployment-image cleanup runs every 24 hours; build-cache maintenance runs
+at minute 17 of every hour. Both removal policies default enabled; their respective
+`SLIPWAY_IMAGE_RETENTION_REMOVE=false` and
+`SLIPWAY_BUILD_CACHE_RETENTION_REMOVE=false` startup settings opt out. Inspect the
+actual instance configuration rather than assuming defaults prove execution.
+Build-cache maintenance considers only unused cache older than 168 hours with a
+20 GiB retained-storage target, shared admission and a five-minute bound. It does
+not run image, volume or system prune. These age/storage constraints and active
+work can leave a cache backlog; the target is not an absolute disk-usage cap.
+
+Image outcomes persist to `imageRetentionLastRun`, audit records and bounded
+Bosun run output: removed, skipped, failed/deferred counts, protected reasons and
+holds. Cache outcomes persist to `buildCacheRetentionLastRun`, audit and run
+output, with before/after inventory and measured net filesystem availability.
+Missing rollback artifacts cause an unresolved-protection hold; cleanup cannot
+reconstruct an image removed by an external prune. Confirm an exact artifact is
+available before claiming rollback is usable.
+
+Observability maintenance runs every five minutes, independently of Docker
+metrics. Host usage at or above 90% logs a warning and attempts the existing disk
+notification, subject to a 15-minute cooldown, `notifyOnHighResourceUsage`, and
+configured Telegram/Slack/Discord/webhook channels. Channels default disabled;
+notification delivery is not guaranteed. Cleanup holds/failures do not currently
+have a dedicated external alert. Bosun run state and persisted outcomes must be
+reviewed; a stopped scheduler cannot report its own absence reliably.
+
+Lookout's **Retention** age and **retained rows** count describe observability
+database retention freshness and row totals, not Docker images or reclaimed disk.
+Defaults retain container metrics for 24 hours and application telemetry for seven
+days, pruned in bounded batches. Healthy telemetry retention does not prove image
+or cache cleanup succeeded. A dedicated cleanup-staleness/hold alert and earlier
+capacity warning are separate possible features; this release does not add them.
+
+These safeguards reduce accumulation but cannot promise disk never fills: workload
+growth, protected references, external Docker actors, failed or disabled jobs,
+guard holds and inventory caps still require operator attention. A drop in host
+usage after an unknown operator command is not evidence that this unreleased code
+reclaimed space. No production cleanup was performed during this implementation.
 
 ## Local evidence
 

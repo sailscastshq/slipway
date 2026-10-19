@@ -15,8 +15,7 @@ module.exports = {
   },
   exits: { success: { outputType: 'ref' } },
 
-  fn: async function ({ inventory, policy, now }) {
-    now ||= Date.now()
+  fn: async function ({ inventory, policy }) {
     const [deployments, apps, jobs, services, cleanups, recoveryRows] =
       await Promise.all([
         read(Deployment, {}, [
@@ -63,6 +62,14 @@ module.exports = {
     const aliases = new Map()
     const holds = new Set()
     const protectedIds = new Map()
+    const recoveryApps = new Set()
+    const appsById = new Map()
+    for (const app of apps) {
+      const key = String(app.id)
+      const owners = appsById.get(key) || []
+      owners.push(app)
+      appsById.set(key, owners)
+    }
     const deploymentById = new Map(
       deployments.map((item) => [String(item.id), item])
     )
@@ -77,9 +84,23 @@ module.exports = {
       protect(container.imageId, 'container')
     for (const ref of policy.pinnedImages) protect(ref, 'pin')
     for (const app of apps) {
-      protectRecord(app, 'current-app')
-      if (app.currentDeployment)
+      const appImage = protectRecord(app, 'current-app')
+      if (app.currentDeployment) {
         protectDeployment(app.currentDeployment, 'current-release')
+        const current = deploymentById.get(
+          String(normalizeId(app.currentDeployment))
+        )
+        if (current) {
+          const currentImage = protectRecord(current, 'current-release')
+          if (
+            String(normalizeId(current.app)) !== String(app.id) ||
+            String(normalizeId(current.environment)) !==
+              String(normalizeId(app.environment)) ||
+            (appImage && currentImage && appImage !== currentImage)
+          )
+            holds.add('Current deployment does not match the app traffic owner')
+        }
+      }
     }
     for (const row of recoveryRows) {
       if (row.key.startsWith(recovery.HOLD_PREFIX)) {
@@ -93,7 +114,8 @@ module.exports = {
         holds.add('Recovery metadata could not be verified')
         continue
       }
-      const app = apps.find((item) => recovery.id(item.id) === state.appId)
+      const owners = appsById.get(state.appId) || []
+      const app = owners.length === 1 ? owners[0] : null
       if (
         row.key !== recovery.key(state.appId) ||
         !app ||
@@ -107,6 +129,9 @@ module.exports = {
       }
       protect(state.current.imageId, 'recovery-current')
       if (state.previous) protect(state.previous.imageId, 'recovery-previous')
+      // An authoritative null previous (including after rollback) is deliberate.
+      // Do not resurrect rejected releases by guessing from deployment history.
+      recoveryApps.add(state.appId)
     }
     for (const deployment of deployments) {
       if (ACTIVE.has(deployment.status))
@@ -121,27 +146,57 @@ module.exports = {
       if (job.targetDeploymentId)
         protectDeployment(job.targetDeploymentId, 'rollback-job')
     }
-    const groups = new Map()
-    for (const deployment of deployments
+    const ordered = deployments
       .filter((item) => SUCCESSFUL.has(item.status) && item.app)
-      .sort(
-        (a, b) => b.createdAt - a.createdAt || Number(b.id) - Number(a.id)
-      )) {
-      if (!deployment.environment || !Number.isFinite(deployment.createdAt))
-        throw new Error('Image retention cannot order successful deployments')
-      const key = `${normalizeId(deployment.environment)}:${normalizeId(
-        deployment.app
-      )}`
-      const retained = groups.get(key) || new Set()
-      if (retained.size < policy.keepSuccessful) {
-        const id = protectRecord(deployment, 'recent-success')
-        if (!id)
-          holds.add(
-            `Successful deployment ${deployment.id} has no resolved image`
-          )
-        else retained.add(id)
+      .sort((a, b) => b.createdAt - a.createdAt || Number(b.id) - Number(a.id))
+    const selected = new Set()
+    for (const deployment of ordered) {
+      const appId = normalizeId(deployment.app)
+      const owners = appsById.get(String(appId)) || []
+      const app = owners.length === 1 ? owners[0] : null
+      const current =
+        app && deploymentById.get(String(normalizeId(app.currentDeployment)))
+      if (
+        !app ||
+        !current ||
+        !deployment.environment ||
+        String(normalizeId(app.environment)) !==
+          String(normalizeId(deployment.environment)) ||
+        String(normalizeId(current.app)) !== String(appId) ||
+        String(normalizeId(current.environment)) !==
+          String(normalizeId(app.environment)) ||
+        !Number.isFinite(current.createdAt) ||
+        !Number.isFinite(deployment.createdAt)
+      ) {
+        protectRecord(deployment, 'ambiguous-legacy-association')
+        continue
       }
-      groups.set(key, retained)
+      if (recoveryApps.has(recovery.id(appId)) || selected.has(String(appId)))
+        continue
+      const currentId = protectRecord(current, 'current-release')
+      if (!currentId) {
+        holds.add('Current deployment has no resolved image')
+        continue
+      }
+      // Only history preceding the live deployment can be a legacy rollback.
+      if (
+        deployment.createdAt > current.createdAt ||
+        (deployment.createdAt === current.createdAt &&
+          Number(deployment.id) >= Number(current.id))
+      )
+        continue
+      const refs = [deployment.imageName, deployment.imageId].filter(Boolean)
+      const ids = new Set(
+        refs.map((ref) => aliases.get(ref) || aliases.get(`sha256:${ref}`))
+      )
+      if (ids.has(undefined) || ids.size !== 1) {
+        protectRecord(deployment, 'previous-success')
+        holds.add('Previous successful deployment has no unambiguous image')
+        continue
+      }
+      if ([...ids][0] === currentId) continue
+      protectRecord(deployment, 'previous-success')
+      selected.add(String(appId))
     }
     for (const service of services) {
       if (service.managementMode === 'external') continue
@@ -173,12 +228,17 @@ module.exports = {
           (item) =>
             item.app &&
             item.environment &&
+            (appsById.get(String(normalizeId(item.app))) || []).some(
+              (app) =>
+                String(app.id) === String(normalizeId(item.app)) &&
+                String(normalizeId(app.environment)) ===
+                  String(normalizeId(item.environment))
+            ) &&
             MANAGED_TAG.test(item.imageName || '') &&
             item.imageName.endsWith(`:${item.id}`)
         )
         .map((item) => item.imageName)
     )
-    const cutoff = now - policy.minimumAgeDays * 86400000
     const images = inventory.images.map((image) => {
       const reasons = [...(protectedIds.get(image.id) || [])]
       // Only named images with matching deployment records are identifiable here.
@@ -188,11 +248,12 @@ module.exports = {
       // Tag removal can also detach repository-digest aliases, which are not
       // deployment-owned tags. Retain the whole image instead.
       if (image.digests.length) reasons.push('digest-reference')
-      if (Date.parse(image.created) >= cutoff) reasons.push('minimum-age')
       return { id: image.id, tags: image.tags, sizeBytes: image.size, reasons }
     })
     return {
       status: holds.size ? 'held' : 'planned',
+      selection: policy.selection,
+      ignoredLegacySettings: policy.ignoredLegacySettings || [],
       holds: [...holds],
       candidates: holds.size
         ? []
