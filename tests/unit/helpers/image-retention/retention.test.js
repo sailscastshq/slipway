@@ -755,3 +755,77 @@ test('ambiguous legacy associations are reported and preserved, conflicting curr
     )
   )
 })
+
+test('a previously pruned rollback artifact holds cleanup and is never reported as restored', async (t) => {
+  const { state, current, deployment, plan } = await fixture(t)
+  for (let n = 1; n <= 4; n++) deployment(n)
+  current(4)
+  const recovery = require('../../../../api/lib/deployment-recovery')
+  const release = (n) => ({
+    deploymentId: String(n),
+    imageId: id(n),
+    promotedAt: n,
+    compatibility: null
+  })
+  state.recovery.push({
+    key: recovery.key(1),
+    value: JSON.stringify({
+      version: 1,
+      appId: '1',
+      environmentId: '1',
+      rejectedImages: [],
+      current: release(4),
+      previous: release(3)
+    })
+  })
+  state.images = state.images.filter((image) => image.id !== id(3))
+  const result = await plan()
+  assert.equal(result.status, 'held')
+  assert.deepEqual(result.candidates, [])
+  assert.ok(
+    result.holds.some((reason) =>
+      reason.startsWith('Unresolved recovery-previous reference:')
+    )
+  )
+  assert.deepEqual(state.removed, [])
+  assert.ok(!state.images.some((image) => image.id === id(3)))
+})
+
+test('existing maintenance schedules and removal defaults stay enabled with explicit opt-out', async () => {
+  const quest = require('../../../../config/quest').quest
+  const cacheJob = require('../../../../scripts/retain-build-cache')
+  const observability = require('../../../../scripts/maintain-observability')
+  assert.equal(quest.autoStart, true)
+  assert.equal(quest.timezone, 'UTC')
+  assert.equal(quest.environment, 'console')
+  assert.equal(job.quest.interval, '24 hours')
+  assert.equal(cacheJob.quest.cron, '17 * * * *')
+  assert.equal(cacheJob.quest.withoutOverlapping, true)
+  assert.equal(observability.quest.interval, '5 minutes')
+  const vm = require('node:vm')
+  const source = await fs.readFile(
+    require.resolve('../../../../config/build-cache-retention'),
+    'utf8'
+  )
+  for (const [value, expected] of [
+    [undefined, true],
+    ['true', true],
+    ['false', false],
+    ['invalid', false]
+  ]) {
+    const context = {
+      module: { exports: {} },
+      process: {
+        env:
+          value === undefined
+            ? {}
+            : { SLIPWAY_BUILD_CACHE_RETENTION_REMOVE: value }
+      }
+    }
+    vm.runInNewContext(source, context)
+    const policy = context.module.exports.buildCacheRetention
+    assert.equal(policy.remove, expected)
+    assert.equal(policy.minimumUnusedHours, 168)
+    assert.equal(policy.keepStorageBytes, 20 * 1024 ** 3)
+  }
+})

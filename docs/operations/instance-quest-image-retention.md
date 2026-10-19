@@ -148,6 +148,48 @@ container-created state before deleting its local fixture directory. Its recover
 container has one bounded mount, no network and no Docker socket; production
 history permissions remain private.
 
+## Prevention coverage and limits
+
+The existing Quest scheduler auto-starts in UTC, uses console children and prevents
+overlap. Deployment-image cleanup runs every 24 hours; build-cache maintenance runs
+at minute 17 of every hour. Both removal policies default enabled; their respective
+`SLIPWAY_IMAGE_RETENTION_REMOVE=false` and
+`SLIPWAY_BUILD_CACHE_RETENTION_REMOVE=false` startup settings opt out. Inspect the
+actual instance configuration rather than assuming defaults prove execution.
+Build-cache maintenance considers only unused cache older than 168 hours with a
+20 GiB retained-storage target, shared admission and a five-minute bound. It does
+not run image, volume or system prune. These age/storage constraints and active
+work can leave a cache backlog; the target is not an absolute disk-usage cap.
+
+Image outcomes persist to `imageRetentionLastRun`, audit records and bounded
+Bosun run output: removed, skipped, failed/deferred counts, protected reasons and
+holds. Cache outcomes persist to `buildCacheRetentionLastRun`, audit and run
+output, with before/after inventory and measured net filesystem availability.
+Missing rollback artifacts cause an unresolved-protection hold; cleanup cannot
+reconstruct an image removed by an external prune. Confirm an exact artifact is
+available before claiming rollback is usable.
+
+Observability maintenance runs every five minutes, independently of Docker
+metrics. Host usage at or above 90% logs a warning and attempts the existing disk
+notification, subject to a 15-minute cooldown, `notifyOnHighResourceUsage`, and
+configured Telegram/Slack/Discord/webhook channels. Channels default disabled;
+notification delivery is not guaranteed. Cleanup holds/failures do not currently
+have a dedicated external alert. Bosun run state and persisted outcomes must be
+reviewed; a stopped scheduler cannot report its own absence reliably.
+
+Lookout's **Retention** age and **retained rows** count describe observability
+database retention freshness and row totals, not Docker images or reclaimed disk.
+Defaults retain container metrics for 24 hours and application telemetry for seven
+days, pruned in bounded batches. Healthy telemetry retention does not prove image
+or cache cleanup succeeded. A dedicated cleanup-staleness/hold alert and earlier
+capacity warning are separate possible features; this release does not add them.
+
+These safeguards reduce accumulation but cannot promise disk never fills: workload
+growth, protected references, external Docker actors, failed or disabled jobs,
+guard holds and inventory caps still require operator attention. A drop in host
+usage after an unknown operator command is not evidence that this unreleased code
+reclaimed space. No production cleanup was performed during this implementation.
+
 ## Local evidence
 
 The unit tests replace Docker execution and use disposable directories. The
