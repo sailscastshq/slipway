@@ -52,6 +52,11 @@ module.exports = {
       defaultsTo: {},
       description: 'Docker resource limits (cpus, memory)'
     },
+    pullPolicy: {
+      type: 'string',
+      isIn: ['missing', 'never'],
+      defaultsTo: 'missing'
+    },
     signal: {
       type: 'ref',
       description: 'Abort signal for an operator-requested cancellation.'
@@ -75,6 +80,7 @@ module.exports = {
     network,
     deploymentId,
     resourceLimits,
+    pullPolicy,
     signal
   }) {
     deploymentCancellation.throwIfCancelled(signal, deploymentId)
@@ -134,6 +140,8 @@ module.exports = {
     // Add restart policy
     args.push('--restart', 'unless-stopped')
 
+    // Rollback cannot silently pull or substitute a missing local artifact.
+    if (pullPolicy === 'never') args.push('--pull', 'never')
     // Add image name
     args.push(imageName)
 

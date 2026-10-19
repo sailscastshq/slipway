@@ -161,3 +161,4 @@ db/instance-quest/
 db/image-operation-guard/
 db/image-retention.lock
 output/bosun-quest/
+output/rollback-recovery/

@@ -25,6 +25,7 @@ module.exports = {
       type: 'number',
       description: 'Existing deployment whose image a rollback will reuse.'
     },
+    expectedCurrent: { type: 'string' },
     dispatch: {
       type: 'boolean',
       defaultsTo: true,
@@ -41,7 +42,14 @@ module.exports = {
     }
   },
 
-  fn: async function ({ values, app, kind, targetDeploymentId, dispatch }) {
+  fn: async function ({
+    values,
+    app,
+    kind,
+    targetDeploymentId,
+    dispatch,
+    expectedCurrent
+  }) {
     const environmentId = normalizeId(values.environment)
     if (!environmentId) {
       throw new Error('A queued deployment requires an environment.')
@@ -59,6 +67,45 @@ module.exports = {
     const initialCleanup = await findBlockingCleanup(cleanupScope)
     if (initialCleanup) throw { cleanupInProgress: initialCleanup }
 
+    if (
+      app &&
+      (await Setting.findOne({
+        key:
+          require('../../lib/deployment-recovery').HOLD_PREFIX + String(app.id)
+      }))
+    )
+      throw new Error(
+        'Traffic recovery requires operator inspection before another deployment or rollback.'
+      )
+    let recoveryIntent = null
+    if (kind === 'rollback') {
+      if (!app || !expectedCurrent)
+        throw new Error(
+          'Rollback requires an app and the expected current release.'
+        )
+      app = await App.findOne({ id: app.id, environment: environmentId })
+      if (!app) throw new Error('The rollback app no longer exists.')
+      const target = await sails.helpers.deploy.resolveRecoveryTarget.with({
+        app,
+        deploymentId: String(targetDeploymentId),
+        expectedCurrent
+      })
+      if (!target.available) throw new Error(target.reason)
+      recoveryIntent = {
+        appId: app.id,
+        environmentId,
+        expectedCurrent,
+        targetDeploymentId,
+        imageId: target.imageId,
+        compatibility: target.compatibility
+      }
+      values = {
+        ...values,
+        imageId: target.imageId,
+        imageName: target.target.imageName || target.imageId
+      }
+    }
+
     const appSlug = app?.slug || 'app'
     // The source cache and Caddy route are environment-wide resources. Keep
     // all app pipelines in the same environment queue so they cannot race at
@@ -68,6 +115,13 @@ module.exports = {
     let job
 
     await withDatastoreTransaction(async (db) => {
+      if (recoveryIntent) {
+        const currentApp = await App.findOne({ id: app.id }).usingConnection(db)
+        if (String(currentApp?.currentDeployment) !== expectedCurrent)
+          throw new Error(
+            'The current release changed before rollback admission.'
+          )
+      }
       deployment = await Deployment.create({
         ...values,
         status: 'pending',
@@ -76,6 +130,12 @@ module.exports = {
       })
         .fetch()
         .usingConnection(db)
+
+      if (recoveryIntent)
+        await Setting.create({
+          key: `rollbackIntent:v1:${deployment.id}`,
+          value: JSON.stringify(recoveryIntent)
+        }).usingConnection(db)
 
       job = await DeploymentJob.create({
         deployment: deployment.id,
@@ -94,6 +154,9 @@ module.exports = {
       await withDatastoreTransaction(async (db) => {
         await DeploymentJob.destroyOne({ id: job.id }).usingConnection(db)
         await Deployment.destroyOne({ id: deployment.id }).usingConnection(db)
+        await Setting.destroy({
+          key: `rollbackIntent:v1:${deployment.id}`
+        }).usingConnection(db)
       })
       throw { cleanupInProgress: racedCleanup }
     }

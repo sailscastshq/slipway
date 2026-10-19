@@ -119,10 +119,12 @@ test(
         environment: current.environments.production.id
       },
       app: current.apps.web,
-      kind: 'rollback',
-      targetDeploymentId: 999999,
       dispatch: false
     })
+
+    await sails.models.deploymentjob
+      .updateOne({ id: queued.job.id })
+      .set({ kind: 'rollback', targetDeploymentId: 999999 })
 
     await sails.helpers.deploy.runQueuedDeployments.with({
       targetKey: queued.job.targetKey

@@ -16,6 +16,7 @@ async function fixture(t, behavior = {}) {
   const binary = path.join(root, 'fake-docker')
   const names = [
     'sails',
+    'Setting',
     'Deployment',
     'App',
     'DeploymentJob',

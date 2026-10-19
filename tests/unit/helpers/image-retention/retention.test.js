@@ -16,6 +16,7 @@ const tag = (n) => `slipway/demo-production-web:${n}`
 async function fixture(t, config = {}) {
   const keys = [
     'sails',
+    'Setting',
     'Deployment',
     'App',
     'DeploymentJob',
@@ -36,6 +37,7 @@ async function fixture(t, config = {}) {
     await fs.rm(root, { recursive: true, force: true })
   })
   const state = {
+    recovery: [],
     deployments: [],
     apps: [],
     jobs: [],
@@ -49,6 +51,7 @@ async function fixture(t, config = {}) {
     logs: []
   }
   for (const [name, key] of [
+    ['Setting', 'recovery'],
     ['Deployment', 'deployments'],
     ['App', 'apps'],
     ['DeploymentJob', 'jobs'],
@@ -496,4 +499,49 @@ test('all eligible shared tags are candidates, but any protected, unknown or dig
       .find((item) => item.id === id(1))
       .reasons.includes('digest-reference')
   )
+})
+
+test('explicit previous recovery image survives beyond recent-success floor and recovery holds stop cleanup', async (t) => {
+  const { state, deployment, plan } = await fixture(t)
+  const recovery = require('../../../../api/lib/deployment-recovery')
+  for (let n = 1; n <= 8; n++) deployment(n)
+  state.apps.push({
+    id: 1,
+    environment: 1,
+    currentDeployment: 8,
+    imageId: id(8),
+    imageName: tag(8)
+  })
+  state.recovery.push({
+    key: recovery.key(1),
+    value: JSON.stringify({
+      version: 1,
+      appId: '1',
+      environmentId: '1',
+      rejectedImages: [],
+      current: {
+        deploymentId: '8',
+        imageId: id(8),
+        promotedAt: 800,
+        compatibility: 'schema-1'
+      },
+      previous: {
+        deploymentId: '1',
+        imageId: id(1),
+        promotedAt: 100,
+        compatibility: 'schema-1'
+      }
+    })
+  })
+  let result = await plan()
+  assert.ok(
+    result.protected
+      .find((item) => item.id === id(1))
+      .reasons.includes('recovery-previous')
+  )
+  assert.ok(!result.candidates.some((item) => item.id === id(1)))
+  state.recovery.push({ key: recovery.HOLD_PREFIX + '1', value: '{}' })
+  result = await plan()
+  assert.equal(result.status, 'held')
+  assert.deepEqual(result.candidates, [])
 })

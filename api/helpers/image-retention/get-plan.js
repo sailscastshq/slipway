@@ -1,3 +1,4 @@
+const recovery = require('../../lib/deployment-recovery')
 const ACTIVE = new Set(['pending', 'building', 'pushing', 'deploying'])
 const SUCCESSFUL = new Set(['running', 'stopped'])
 const TERMINAL_JOBS = new Set(['complete', 'failed', 'cancelled'])
@@ -16,41 +17,49 @@ module.exports = {
 
   fn: async function ({ inventory, policy, now }) {
     now ||= Date.now()
-    const [deployments, apps, jobs, services, cleanups] = await Promise.all([
-      read(Deployment, {}, [
-        'id',
-        'app',
-        'environment',
-        'status',
-        'imageName',
-        'imageId',
-        'createdAt'
-      ]),
-      read(App, {}, [
-        'id',
-        'environment',
-        'imageName',
-        'imageId',
-        'currentDeployment'
-      ]),
-      read(DeploymentJob, {}, [
-        'id',
-        'deployment',
-        'targetDeploymentId',
-        'imageName',
-        'stage'
-      ]),
-      read(Service, {}, [
-        'id',
-        'type',
-        'status',
-        'managementMode',
-        'imageReference',
-        'imageMetadata',
-        'customRecovery'
-      ]),
-      read(CleanupOperation, { retentionPolicy: 'retain' }, ['id', 'snapshot'])
-    ])
+    const [deployments, apps, jobs, services, cleanups, recoveryRows] =
+      await Promise.all([
+        read(Deployment, {}, [
+          'id',
+          'app',
+          'environment',
+          'status',
+          'imageName',
+          'imageId',
+          'createdAt'
+        ]),
+        read(App, {}, [
+          'id',
+          'environment',
+          'imageName',
+          'imageId',
+          'currentDeployment'
+        ]),
+        read(DeploymentJob, {}, [
+          'id',
+          'deployment',
+          'targetDeploymentId',
+          'imageName',
+          'stage'
+        ]),
+        read(Service, {}, [
+          'id',
+          'type',
+          'status',
+          'managementMode',
+          'imageReference',
+          'imageMetadata',
+          'customRecovery'
+        ]),
+        read(CleanupOperation, { retentionPolicy: 'retain' }, [
+          'id',
+          'snapshot'
+        ]),
+        read(Setting, { key: { startsWith: 'deploymentRecovery' } }, [
+          'key',
+          'value'
+        ])
+      ])
     const aliases = new Map()
     const holds = new Set()
     const protectedIds = new Map()
@@ -71,6 +80,33 @@ module.exports = {
       protectRecord(app, 'current-app')
       if (app.currentDeployment)
         protectDeployment(app.currentDeployment, 'current-release')
+    }
+    for (const row of recoveryRows) {
+      if (row.key.startsWith(recovery.HOLD_PREFIX)) {
+        holds.add('Traffic recovery requires operator inspection')
+        continue
+      }
+      let state
+      try {
+        state = recovery.parse(row.value)
+      } catch {
+        holds.add('Recovery metadata could not be verified')
+        continue
+      }
+      const app = apps.find((item) => recovery.id(item.id) === state.appId)
+      if (
+        row.key !== recovery.key(state.appId) ||
+        !app ||
+        recovery.id(app.environment) !== state.environmentId ||
+        recovery.id(app.currentDeployment) !==
+          recovery.id(state.current.deploymentId) ||
+        app.imageId !== state.current.imageId
+      ) {
+        holds.add('Recovery metadata does not match the app traffic owner')
+        continue
+      }
+      protect(state.current.imageId, 'recovery-current')
+      if (state.previous) protect(state.previous.imageId, 'recovery-previous')
     }
     for (const deployment of deployments) {
       if (ACTIVE.has(deployment.status))

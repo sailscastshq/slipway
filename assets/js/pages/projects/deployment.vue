@@ -1,11 +1,13 @@
 <script setup>
+import Button from '@/components/ui/button/Button.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
 import ChevronLeft from '@/components/ui/icons/ChevronLeft.vue'
-import { Link, Head, router } from '@inertiajs/vue3'
+import { Link, Head, router, usePage } from '@inertiajs/vue3'
 import { inject, ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
@@ -22,7 +24,8 @@ defineOptions({
 const props = defineProps({
   project: Object,
   environment: Object,
-  deployment: Object
+  deployment: Object,
+  recovery: Object
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -152,103 +155,52 @@ async function cancelDeployment() {
   }
 }
 
-// Rollback
-const canRollback = computed(
-  () =>
-    deployment.value.outcome === 'succeeded' &&
-    !deployment.value.isCurrent &&
-    deployment.value.imageName
-)
-
+// The same server resolver owns UI eligibility and API admission.
+const canRollback = computed(() => props.recovery?.available === true)
 const rollingBack = ref(false)
+const rollbackError = ref('')
+const page = usePage()
+const rollbackReview = ref(false)
+onBeforeUnmount(() => disconnectDeploymentStream())
 
-// Slide-to-rollback
-const slideTrack = ref(null)
-const slideProgress = ref(0)
-const isSliding = ref(false)
-
-const thumbColor = computed(() => {
-  if (slideProgress.value < 0.33)
-    return 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
-  if (slideProgress.value < 0.66) return 'bg-yellow-500 text-white'
-  return 'bg-red-500 text-white'
-})
-
-const trackFill = computed(() => {
-  if (slideProgress.value < 0.33) return 'bg-transparent'
-  if (slideProgress.value < 0.66) return 'bg-yellow-500/10'
-  return 'bg-red-500/10'
-})
-
-let cleanupSlide = null
-
-function startSlide(e) {
-  if (rollingBack.value) return
-  isSliding.value = true
-  const startX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX
-  const track = slideTrack.value
-  const maxSlide = track.offsetWidth - 40
-
-  const onMove = (moveEvent) => {
-    const currentX =
-      moveEvent.type === 'touchmove'
-        ? moveEvent.touches[0].clientX
-        : moveEvent.clientX
-    const delta = startX - currentX
-    slideProgress.value = Math.max(0, Math.min(1, delta / maxSlide))
-  }
-
-  const onEnd = () => {
-    isSliding.value = false
-    if (slideProgress.value > 0.85) {
-      slideProgress.value = 1
-      executeRollback()
-    } else {
-      slideProgress.value = 0
-    }
-    cleanup()
-  }
-
-  const cleanup = () => {
-    document.removeEventListener('mousemove', onMove)
-    document.removeEventListener('mouseup', onEnd)
-    document.removeEventListener('touchmove', onMove)
-    document.removeEventListener('touchend', onEnd)
-    cleanupSlide = null
-  }
-
-  document.addEventListener('mousemove', onMove)
-  document.addEventListener('mouseup', onEnd)
-  document.addEventListener('touchmove', onMove)
-  document.addEventListener('touchend', onEnd)
-  cleanupSlide = cleanup
-}
-
-onBeforeUnmount(() => {
-  disconnectDeploymentStream()
-  if (cleanupSlide) cleanupSlide()
-})
-
-function executeRollback() {
+async function executeRollback() {
+  if (rollingBack.value || !canRollback.value) return
   rollingBack.value = true
-  router.post(
-    `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/rollback`,
-    { deploymentId: props.deployment.id },
-    {
-      onSuccess: (page) => {
-        const newDeployment = page.props?.deployment
-        if (newDeployment?.id) {
-          router.visit(
-            `/projects/${props.project.slug}/deployments/${newDeployment.id}`
-          )
-        }
-      },
-      onFinish: () => {
-        rollingBack.value = false
-        slideProgress.value = 0
+  rollbackError.value = ''
+  try {
+    const response = await fetch(
+      `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/rollback`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'X-CSRF-Token': page.props._csrf || ''
+        },
+        body: JSON.stringify({
+          deploymentId: String(props.recovery.targetDeploymentId),
+          appSlug: props.recovery.appSlug,
+          expectedCurrent: String(props.recovery.currentDeploymentId)
+        })
       }
-    }
-  )
+    )
+    const result = await response.json()
+    if (!response.ok || !result.deployment?.id)
+      throw new Error(
+        typeof result.message === 'string'
+          ? result.message
+          : 'Rollback could not be queued. Refresh the recovery state before retrying.'
+      )
+    router.visit(
+      `/projects/${props.project.slug}/deployments/${result.deployment.id}`
+    )
+  } catch (error) {
+    rollbackError.value = error.message
+    router.reload({ only: ['recovery'] })
+  } finally {
+    rollingBack.value = false
+    rollbackReview.value = false
+  }
 }
 </script>
 <template>
@@ -306,13 +258,31 @@ function executeRollback() {
       </div>
     </div>
 
+    <p
+      v-if="!isInProgress && recovery"
+      class="border-b border-dashed border-gray-200 px-4 py-3 text-xs text-gray-500 dark:border-gray-800 sm:px-8"
+      data-test="recovery-status"
+    >
+      {{
+        canRollback
+          ? `Previous healthy release: #${recovery.targetDeploymentId} · local immutable image available · compatibility ${recovery.compatibility}`
+          : recovery.reason
+      }}
+    </p>
+    <p
+      v-if="rollbackError"
+      role="alert"
+      class="px-4 py-3 text-sm text-red-600 dark:text-red-400 sm:px-8"
+    >
+      {{ rollbackError }}
+    </p>
     <!-- Content -->
     <div class="flex flex-1 flex-col overflow-hidden px-4 py-6 sm:px-8 sm:py-8">
       <div
         class="mx-auto flex w-full max-w-5xl flex-1 flex-col overflow-hidden"
       >
         <!-- Deployment Info -->
-        <div class="mb-6 flex items-start justify-between">
+        <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
             <div class="flex items-center gap-2">
               <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
@@ -338,60 +308,16 @@ function executeRollback() {
           >
             {{ cancelling ? 'Cancelling...' : 'Cancel' }}
           </button>
-          <!-- Slide to Rollback -->
-          <div
+          <Button
             v-if="canRollback"
-            ref="slideTrack"
-            class="relative h-10 w-56 select-none overflow-hidden rounded-full border border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-gray-900"
+            variant="outline"
+            data-test="rollback-action"
+            class="w-full sm:w-auto"
+            :disabled="rollingBack"
+            @click="rollbackReview = true"
           >
-            <!-- Track fill -->
-            <div
-              class="absolute inset-y-0 left-0"
-              :class="[
-                trackFill,
-                { 'transition-[width] duration-300': !isSliding }
-              ]"
-              :style="{ width: `${slideProgress * 100}%` }"
-            ></div>
-
-            <!-- Label -->
-            <span
-              class="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-400 dark:text-gray-500"
-            >
-              {{
-                rollingBack
-                  ? 'Rolling back...'
-                  : slideProgress > 0.85
-                  ? 'Release to confirm'
-                  : 'Slide to rollback'
-              }}
-            </span>
-
-            <!-- Thumb -->
-            <div
-              class="absolute bottom-0.5 top-0.5 flex w-10 items-center justify-center rounded-full shadow-lg"
-              :class="[
-                rollingBack
-                  ? 'cursor-not-allowed bg-red-500 text-white'
-                  : thumbColor + ' cursor-grab active:cursor-grabbing',
-                { 'transition-all duration-300 ease-out': !isSliding }
-              ]"
-              :style="{
-                left: `calc(${(1 - slideProgress) * 100}% - ${
-                  (1 - slideProgress) * 2.5
-                }rem)`
-              }"
-              @mousedown.prevent="startSlide"
-              @touchstart.prevent="startSlide"
-            >
-              <ChevronLeft
-                v-if="!rollingBack"
-                class="h-4 w-4"
-                stroke-width="2"
-              />
-              <Spinner v-else class="h-4 w-4" />
-            </div>
-          </div>
+            Roll back to previous release
+          </Button>
         </div>
 
         <!-- Metadata -->
@@ -504,5 +430,20 @@ function executeRollback() {
         </div>
       </div>
     </div>
+    <ConfirmModal
+      :show="rollbackReview"
+      :loading="rollingBack"
+      title="Roll back to previous successful release?"
+      :message="`Use deployment #${recovery?.targetDeploymentId} (${
+        recovery?.gitCommit?.slice(0, 7) || 'retained image'
+      }) for ${recovery?.appSlug || 'this app'} in ${
+        environment.slug
+      } with current runtime configuration. Both images declare compatibility window ${
+        recovery?.compatibility || 'unknown'
+      }. Database schema, data, files and external effects are not reversed. The current image will be marked rejected as an automatic recovery target.`"
+      confirm-label="Roll back"
+      @confirm="executeRollback"
+      @cancel="rollbackReview = false"
+    />
   </div>
 </template>

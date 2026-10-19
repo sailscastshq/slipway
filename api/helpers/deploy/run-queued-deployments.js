@@ -174,6 +174,17 @@ async function runClaimedJob({ job, deployment, lease }) {
           slug: job.appSlug
         })
 
+    if (
+      app &&
+      (await Setting.findOne({
+        key:
+          require('../../lib/deployment-recovery').HOLD_PREFIX + String(app.id)
+      }))
+    )
+      throw new Error(
+        'Traffic recovery requires operator inspection before deployment execution.'
+      )
+
     await DeploymentJob.updateOne({ id: job.id }).set({
       previousContainerName: app?.containerName || null
     })
@@ -182,7 +193,11 @@ async function runClaimedJob({ job, deployment, lease }) {
       const targetDeployment = await Deployment.findOne({
         id: job.targetDeploymentId
       })
-      if (!targetDeployment?.imageName) {
+      if (
+        !require('../../lib/deployment-recovery').IMAGE_ID.test(
+          targetDeployment?.imageId || ''
+        )
+      ) {
         throw new Error(
           `Rollback source deployment ${job.targetDeploymentId} is unavailable.`
         )

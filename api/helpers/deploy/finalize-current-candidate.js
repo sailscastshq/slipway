@@ -45,12 +45,24 @@ module.exports = {
       throw error
     }
 
+    if (
+      await Setting.findOne({
+        key:
+          require('../../lib/deployment-recovery').HOLD_PREFIX + String(appId)
+      })
+    )
+      throw new Error(
+        'Traffic recovery requires operator inspection; preserve both containers.'
+      )
+
     requireValidLease(
       await sails.helpers.deploy.assertDeploymentLease.with({
         deploymentId,
         leaseToken
       })
     )
+
+    await sails.helpers.deploy.verifyRecoveryCurrent.with({ app, deploymentId })
 
     await sails.helpers.caddy.updateRoute.with({
       environmentId
