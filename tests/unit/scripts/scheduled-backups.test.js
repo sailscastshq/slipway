@@ -27,6 +27,7 @@ test('the real scripts directory registers every scheduled job without executing
     'maintain-observability',
     'maintain-wake',
     'reconcile-deployments',
+    'retain-build-cache',
     'retain-deployment-images',
     'run-scheduled-backups'
   ])
@@ -35,6 +36,10 @@ test('the real scripts directory registers every scheduled job without executing
     'Clean up deployment images'
   )
   assert.deepEqual(jobs.get('retain-deployment-images').scriptInputs, {
+    preview: false
+  })
+  assert.equal(jobs.get('retain-build-cache').cron, '17 * * * *')
+  assert.deepEqual(jobs.get('retain-build-cache').scriptInputs, {
     preview: false
   })
   assert.equal(jobs.get('run-scheduled-backups').interval, '1 minute')

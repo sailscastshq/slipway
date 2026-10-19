@@ -32,8 +32,15 @@ module.exports = {
     try {
       release = await require('../../lib/image-operation-guard').acquire(
         sails.config.appPath,
-        'cleanup'
+        'cleanup',
+        {
+          recovery:
+            result.mode === 'remove'
+              ? require('../../lib/image-guard-recovery')(sails)
+              : undefined
+        }
       )
+      result.recoveredGuards = release.recoveredCount
       const beforeDisk = await sails.helpers.lookout.getDiskSpace()
       if (!validDisk(beforeDisk))
         return await held('disk-inventory-unavailable')
@@ -157,6 +164,7 @@ module.exports = {
         status: result.status,
         mode: result.mode,
         holds: result.holds,
+        recoveredGuards: result.recoveredGuards || 0,
         minimumUnusedHours: policy.minimumUnusedHours,
         keepStorageBytes: policy.keepStorageBytes,
         cacheBefore: result.before?.cache || null,

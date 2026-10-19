@@ -64,8 +64,15 @@ module.exports = {
       )
       releaseImages = await require('../../lib/image-operation-guard').acquire(
         sails.config.appPath,
-        'cleanup'
+        'cleanup',
+        {
+          recovery:
+            mode === 'remove'
+              ? require('../../lib/image-guard-recovery')(sails)
+              : undefined
+        }
       )
+      result.recoveredGuards = releaseImages.recoveredCount
       const inventory = await sails.helpers.imageRetention.getInventory.with({
         policy
       })
@@ -246,6 +253,7 @@ module.exports = {
         mode: result.mode,
         holds,
         inventoryStatus: result.plan?.status || 'not-started',
+        recoveredGuards: result.recoveredGuards || 0,
         skippedReasons: reasonCounts(
           result.skipped.map((item) => [item.reason])
         ),

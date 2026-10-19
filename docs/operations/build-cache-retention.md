@@ -33,7 +33,9 @@ command is run. Builds may become slower when they need discarded cache again.
 
 Persist a plan and audit entry before pruning. A timed-out/failed prune has an
 unconfirmed daemon outcome: keep the exclusive guard, record an explicit hold,
-and require operator inspection. Never release or expire that guard merely because
+and require operator inspection. Versioned dead use-owner recovery follows the
+[shared image guard protocol](instance-quest-image-retention.md#interrupted-operation-holds);
+legacy and uncertain cleanup records are not automatically retired. Never release or expire that guard merely because
 the caller stopped or its PID is absent. If the command completed but after-metrics
 failed, report failed measurement rather than inventing reclaimed space.
 
