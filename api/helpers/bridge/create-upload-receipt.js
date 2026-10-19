@@ -37,10 +37,12 @@ module.exports = {
       version: 1,
       url,
       actorId: String(context.actorId),
+      ...(context.appId == null ? {} : { appId: String(context.appId) }),
       projectId: String(context.projectId),
       environmentId: String(context.environmentId),
       resource: String(context.resource),
       field: String(context.field),
+      recordId: context.recordId == null ? null : String(context.recordId),
       issuedAt: Date.now(),
       expiresAt: Date.now() + expiresInMs
     }

@@ -5,6 +5,7 @@ module.exports = {
     'Reauthorize a direct-upload intent and load its current field and storage contract.',
 
   inputs: {
+    actionName: { type: 'string' },
     req: { type: 'ref', required: true },
     projectSlug: { type: 'string', required: true },
     environmentSlug: { type: 'string', defaultsTo: 'production' },
@@ -25,6 +26,7 @@ module.exports = {
     environmentSlug,
     appSlug,
     modelIdentity,
+    actionName,
     fieldName,
     recordId,
     uploadIntent
@@ -42,10 +44,46 @@ module.exports = {
       containerName: app.containerName,
       environmentId: environment.id,
       modelIdentity,
-      action: recordId ? 'update' : 'create',
+      action: actionName || (recordId ? 'update' : 'create'),
       actor,
       ...(recordId ? { recordId } : {})
     })
+    if (actionName) {
+      if (
+        !loaded.actionDefinition ||
+        loaded.actionDefinition.scope === 'bulk'
+      ) {
+        const error = new Error('This Bridge upload action is not available.')
+        error.code = 'BRIDGE_UPLOAD_FIELD_NOT_FOUND'
+        throw error
+      }
+      const context = await sails.helpers.bridge.loadActionContext.with({
+        containerName: app.containerName,
+        resource: loaded.resource,
+        action: loaded.actionDefinition,
+        actor,
+        recordId: loaded.recordId
+      })
+      loaded.actionDefinition = context.action
+    }
+    const surface = recordId ? 'edit' : 'create'
+    const attribute = actionName
+      ? loaded.actionDefinition.fields?.[fieldName]
+      : loaded.resource.attributes?.[fieldName]
+    const uploadResource = actionName
+      ? `${loaded.resource.identity}.${loaded.actionDefinition.name}`
+      : loaded.resource.identity
+    if (
+      !(actionName
+        ? Object.hasOwn(loaded.actionDefinition.fields, fieldName)
+        : loaded.resource[surface]?.includes(fieldName)) ||
+      attribute?.field?.upload?.storage !== 'bridge'
+    ) {
+      const error = new Error('This Bridge upload field is not available.')
+      error.code = 'BRIDGE_UPLOAD_FIELD_NOT_FOUND'
+      throw error
+    }
+
     const payload = await sails.helpers.bridge.verifyDirectUploadIntent.with({
       intent: uploadIntent,
       context: {
@@ -53,7 +91,7 @@ module.exports = {
         projectId: project.id,
         environmentId: environment.id,
         appId: app.id,
-        resource: loaded.resource.identity,
+        resource: uploadResource,
         field: fieldName
       }
     })
@@ -61,17 +99,6 @@ module.exports = {
       recordId === undefined || recordId === null ? null : String(recordId)
     if (payload.recordId !== expectedRecordId) {
       throw new Error('This upload session belongs to a different record.')
-    }
-
-    const surface = recordId ? 'edit' : 'create'
-    const attribute = loaded.resource.attributes?.[fieldName]
-    if (
-      !loaded.resource[surface]?.includes(fieldName) ||
-      attribute?.field?.upload?.storage !== 'bridge'
-    ) {
-      const error = new Error('This Bridge upload field is not available.')
-      error.code = 'BRIDGE_UPLOAD_FIELD_NOT_FOUND'
-      throw error
     }
 
     const upload = attribute.field.upload
@@ -95,6 +122,7 @@ module.exports = {
     return {
       ...resolved,
       payload,
+      uploadResource,
       loaded,
       attribute,
       upload,

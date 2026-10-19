@@ -5,6 +5,7 @@ module.exports = {
     'Complete a direct upload and verify exact object metadata before issuing a field receipt.',
 
   inputs: {
+    actionName: { type: 'string' },
     slug: { type: 'string', required: true },
     envSlug: { type: 'string', defaultsTo: 'production' },
     appSlug: { type: 'string' },
@@ -26,6 +27,7 @@ module.exports = {
     envSlug,
     appSlug,
     modelIdentity,
+    actionName,
     fieldName,
     recordId,
     uploadIntent
@@ -38,6 +40,7 @@ module.exports = {
         environmentSlug: envSlug,
         ...(appSlug ? { appSlug } : {}),
         modelIdentity,
+        ...(actionName ? { actionName } : {}),
         fieldName,
         ...(recordId ? { recordId } : {}),
         uploadIntent
@@ -91,7 +94,10 @@ module.exports = {
           actorId: session.actorId,
           projectId: session.project.id,
           environmentId: session.environment.id,
-          resource: session.loaded.resource.identity,
+          resource: session.uploadResource || session.loaded.resource.identity,
+          ...(actionName
+            ? { recordId: session.loaded.recordId, appId: session.app.id }
+            : {}),
           field: fieldName
         }
       })

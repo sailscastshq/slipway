@@ -67,6 +67,9 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
   ]
   const CUSTOM_ACTION_SCOPES = ['resource', 'record', 'bulk']
   const CUSTOM_ACTION_FIELD_TYPES = [
+    'file',
+    'image',
+    'upload',
     'multiselect',
     'text',
     'textarea',
@@ -109,6 +112,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'recordIds'
   ]
   const CUSTOM_ACTION_FIELD_OPTION_KEYS = [
+    'upload',
     'optionsProvider',
     'visibleWhen',
     'type',
@@ -1327,6 +1331,12 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       )
     }
 
+    if (
+      rawAction.scope === 'bulk' &&
+      Object.values(fields).some((attribute) => attribute.field.upload)
+    )
+      throw new Error(`${path} upload fields require record or resource scope.`)
+
     for (const [fieldName, attribute] of Object.entries(fields)) {
       const provider = attribute.field?.optionsProvider
       if (!provider) continue
@@ -1520,6 +1530,30 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       assertSerializable(rawField.default, `${path}.default`)
     }
 
+    validateUpload(
+      `${resourceIdentity}.${actionName}`,
+      fieldName,
+      rawField.upload
+    )
+    if (
+      rawField.upload !== undefined &&
+      !(
+        ['file', 'image', 'upload'].includes(type) ||
+        (type === 'richtext' && rawField.format?.toLowerCase() === 'markdown')
+      )
+    )
+      throw new Error(
+        `${path}.upload requires a file, image, upload or Markdown field.`
+      )
+    if (
+      type === 'richtext' &&
+      rawField.upload?.kind &&
+      rawField.upload.kind !== 'image'
+    )
+      throw new Error(
+        `${path}.upload.kind must be "image" for Markdown rich text.`
+      )
+
     let optionsProvider
     if (type === 'multiselect') {
       const provider = rawField.optionsProvider
@@ -1557,6 +1591,11 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       throw new Error(`${path}.optionsProvider requires multiselect.`)
     const field = {
       type,
+      ...(['file', 'image', 'upload'].includes(type)
+        ? { upload: normalizeUpload(type, rawField.upload) }
+        : type === 'richtext' && rawField.upload
+        ? { upload: normalizeUpload('image', rawField.upload) }
+        : {}),
       ...(optionsProvider ? { optionsProvider } : {}),
       ...(readString(rawField.help) ? { help: rawField.help.trim() } : {}),
       ...(readString(rawField.placeholder)

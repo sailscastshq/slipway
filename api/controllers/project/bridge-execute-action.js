@@ -86,8 +86,15 @@ module.exports = {
       if (error.code === 'notFound') throw { notFound: '/' }
       throw { badRequest: { errors: { error: 'App is not running' } } }
     }
-    const { project, environment, app, actor, auditUserId, bridgeBasePath } =
-      resolved
+    const {
+      project,
+      environment,
+      app,
+      actor,
+      actorId,
+      auditUserId,
+      bridgeBasePath
+    } = resolved
 
     let loaded
     let allowedValues
@@ -139,7 +146,14 @@ module.exports = {
       allowedValues = await sails.helpers.bridge.allowActionValues.with({
         values: visibleValues,
         resource: loaded.resource,
-        action: loaded.actionDefinition
+        action: loaded.actionDefinition,
+        uploadContext: {
+          actorId,
+          appId: app.id,
+          projectId: project.id,
+          environmentId: environment.id,
+          recordId: loaded.recordId
+        }
       })
     } catch (error) {
       throw { badRequest: toBadRequest(error) }

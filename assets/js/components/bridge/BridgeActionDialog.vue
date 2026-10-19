@@ -42,6 +42,7 @@ const emit = defineEmits(['cancel', 'complete'])
 const dialog = ref(null)
 const formValues = ref({})
 const localErrors = ref({})
+const uploadsInProgress = ref({})
 const returnFocus = ref(null)
 const form = useForm({})
 const submittedCaption = ref(null)
@@ -79,9 +80,11 @@ const selectionLabel = computed(() => {
 })
 const isFormReady = computed(
   () =>
+    !Object.values(uploadsInProgress.value).some(Boolean) &&
     fields.value.every(
       (field) => validateField(field) === '' && !form.errors[field.name]
-    ) && Object.keys(localErrors.value).length === 0
+    ) &&
+    Object.keys(localErrors.value).length === 0
 )
 
 watch(
@@ -96,6 +99,7 @@ watch(
     submittedCaption.value = null
     form.clearErrors()
     localErrors.value = {}
+    uploadsInProgress.value = {}
     formValues.value = Object.fromEntries(
       allFields.value.map((field) => [
         field.name,
@@ -128,6 +132,12 @@ function unlockPageScroll() {
 
 function validateField(field) {
   if (
+    ['file', 'image', 'upload'].includes(field.attr.field?.type) &&
+    field.attr.required &&
+    !formValues.value[field.name]?.receipt
+  )
+    return `${field.attr.label || 'This file'} is required.`
+  if (
     field.attr.field?.type === 'richtext' &&
     field.attr.field?.format?.toLowerCase() === 'markdown' &&
     containsRawHtml(String(formValues.value[field.name] || ''))
@@ -144,6 +154,10 @@ function validateAndRemember(field) {
   const error = validateField(field)
   if (error) localErrors.value[field.name] = error
   else delete localErrors.value[field.name]
+}
+
+function uploadUrl(field) {
+  return `${props.submitUrl}/fields/${encodeURIComponent(field.name)}/upload`
 }
 
 function optionsFor(field) {
@@ -320,6 +334,10 @@ function handleKeydown(event) {
                   :key="field.name"
                   :field="field"
                   :action-options="optionsFor(field)"
+                  :is-edit="action.scope === 'record'"
+                  :record-id="recordId"
+                  :upload-url="uploadUrl(field)"
+                  :upload-values="formValues"
                   :model-value="formValues[field.name]"
                   :error="
                     localErrors[field.name] || form.errors[field.name] || ''
@@ -328,6 +346,7 @@ function handleKeydown(event) {
                   @update:model-value="updateField(field, $event)"
                   @blur="validateAndRemember(field)"
                   @clear-error="clearFieldError(field)"
+                  @uploading="uploadsInProgress[field.name] = $event"
                 />
               </div>
               <Alert

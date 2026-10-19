@@ -5,6 +5,7 @@ module.exports = {
     'Apply Bridge field validation to the typed values submitted for a custom action.',
 
   inputs: {
+    uploadContext: { type: 'ref', defaultsTo: {} },
     values: {
       type: 'ref',
       defaultsTo: {}
@@ -25,7 +26,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ values, resource, action }) {
+  fn: async function ({ values, resource, action, uploadContext }) {
     if (
       !action ||
       typeof action !== 'object' ||
@@ -96,6 +97,7 @@ module.exports = {
     )
     return sails.helpers.bridge.allowResourceValues.with({
       values: visibleValues,
+      uploadContext,
       resource: {
         identity: `${resource.identity}.${action.name}`,
         primaryKey: '__bridgeActionPrimaryKey',

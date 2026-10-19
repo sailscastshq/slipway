@@ -62,6 +62,10 @@ module.exports = {
     if (
       payload.version !== 1 ||
       payload.url !== url ||
+      (payload.appId ?? null) !==
+        (context.appId == null ? null : String(context.appId)) ||
+      (payload.recordId ?? null) !==
+        (context.recordId == null ? null : String(context.recordId)) ||
       !Number.isSafeInteger(payload.issuedAt) ||
       !Number.isSafeInteger(payload.expiresAt) ||
       payload.issuedAt > Date.now() ||

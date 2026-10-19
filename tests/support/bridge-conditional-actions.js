@@ -108,6 +108,7 @@ async function setup(sails, world) {
       }
     }
   }
+  state.target = target
   sails.helpers.bridge.executeInContainer = async (_container, code) => {
     try {
       if (
