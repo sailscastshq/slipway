@@ -14,7 +14,7 @@ import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import Tabs from '@/components/ui/tabs/Tabs.vue'
 import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/input/Input.vue'
-import Select from '@/components/ui/select/Select.vue'
+import BareSelect from '@/components/BareSelect.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
@@ -916,7 +916,7 @@ async function loadMore() {
                   aria-label="Search jobs"
                   placeholder="Search jobs…"
                   :class="[filterClass, 'sm:max-w-64 min-w-0 flex-1']"
-                /><Select
+                /><BareSelect
                   v-model="stateFilter"
                   aria-label="Filter jobs by state"
                   :class="filterClass"

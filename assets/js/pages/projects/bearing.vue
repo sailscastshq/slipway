@@ -24,7 +24,7 @@ import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ActionMenu from '@/components/ActionMenu.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
-import Select from '@/components/ui/select/Select.vue'
+import BareSelect from '@/components/BareSelect.vue'
 import Tabs from '@/components/ui/tabs/Tabs.vue'
 import { useQueryState } from '@/components/ui/durable-ui/useQueryState'
 
@@ -788,7 +788,7 @@ onUnmounted(() => {
                         focusedFeedback ? 'Status' : `Status for ${item.title}`
                       }}</span
                     >
-                    <Select
+                    <BareSelect
                       :model-value="item.status"
                       :options="[
                         { value: 'reviewing', label: 'Reviewing' },
@@ -797,7 +797,7 @@ onUnmounted(() => {
                         { value: 'shipped', label: 'Shipped' },
                         { value: 'closed', label: 'Closed' }
                       ]"
-                      class="focus:border-brand dark:focus:border-brand min-h-10 rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 text-sm text-gray-900 shadow-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-transparent dark:text-white"
+                      class="min-h-10 px-1 text-sm"
                       @change="moveFeedback(item, $event)"
                     />
                   </label>

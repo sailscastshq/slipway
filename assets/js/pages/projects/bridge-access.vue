@@ -11,7 +11,7 @@ import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
-import Select from '@/components/ui/select/Select.vue'
+import BareSelect from '@/components/BareSelect.vue'
 
 defineOptions({
   layout: AppLayout
@@ -371,7 +371,7 @@ function timeAgo(timestamp) {
               <label for="bridge-invite-role" class="sr-only">
                 Bridge role
               </label>
-              <Select
+              <BareSelect
                 id="bridge-invite-role"
                 v-model="inviteForm.role"
                 :options="[
@@ -380,7 +380,7 @@ function timeAgo(timestamp) {
                   { value: 'administrator', label: 'Administrator' }
                 ]"
                 :disabled="!app.bridgeEnabled || inviteForm.processing"
-                class="focus:border-brand dark:focus:border-brand min-h-10 w-full rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 text-sm text-gray-900 shadow-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-transparent dark:text-white"
+                class="min-h-10 w-full px-1 text-sm"
               />
             </div>
             <button

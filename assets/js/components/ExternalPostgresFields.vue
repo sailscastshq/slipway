@@ -1,6 +1,6 @@
 <script setup>
 import Input from '@/components/ui/input/Input.vue'
-import Select from '@/components/ui/select/Select.vue'
+import BareSelect from '@/components/BareSelect.vue'
 import Textarea from '@/components/ui/textarea/Textarea.vue'
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
@@ -31,7 +31,7 @@ const field =
         class="mb-1 block text-xs text-gray-500"
         >TLS</label
       >
-      <Select
+      <BareSelect
         id="external-postgres-tls"
         v-model="model.sslMode"
         :options="[

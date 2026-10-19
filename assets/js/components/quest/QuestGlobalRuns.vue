@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import Select from '@/components/ui/select/Select.vue'
+import BareSelect from '@/components/BareSelect.vue'
 import Button from '@/components/ui/button/Button.vue'
 import QuestRuns from './QuestRuns.vue'
 const props = defineProps({
@@ -32,12 +32,12 @@ const jobFilterOptions = computed(() => [
 </script>
 <template>
   <div class="mb-4 flex flex-wrap items-center gap-2">
-    <Select
+    <BareSelect
       v-model="runJobFilter"
       aria-label="Filter runs by job"
       :class="[filterClass, 'max-w-64']"
       :options="jobFilterOptions"
-    /><Select
+    /><BareSelect
       v-model="runStateFilter"
       aria-label="Filter runs by state"
       :class="filterClass"

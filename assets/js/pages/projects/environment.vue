@@ -56,7 +56,7 @@ import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import SlideToDeploy from '@/components/SlideToDeploy.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
-import Select from '@/components/ui/select/Select.vue'
+import BareSelect from '@/components/BareSelect.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
@@ -1654,7 +1654,7 @@ onBeforeUnmount(() => {
                         {{ createAppForm.errors.healthPath }}
                       </p>
                     </div>
-                    <Select
+                    <BareSelect
                       v-model="createAppRoutePath"
                       :options="[
                         { value: '/', label: '/ (root)' },
@@ -1662,7 +1662,7 @@ onBeforeUnmount(() => {
                         { value: '/admin', label: '/admin' },
                         { value: 'none', label: 'None (worker)' }
                       ]"
-                      class="focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
+                      class="px-2 py-1.5 text-sm"
                     />
                   </div>
 
@@ -1703,7 +1703,7 @@ onBeforeUnmount(() => {
                         <span class="text-xs text-gray-500 dark:text-gray-400"
                           >Deploy branch</span
                         >
-                        <Select
+                        <BareSelect
                           v-if="branches.length > 0"
                           :model-value="selectedBranch"
                           :options="
@@ -1713,7 +1713,7 @@ onBeforeUnmount(() => {
                             }))
                           "
                           @change="selectBranch"
-                          class="focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-2 py-1 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
+                          class="px-2 py-1 text-sm"
                         />
                         <span v-else-if="loadingBranches" role="status">
                           <Spinner class="h-4 w-4 text-gray-400" />
@@ -2184,13 +2184,13 @@ onBeforeUnmount(() => {
                         class="focus:border-brand w-full min-w-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
                         @keydown.enter="createService"
                       />
-                      <Select
+                      <BareSelect
                         v-model="newServiceType"
                         aria-label="Service type"
                         :options="serviceTypes"
-                        class="focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
+                        class="px-2 py-1.5 text-sm"
                       />
-                      <Select
+                      <BareSelect
                         v-if="
                           !customServiceVersion &&
                           !['external-postgresql', 'custom'].includes(
@@ -2210,7 +2210,7 @@ onBeforeUnmount(() => {
                           { value: '__custom__', label: 'Custom version…' }
                         ]"
                         aria-label="Service version"
-                        class="focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
+                        class="px-2 py-1.5 text-sm"
                         @change="handleServiceVersionChange"
                       />
                       <div

@@ -13,7 +13,7 @@ import Radio from '@/components/ui/radio/Radio.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
-import Select from '@/components/ui/select/Select.vue'
+import BareSelect from '@/components/BareSelect.vue'
 import { useToast } from '@/composables/toast'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
@@ -620,7 +620,7 @@ const providers = [
                   class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400"
                   >Backup Interval</label
                 >
-                <Select
+                <BareSelect
                   v-model="scheduleForm.backupSchedule.intervalHours"
                   :options="[
                     { value: 6, label: 'Every 6 hours' },
@@ -632,7 +632,7 @@ const providers = [
                   :aria-invalid="
                     scheduleForm.invalid('backupSchedule.intervalHours')
                   "
-                  class="focus:border-brand w-full rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:text-white"
+                  class="w-full px-3 py-1.5 text-sm"
                   @change="
                     revalidateScheduleWhenInvalid(
                       'backupSchedule.intervalHours'
@@ -657,7 +657,7 @@ const providers = [
                   class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400"
                   >Retention</label
                 >
-                <Select
+                <BareSelect
                   v-model="scheduleForm.backupSchedule.retentionCount"
                   :options="[
                     { value: 5, label: 'Keep last 5' },
@@ -668,7 +668,7 @@ const providers = [
                   :aria-invalid="
                     scheduleForm.invalid('backupSchedule.retentionCount')
                   "
-                  class="focus:border-brand w-full rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:text-white"
+                  class="w-full px-3 py-1.5 text-sm"
                   @change="
                     revalidateScheduleWhenInvalid(
                       'backupSchedule.retentionCount'

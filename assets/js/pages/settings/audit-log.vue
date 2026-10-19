@@ -9,7 +9,7 @@ import { Head, Link, router } from '@inertiajs/vue3'
 import { computed, inject, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Pagination from '@/components/ui/pagination/Pagination.vue'
-import Select from '@/components/ui/select/Select.vue'
+import BareSelect from '@/components/BareSelect.vue'
 import EmptyState from '@/components/ui/empty-state/EmptyState.vue'
 
 defineOptions({
@@ -246,14 +246,14 @@ function shortHash(hash) {
             </label>
             <label>
               <span class="sr-only">Filter audit events</span>
-              <Select
+              <BareSelect
                 v-model="group"
                 :options="[
                   { value: 'all', label: 'All events' },
                   { value: 'helm', label: 'Helm' }
                 ]"
                 data-test="audit-group"
-                class="focus:border-brand dark:focus:border-brand min-h-10 rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent py-2 pl-1 pr-8 text-sm text-gray-900 shadow-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-transparent dark:text-white"
+                class="min-h-10 py-2 pl-1 pr-8 text-sm"
               />
             </label>
           </div>

@@ -10,7 +10,7 @@ import Tabs from '@/components/ui/tabs/Tabs.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/input/Input.vue'
-import Select from '@/components/ui/select/Select.vue'
+import BareSelect from '@/components/BareSelect.vue'
 import Textarea from '@/components/ui/textarea/Textarea.vue'
 import LineChart from '@/components/ui/line-chart/LineChart.vue'
 import Switch from '@/components/ui/switch/Switch.vue'
@@ -289,7 +289,7 @@ async function removeVisitor() {
               :class="[field, 'dark:[color-scheme:dark]']"
           /></label>
           <label class="min-w-0 text-sm"
-            >Currency<Select
+            >Currency<BareSelect
               v-model="currency"
               aria-label="Currency"
               :class="field"
@@ -560,7 +560,7 @@ async function removeVisitor() {
               :disabled="!canManage || busy"
           /></label>
           <label class="block text-sm"
-            >Privacy mode<Select
+            >Privacy mode<BareSelect
               v-model="mode"
               aria-label="Privacy mode"
               :disabled="!canManage || busy"
