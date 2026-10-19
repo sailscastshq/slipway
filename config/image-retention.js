@@ -6,8 +6,8 @@ module.exports.imageRetention = {
   remove:
     process.env.SLIPWAY_IMAGE_RETENTION_REMOVE === undefined ||
     process.env.SLIPWAY_IMAGE_RETENTION_REMOVE === 'true',
-  minimumAgeDays: 14,
-  keepSuccessful: 3,
+  // Fixed policy: current image plus one distinct previous successful rollback.
+  // Legacy minimumAgeDays/keepSuccessful overrides no longer affect selection.
   // Exact image IDs, tags, or repository digests. Missing pins hold the run.
   pinnedImages: [],
   maxImages: 5000,

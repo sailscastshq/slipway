@@ -49,12 +49,18 @@ triggers always send the configured defaults (`{}`).
    Resolve complete immutable IDs. Incomplete, ambiguous or unresolved protection
    references hold the run; no candidate is removed.
 3. Protect every container reference, active deployment/job and rollback target,
-   configured pin, current app and the latest three distinct successful images
-   per app/environment, plus service and recovery references. Only images whose
+   configured pin and the current app image. Keep one distinct previous successful
+   rollback image per app/environment. Validated traffic recovery metadata owns
+   this choice; an explicit null previous does not resurrect rejected releases.
+   For legacy apps without that metadata, select the latest distinct successful
+   image preceding the live deployment (timestamp, then deployment ID), never a
+   newer release. Preserve and report ambiguous legacy associations. Service,
+   retained-cleanup and explicit recovery references remain additional protections. Only images whose
    tags all match known Slipway deployment records can qualify. This also leaves
    control-plane release images (current and previous), Coolify, unknown aliases
    and untagged legacy images untouched.
-4. Select images strictly older than 14 days. Persist the plan to
+4. Select otherwise unreferenced, positively identified managed images regardless
+   of age. Persist the plan to
    `imageRetentionLastRun` and write its audit record before any removal.
 5. Process at most 100 images and stop after five minutes per run by default. Re-read policy, complete inventory and all references for each exact image
    ID while retaining the exclusive guard. All aliases must be known deployment
@@ -82,6 +88,27 @@ continues it, or an administrator can select **Run now** again after completion.
 The bound avoids holding deployment/rollback admission indefinitely. Inventory is
 still refreshed before every individual non-force removal; a backlog never weakens
 protection or expands eligibility.
+
+## Upgrading from the three-image policy
+
+This correction replaces the v0.0.107 blanket retention of three successful images
+and a 14-day minimum age. There is no database migration. The legacy
+`minimumAgeDays` and `keepSuccessful` configuration keys are ignored and reported
+in the plan's `ignoredLegacySettings`; remove obsolete overrides when updating.
+The fixed selection is reported as `current-plus-one-rollback`. Removal opt-out,
+100-image/five-minute bounds, explicit protections and shared admission are unchanged.
+If removal is enabled, the new selection applies at the next scheduled or manual
+run: a young, unreferenced managed image can now qualify immediately. Inspect a
+read-only inventory before enabling/running cleanup after the upgrade.
+
+“One rollback” does not mean only two images can exist: all containers (including
+stopped ones), active work, pins, retained resources and recovery references still
+win. Unknown, untagged, digest-linked and ambiguous legacy images remain protected.
+The planner reports these reasons instead of deleting them to reach a target count.
+
+See [read-only inventory procedure](image-retention-read-only-inventory.md). Ordinary
+Quest preview acquires locks and writes audit/history; it is not a read-only host
+diagnostic. Do not use it when only read-only inspection is authorized.
 
 ## Interrupted-operation holds
 

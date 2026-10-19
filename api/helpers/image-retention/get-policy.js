@@ -8,11 +8,13 @@ module.exports = {
   fn: async function () {
     const config = sails.config.imageRetention || {}
     const policy = {
-      remove: config.remove === undefined || config.remove === true
+      remove: config.remove === undefined || config.remove === true,
+      selection: 'current-plus-one-rollback',
+      ignoredLegacySettings: ['minimumAgeDays', 'keepSuccessful'].filter(
+        (key) => config[key] !== undefined
+      )
     }
     for (const [key, fallback, minimum, maximum] of [
-      ['minimumAgeDays', 14, 14, 3650],
-      ['keepSuccessful', 3, 3, 100],
       ['maxImages', 5000, 1, 10000],
       ['maxContainers', 1000, 1, 10000],
       ['maxRecords', 20000, 1, 100000],

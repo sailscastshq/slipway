@@ -87,7 +87,12 @@ if (args[1] === 'inspect') {
     global[name] = {
       find: () => ({
         select: () => ({
-          limit: async () => (name === 'Deployment' ? deployments : [])
+          limit: async () =>
+            name === 'Deployment'
+              ? deployments
+              : name === 'App'
+              ? [{ id: 1, environment: 1 }]
+              : []
         })
       })
     }
