@@ -19,7 +19,8 @@ test(
         scheduled: true,
         nextRunAt: '2026-10-22T03:30:00Z',
         runningCount: 0,
-        manualAllowed: true
+        manualAllowed: true,
+        cleanupEnabled: false
       },
       {
         name: 'run-scheduled-backups',
@@ -129,6 +130,12 @@ test(
         })
       ).toBeDisabled()
       expect(starts).toBe(0)
+      await expect(
+        panel.getByRole('button', {
+          name: 'Clean up deployment images',
+          exact: true
+        })
+      ).toBeDisabled()
       await panel
         .getByRole('button', { name: /^Run scheduled backups/ })
         .click()
@@ -181,6 +188,14 @@ test(
         path: path.join(output, 'instance-preview-mobile-dark.png'),
         animations: 'disabled'
       })
+      // Enable only the synthetic fixture; no operational configuration changes.
+      jobs[0].cleanupEnabled = true
+      await expect(
+        panel.getByRole('button', {
+          name: 'Clean up deployment images',
+          exact: true
+        })
+      ).toBeEnabled()
       await panel
         .getByRole('button', {
           name: 'Clean up deployment images',

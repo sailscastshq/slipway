@@ -147,6 +147,9 @@ module.exports = {
       // All control-plane releases, unknown aliases and untagged legacy images stay.
       if (!image.tags.length || image.tags.some((tag) => !ownedNames.has(tag)))
         reasons.push('unknown-or-out-of-scope')
+      // Tag removal can also detach repository-digest aliases, which are not
+      // deployment-owned tags. Retain the whole image instead.
+      if (image.digests.length) reasons.push('digest-reference')
       if (Date.parse(image.created) >= cutoff) reasons.push('minimum-age')
       return { id: image.id, tags: image.tags, sizeBytes: image.size, reasons }
     })

@@ -8,9 +8,10 @@ const end = source.indexOf('SLIPWAY_INGRESS="${REQUESTED_', start)
 const resolvePolicy = source.slice(start, end)
 const runContainer = source.match(/run_slipway_container\(\) \{[\s\S]*?\n\}/)[0]
 
-test('installer upgrades forward cleanup defaults and preserve an explicit saved or requested opt-out', () => {
+test('installer defaults to preview and preserves explicit saved or requested removal choices', () => {
   for (const [saved, requested, expected] of [
-    ['', '', 'true'],
+    ['', '', 'false'],
+    ['true', '', 'true'],
     ['false', '', 'false'],
     ['true', 'false', 'false'],
     ['false', 'true', 'true']

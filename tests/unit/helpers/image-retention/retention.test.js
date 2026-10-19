@@ -13,7 +13,7 @@ const NOW = Date.UTC(2026, 9, 16)
 const id = (n) => `sha256:${n.toString(16).padStart(64, '0')}`
 const tag = (n) => `slipway/demo-production-web:${n}`
 
-async function fixture(t, config = {}) {
+async function fixture(t, config = { remove: true }) {
   const keys = [
     'sails',
     'Deployment',
@@ -65,7 +65,7 @@ async function fixture(t, config = {}) {
     create: async (value) => state.audits.push(structuredClone(value))
   }
   global.sails = {
-    config: { appPath: root, imageRetention: config },
+    config: { appPath: root, imageRetention: { remove: true, ...config } },
     log: { info: (line) => state.logs.push(line), error() {} },
     helpers: {
       setting: {
@@ -83,9 +83,10 @@ async function fixture(t, config = {}) {
         },
         getPlan: { with: (input) => getPlan.fn(input) },
         removeImage: {
-          with: async ({ imageId }) => {
+          with: async ({ imageId, tags = [] }) => {
             state.removed.push(imageId)
             state.images = state.images.filter((image) => image.id !== imageId)
+            return { removed: true, untagged: tags }
           }
         }
       }
@@ -121,7 +122,7 @@ async function fixture(t, config = {}) {
   return { state, policy, plan, deployment, root }
 }
 
-test('defaults clean up daily with a bounded backlog and preserve 14 days and three successful images', async (t) => {
+test('explicit removal keeps a bounded daily backlog, 14 days and three successful images', async (t) => {
   const { policy } = await fixture(t)
   assert.equal(policy.remove, true)
   assert.equal(policy.minimumAgeDays, 14)
@@ -133,6 +134,22 @@ test('defaults clean up daily with a bounded backlog and preserve 14 days and th
   await assert.rejects(getPolicy.fn(), /Invalid image retention limit/)
   sails.config.imageRetention = { remove: 'true' }
   assert.equal((await getPolicy.fn()).remove, false)
+})
+
+test('missing removal configuration previews candidates without invoking Docker removal', async (t) => {
+  const { state, deployment, policy } = await fixture(t, { remove: undefined })
+  for (let n = 1; n <= 5; n++) deployment(n)
+  assert.equal(policy.remove, false)
+  const outcome = await job.fn()
+  assert.equal(outcome.mode, 'dry-run')
+  assert.equal(outcome.candidates, 2)
+  assert.equal(outcome.removed, 0)
+  assert.deepEqual(state.removed, [])
+  assert.ok(
+    !state.audits.some(
+      (entry) => entry.action === 'image-retention.removal-started'
+    )
+  )
 })
 
 test('old active and stopped-container images stay; latest three successful images stay', async (t) => {
@@ -242,7 +259,7 @@ test('incomplete bounded records, missing job targets and retained resource snap
   )
 })
 
-test('daily default removes only eligible images and returns a compact plain summary', async (t) => {
+test('explicitly enabled daily cleanup removes only eligible images and returns a compact plain summary', async (t) => {
   const { state, deployment } = await fixture(t)
   for (let n = 1; n <= 5; n++) deployment(n)
   const result = await job.fn()
@@ -290,14 +307,14 @@ test('default backlog sweep removes at most 100 and reports deferred images for 
   assert.equal(state.removed.length, 105)
 })
 
-test('upgrade config enables cleanup when unset and preserves explicit preview-only opt-out', async () => {
+test('startup config defaults to preview and enables removal only with explicit opt-in', async () => {
   const vm = require('node:vm')
   const source = await fs.readFile(
     require.resolve('../../../../config/image-retention'),
     'utf8'
   )
   for (const [value, expected] of [
-    [undefined, true],
+    [undefined, false],
     ['true', true],
     ['false', false],
     ['invalid', false]
@@ -360,9 +377,9 @@ test('removal rechecks fresh references, skips a new pin and honors its batch bo
   }
   const first = await run.fn()
   assert.equal(first.status, 'complete')
-  assert.deepEqual(state.removed, [])
+  assert.deepEqual(state.removed, [id(2)])
   assert.equal(first.skipped[0].reason, 'protection-or-inventory-changed')
-  assert.equal(calls, 2)
+  assert.equal(calls, 3)
   state.containers = []
   const second = await run.fn()
   assert.deepEqual(second.removed, [id(1)])
@@ -426,4 +443,52 @@ test('a failed removal records each candidate as removed, failed or skipped', as
     [id(3), id(4)]
   )
   assert.equal(outcome.status, 'failed')
+})
+
+test('expected Docker conflicts defer one image and continue independent candidates up to confirmed-removal bound', async (t) => {
+  const { state, deployment } = await fixture(t, { maxRemovals: 2 })
+  for (let n = 1; n <= 7; n++) deployment(n)
+  const original = sails.helpers.imageRetention.removeImage.with
+  sails.helpers.imageRetention.removeImage.with = async (input) =>
+    input.imageId === id(1)
+      ? {
+          removed: false,
+          reason: 'docker-conflict',
+          deferred: true,
+          untagged: []
+        }
+      : original(input)
+  const result = await run.fn()
+  assert.deepEqual(result.removed, [id(2), id(3)])
+  assert.equal(result.status, 'complete')
+  assert.equal(result.summary.errors, 0)
+  assert.equal(result.summary.deferred, 2)
+  assert.equal(
+    result.skipped.find((item) => item.id === id(1)).reason,
+    'docker-conflict'
+  )
+  assert.equal(
+    result.skipped.find((item) => item.id === id(4)).reason,
+    'batch-limit'
+  )
+})
+
+test('all eligible shared tags are candidates, but any protected, unknown or digest alias protects the whole ID', async (t) => {
+  const { state, deployment, plan, policy } = await fixture(t)
+  for (let n = 1; n <= 6; n++) deployment(n)
+  state.images[0].tags.push(tag(2))
+  state.images = state.images.filter((item) => item.id !== id(2))
+  assert.ok((await plan()).candidates.some((item) => item.id === id(1)))
+  policy.pinnedImages = [tag(2)]
+  assert.ok(!(await plan()).candidates.some((item) => item.id === id(1)))
+  policy.pinnedImages = []
+  state.images[0].tags.push('unrelated/keep:latest')
+  assert.ok(!(await plan()).candidates.some((item) => item.id === id(1)))
+  state.images[0].tags.pop()
+  state.images[0].digests.push('unrelated/keep@' + id(1))
+  assert.ok(
+    (await plan()).protected
+      .find((item) => item.id === id(1))
+      .reasons.includes('digest-reference')
+  )
 })

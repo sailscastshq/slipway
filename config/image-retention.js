@@ -1,11 +1,9 @@
 /**
- * Clean up eligible old deployment images daily. Set the environment variable
- * to false for preview-only operation; Bosun also offers a per-run Preview.
+ * Preview eligible old deployment images daily. Removal requires an explicit
+ * server opt-in; Bosun also offers a per-run Preview.
  */
 module.exports.imageRetention = {
-  remove:
-    process.env.SLIPWAY_IMAGE_RETENTION_REMOVE === undefined ||
-    process.env.SLIPWAY_IMAGE_RETENTION_REMOVE === 'true',
+  remove: process.env.SLIPWAY_IMAGE_RETENTION_REMOVE === 'true',
   minimumAgeDays: 14,
   keepSuccessful: 3,
   // Exact image IDs, tags, or repository digests. Missing pins hold the run.
