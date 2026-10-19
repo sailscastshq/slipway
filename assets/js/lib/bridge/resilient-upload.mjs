@@ -41,6 +41,7 @@ export async function uploadMultipartParts({
     0
   )
   const activeBytes = new Map()
+  const retryingParts = new Set()
   let cursor = 0
   let firstError
 
@@ -49,7 +50,12 @@ export async function uploadMultipartParts({
       (total, size) => total + size,
       0
     )
-    onProgress(Math.min(file.size, completedBytes + inFlight), file.size)
+    // Only acknowledged parts count as stored progress. In-flight bytes can
+    // disappear when a request fails and must never look like saved work.
+    onProgress(completedBytes, file.size, {
+      inFlightBytes: inFlight,
+      retryingParts: [...retryingParts]
+    })
   }
   report()
 
@@ -65,6 +71,10 @@ export async function uploadMultipartParts({
           uploadPart,
           signal,
           retryDelays,
+          onRetry() {
+            retryingParts.add(part.partNumber)
+            report()
+          },
           onProgress(loaded) {
             activeBytes.set(
               part.partNumber,
@@ -74,6 +84,7 @@ export async function uploadMultipartParts({
           }
         })
         activeBytes.delete(part.partNumber)
+        retryingParts.delete(part.partNumber)
         uploaded.set(part.partNumber, part.size)
         completedBytes += part.size
         report()
@@ -102,7 +113,8 @@ async function uploadPartWithRetry({
   uploadPart,
   signal,
   retryDelays,
-  onProgress
+  onProgress,
+  onRetry
 }) {
   let lastError
   for (let attempt = 0; attempt <= retryDelays.length; attempt += 1) {
@@ -118,9 +130,15 @@ async function uploadPartWithRetry({
       })
       return
     } catch (error) {
-      if (signal?.aborted || error.code === 'UPLOAD_CANCELLED') throw error
+      if (
+        signal?.aborted ||
+        error.code === 'UPLOAD_CANCELLED' ||
+        error.retryable === false
+      )
+        throw error
       lastError = error
       if (attempt < retryDelays.length) {
+        onRetry?.()
         await wait(retryDelays[attempt], signal)
       }
     }

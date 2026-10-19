@@ -21,6 +21,11 @@ import {
 import { containsRawHtml } from '@/lib/content/markdown.mjs'
 import { resolveBridgeFieldComponent } from '@/lib/bridge/field-components.mjs'
 import {
+  uploadBlob,
+  uploadHttpError,
+  uploadFailureMessage
+} from '@/lib/bridge/upload-transport.mjs'
+import {
   fileFingerprint,
   uploadMultipartParts
 } from '@/lib/bridge/resilient-upload.mjs'
@@ -97,6 +102,10 @@ const totalUploadBytes = ref(0)
 const uploadAbortController = ref(null)
 const pendingUploadFile = ref(null)
 const uploadSession = ref(null)
+const uploadSessionFingerprint = ref('')
+const inFlightUploadBytes = ref(0)
+const retryingUploadParts = ref([])
+const resumeUnavailable = ref(false)
 const richTextEditor = ref(null)
 const richTextMode = ref('visual')
 
@@ -235,7 +244,11 @@ const uploadStatus = computed(() => {
     const progress = `${formatBridgeBytes(
       uploadedBytes.value
     )} of ${formatBridgeBytes(totalUploadBytes.value)}`
-    return `Uploading ${uploadPercent.value}% · ${progress}`
+    return uploadSession.value?.strategy === 'multipart'
+      ? `${retryingUploadParts.value.length ? 'Retrying parts' : 'Uploading'} ${
+          uploadPercent.value
+        }% · ${progress} confirmed`
+      : `Uploading ${uploadPercent.value}% · ${progress}`
   }
   return ''
 })
@@ -335,7 +348,9 @@ function handleUploadReject(rejection) {
 
 async function beginUpload(file) {
   uploadError.value = ''
-  uploadSession.value = null
+  const fingerprint = fileFingerprint(file)
+  const memorySession =
+    uploadSessionFingerprint.value === fingerprint ? uploadSession.value : null
   if (file.size > maxBytes.value) {
     uploadError.value = `Choose a file no larger than ${formatBridgeBytes(
       maxBytes.value
@@ -349,25 +364,25 @@ async function beginUpload(file) {
 
   pendingUploadFile.value = file
   uploading.value = true
-  uploadedBytes.value = 0
+  const previousSession = resumeUnavailable.value
+    ? null
+    : memorySession || readPersistedUpload(file)
+  if (resumeUnavailable.value) clearPersistedUpload()
+  resumeUnavailable.value = false
+  uploadSession.value = previousSession
+  if (!previousSession) uploadedBytes.value = 0
+  inFlightUploadBytes.value = 0
+  retryingUploadParts.value = []
   totalUploadBytes.value = file.size
   uploadAbortController.value = new AbortController()
   try {
     let prepared
     let operation
-    const persisted = readPersistedUpload(file)
+    const persisted = previousSession
     if (persisted) {
       uploadPhase.value = 'resuming'
       prepared = persisted
-      try {
-        operation = await resumeDirectUpload(prepared)
-      } catch (error) {
-        if (!/invalid|expired|no longer available/i.test(error.message)) {
-          throw error
-        }
-        clearPersistedUpload()
-        prepared = null
-      }
+      operation = await resumeDirectUpload(prepared)
     }
     if (!prepared) {
       uploadPhase.value = 'preparing'
@@ -376,6 +391,7 @@ async function beginUpload(file) {
       persistUpload(prepared, file)
     }
     uploadSession.value = prepared
+    uploadSessionFingerprint.value = fingerprint
     if (!operation.completed) {
       uploadPhase.value = 'uploading'
       if (prepared.strategy === 'multipart') {
@@ -384,20 +400,20 @@ async function beginUpload(file) {
         await putFileWithRetry(file, operation)
       }
     }
+    if (operation.completed) uploadedBytes.value = file.size
     uploadPhase.value = 'verifying'
     const result = await completeDirectUpload(prepared)
     rememberUpload(result, file)
     clearPersistedUpload()
     pendingUploadFile.value = null
   } catch (error) {
-    if (error.code === 'UPLOAD_CANCELLED') {
-      uploadError.value = 'Upload cancelled. You can retry when ready.'
-    } else if (uploadSession.value?.strategy === 'multipart') {
-      uploadError.value =
-        'Upload paused. Retry to continue from the parts already stored.'
-    } else {
-      uploadError.value = error.message || 'The file could not be uploaded.'
-    }
+    resumeUnavailable.value = error.code === 'UPLOAD_SESSION_EXPIRED'
+    uploadError.value = uploadFailureMessage(error, uploadPhase.value, {
+      multipart: uploadSession.value?.strategy === 'multipart',
+      origin: window.location.origin,
+      confirmed: formatBridgeBytes(uploadedBytes.value),
+      total: formatBridgeBytes(file.size)
+    })
   } finally {
     uploadAbortController.value = null
     uploadPhase.value = ''
@@ -421,7 +437,7 @@ async function prepareDirectUpload(file) {
   })
   const result = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(result.message || 'The upload could not be prepared.')
+    throw uploadHttpError(response.status, result.code)
   }
   if (!result.url || !result.uploadIntent) {
     throw new Error('Bridge did not return a valid direct upload operation.')
@@ -449,7 +465,7 @@ async function resumeDirectUpload(prepared) {
   })
   const result = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(result.message || 'Bridge could not resume the upload.')
+    throw uploadHttpError(response.status, result.code)
   }
   return result
 }
@@ -471,7 +487,8 @@ async function putFileWithRetry(file, operation) {
       uploadedBytes.value = file.size
       return
     } catch (error) {
-      if (error.code === 'UPLOAD_CANCELLED') throw error
+      if (error.code === 'UPLOAD_CANCELLED' || error.retryable === false)
+        throw error
       lastError = error
       if (attempt < 2) await waitForRetry(500 * 2 ** attempt)
     }
@@ -489,83 +506,12 @@ async function putFileMultipart(file, prepared, operation) {
     uploadPart({ blob, uploadUrl, signal, onProgress }) {
       return uploadBlob({ blob, uploadUrl, signal, onProgress })
     },
-    onProgress(loaded, total) {
-      uploadedBytes.value = loaded
+    onProgress(confirmed, total, progress) {
+      uploadedBytes.value = confirmed
       totalUploadBytes.value = total
+      inFlightUploadBytes.value = progress.inFlightBytes
+      retryingUploadParts.value = progress.retryingParts
     }
-  })
-}
-
-function uploadBlob({ blob, uploadUrl, headers = {}, signal, onProgress }) {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      const error = new Error('Upload cancelled.')
-      error.code = 'UPLOAD_CANCELLED'
-      reject(error)
-      return
-    }
-    const request = new XMLHttpRequest()
-    let settled = false
-    let stalled = false
-    let lastProgressAt = Date.now()
-
-    request.open('PUT', uploadUrl)
-    for (const [name, value] of Object.entries(headers || {})) {
-      request.setRequestHeader(name, value)
-    }
-    request.upload.addEventListener('progress', (event) => {
-      lastProgressAt = Date.now()
-      onProgress(event.loaded, event.total || blob.size)
-    })
-    request.addEventListener('load', () => {
-      if (request.status >= 200 && request.status < 300) {
-        onProgress(blob.size, blob.size)
-        finish(resolve)
-        return
-      }
-      finish(
-        reject,
-        new Error(
-          request.status === 403
-            ? 'Object storage rejected the upload. Check the bucket CORS policy and retry.'
-            : `Object storage rejected the upload (${request.status}).`
-        )
-      )
-    })
-    request.addEventListener('error', () => {
-      finish(
-        reject,
-        new Error(
-          'The browser could not reach object storage. Check the bucket CORS policy and your connection.'
-        )
-      )
-    })
-    request.addEventListener('abort', () => {
-      const error = new Error(
-        stalled
-          ? 'The upload stalled before this part completed.'
-          : 'Upload cancelled.'
-      )
-      error.code = stalled ? 'UPLOAD_STALLED' : 'UPLOAD_CANCELLED'
-      finish(reject, error)
-    })
-    const onAbort = () => request.abort()
-    signal?.addEventListener('abort', onAbort, { once: true })
-    const stallTimer = window.setInterval(() => {
-      if (Date.now() - lastProgressAt < 45_000) return
-      stalled = true
-      request.abort()
-    }, 5000)
-
-    function finish(callback, value) {
-      if (settled) return
-      settled = true
-      window.clearInterval(stallTimer)
-      signal?.removeEventListener('abort', onAbort)
-      callback(value)
-    }
-
-    request.send(blob)
   })
 }
 
@@ -577,7 +523,7 @@ async function completeDirectUpload(prepared) {
   })
   const result = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(result.message || 'Bridge could not verify the upload.')
+    throw uploadHttpError(response.status, result.code)
   }
   if (!result.url || !result.receipt) {
     throw new Error('The upload did not return a verifiable file URL.')
@@ -602,6 +548,12 @@ async function cancelUpload() {
   const prepared = uploadSession.value
   uploadAbortController.value?.abort()
   clearPersistedUpload()
+  // Explicit cancellation abandons this session; an explicit Retry can start
+  // fresh, while transient failures keep their in-memory resumable session.
+  uploadSession.value = null
+  uploadSessionFingerprint.value = ''
+  uploadedBytes.value = 0
+  resumeUnavailable.value = false
   if (!prepared?.uploadIntent) return
   await fetch(`${props.uploadUrl}/abort`, {
     method: 'POST',
@@ -611,7 +563,7 @@ async function cancelUpload() {
 }
 
 function retryUpload() {
-  if (pendingUploadFile.value && !uploading.value) {
+  if (pendingUploadFile.value && !uploading.value && !resumeUnavailable.value) {
     void beginUpload(pendingUploadFile.value)
   }
 }
@@ -1059,7 +1011,7 @@ function defaultPlaceholder(fieldType) {
         >
           <div class="flex items-center justify-between gap-4">
             <p
-              class="min-w-0 truncate text-xs font-medium tabular-nums text-gray-600 dark:text-gray-300"
+              class="min-w-0 text-xs font-medium tabular-nums text-gray-600 dark:text-gray-300"
             >
               {{ uploadStatus }}
             </p>
@@ -1072,6 +1024,16 @@ function defaultPlaceholder(fieldType) {
               Cancel
             </button>
           </div>
+          <p
+            v-if="
+              uploadPhase === 'uploading' &&
+              uploadSession?.strategy === 'multipart'
+            "
+            class="text-xs text-gray-500 dark:text-gray-400"
+          >
+            {{ formatBridgeBytes(inFlightUploadBytes) }} in transit · progress
+            advances when storage confirms each part.
+          </p>
           <progress
             v-if="uploadPhase === 'uploading'"
             :value="uploadPercent"
@@ -1148,6 +1110,7 @@ function defaultPlaceholder(fieldType) {
           <button
             type="button"
             class="cursor-pointer text-xs font-medium text-gray-700 hover:text-gray-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-300 dark:hover:text-white dark:focus-visible:ring-gray-600"
+            v-if="!resumeUnavailable"
             @click="retryUpload"
           >
             Retry upload
@@ -1159,7 +1122,11 @@ function defaultPlaceholder(fieldType) {
             class="cursor-pointer text-xs text-gray-400 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-300 dark:focus-visible:ring-gray-600"
             @click="upload.choose"
           >
-            Choose another file
+            {{
+              resumeUnavailable
+                ? 'Choose file to start a new upload'
+                : 'Choose another file'
+            }}
           </button>
         </div>
       </FileUpload>

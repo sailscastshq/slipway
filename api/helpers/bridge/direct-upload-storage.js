@@ -186,7 +186,12 @@ function signedUrl(client, operation, options) {
     operation === 'putObject' ? PutObjectCommand : UploadPartCommand
   return getSignedUrl(client, new Command(input), {
     expiresIn: Expires,
-    signableHeaders: new Set(['content-type'])
+    // A multipart object's MIME type is fixed by CreateMultipartUpload.
+    // File.slice() parts have no MIME type, so the browser sends no Content-Type.
+    // Do not sign the SDK's default application/octet-stream header for parts.
+    ...(operation === 'putObject'
+      ? { signableHeaders: new Set(['content-type']) }
+      : { unsignableHeaders: new Set(['content-type']) })
   })
 }
 

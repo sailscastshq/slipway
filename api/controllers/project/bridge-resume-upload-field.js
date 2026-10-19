@@ -103,7 +103,14 @@ module.exports = {
         expiresInSeconds: signed.expiresInSeconds
       }
     } catch (error) {
-      throw { badRequest: { message: error.message } }
+      throw {
+        badRequest: {
+          message: error.message,
+          ...(error.code === 'BRIDGE_MULTIPART_UPLOAD_MISSING'
+            ? { code: error.code }
+            : {})
+        }
+      }
     }
   }
 }
@@ -150,7 +157,14 @@ function throwSessionError(error) {
   ) {
     throw { notFound: { message: error.message } }
   }
-  throw { badRequest: { message: error.message } }
+  throw {
+    badRequest: {
+      message: error.message,
+      ...(error.code === 'BRIDGE_DIRECT_UPLOAD_INTENT_INVALID'
+        ? { code: error.code }
+        : {})
+    }
+  }
 }
 
 function normalizeType(value) {

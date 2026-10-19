@@ -353,3 +353,33 @@ function helper(fn) {
   fn.with = fn
   return fn
 }
+
+test('Bridge resume exposes only a known expiry code instead of guessing from provider messages', async ({
+  sails,
+  expect
+}) => {
+  const original = sails.helpers.bridge.resolveDirectUploadSession
+  try {
+    for (const code of [
+      'BRIDGE_DIRECT_UPLOAD_INTENT_INVALID',
+      'PRIVATE_PROVIDER_DETAIL'
+    ]) {
+      sails.helpers.bridge.resolveDirectUploadSession = helper(async () => {
+        const error = Error('provider detail')
+        error.code = code
+        throw error
+      })
+      let result
+      try {
+        await resumeUpload.fn.call({ req: {} }, sessionInputs())
+      } catch (error) {
+        result = error
+      }
+      expect(result.badRequest.code).toBe(
+        code === 'BRIDGE_DIRECT_UPLOAD_INTENT_INVALID' ? code : undefined
+      )
+    }
+  } finally {
+    sails.helpers.bridge.resolveDirectUploadSession = original
+  }
+})
