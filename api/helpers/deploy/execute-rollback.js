@@ -114,6 +114,13 @@ module.exports = {
           throw new Error(
             resolved.reason || 'The rollback artifact changed after admission.'
           )
+        if (
+          resolved.requiresCompatibilityAcknowledgement &&
+          intent.acknowledgeUnknownCompatibility !== true
+        )
+          throw new Error(
+            'Unknown schema compatibility was not acknowledged for this rollback.'
+          )
       }
       const imageId = intent.imageId
       const compatibility = intent.compatibility

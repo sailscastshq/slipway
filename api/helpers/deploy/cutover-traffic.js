@@ -92,6 +92,22 @@ module.exports = {
     let appStateCommitted = false
     let committedApp = null
     let previousRecovery = null
+    let legacyCurrentState = null
+    if (
+      previousApp?.currentDeployment &&
+      recovery.IMAGE_ID.test(candidateApp.imageId || '') &&
+      !(await Setting.findOne({ key: recovery.key(previousApp.id) }))
+    ) {
+      try {
+        const legacy = await sails.helpers.deploy.resolveLegacyRecovery.with({
+          app: previousApp,
+          currentOnly: true
+        })
+        if (legacy.available) legacyCurrentState = legacy.state
+      } catch {
+        // A new healthy deployment can proceed; do not invent unavailable legacy identity.
+      }
+    }
 
     await appendDeployLog(
       deploymentId,
@@ -161,6 +177,27 @@ module.exports = {
           committedApp &&
           recovery.IMAGE_ID.test(candidateApp.imageId || '')
         ) {
+          if (legacyCurrentState && !previousRecovery) {
+            const release = legacyCurrentState.current
+            const source = await Deployment.findOne({
+              id: release.deploymentId,
+              app: previousApp.id,
+              environment: environmentId
+            }).usingConnection(db)
+            if (
+              !require('../../lib/legacy-deployment-artifact').verifyBinding(
+                source,
+                release,
+                previousApp
+              )
+            )
+              throw new Error(
+                'The previous successful deployment identity changed before promotion.'
+              )
+            await Deployment.updateOne({ id: source.id })
+              .set({ imageId: release.imageId })
+              .usingConnection(db)
+          }
           const job = await DeploymentJob.findOne({
             deployment: deploymentId
           }).usingConnection(db)
@@ -173,7 +210,8 @@ module.exports = {
               compatibility: candidate.recoveryCompatibility || null
             },
             job?.kind || 'deploy',
-            db
+            db,
+            legacyCurrentState
           )
           await Deployment.updateOne({ id: deploymentId })
             .set({ imageId: candidateApp.imageId, app: committedApp.id })

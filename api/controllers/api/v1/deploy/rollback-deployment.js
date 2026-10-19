@@ -21,6 +21,7 @@ module.exports = {
       description: 'ID of the deployment to roll back to'
     },
     expectedCurrent: { type: 'string', required: true },
+    acknowledgeUnknownCompatibility: { type: 'boolean', defaultsTo: false },
     appSlug: {
       type: 'string',
       description: 'Target app slug (defaults to default app)'
@@ -47,7 +48,8 @@ module.exports = {
     environmentSlug,
     deploymentId,
     appSlug,
-    expectedCurrent
+    expectedCurrent,
+    acknowledgeUnknownCompatibility
   }) {
     const user = await User.forRequest(this.req)
     const project = await Project.findOne({ slug: projectSlug }).populate(
@@ -77,6 +79,16 @@ module.exports = {
       expectedCurrent
     })
     if (!recovery.available) throw { badRequest: { message: recovery.reason } }
+    if (
+      recovery.requiresCompatibilityAcknowledgement &&
+      !acknowledgeUnknownCompatibility
+    )
+      throw {
+        badRequest: {
+          message:
+            'Confirm that the previous app can use the current schema and configuration. Rollback does not undo migrations or data changes.'
+        }
+      }
     const targetDeployment = recovery.target
 
     const queued = await sails.helpers.deploy.queueDeployment
@@ -94,7 +106,8 @@ module.exports = {
         app: targetApp,
         kind: 'rollback',
         targetDeploymentId: targetDeployment.id,
-        expectedCurrent
+        expectedCurrent,
+        acknowledgeUnknownCompatibility
       })
       .intercept('cleanupInProgress', (error) => ({
         badRequest: error.raw || error

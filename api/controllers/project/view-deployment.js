@@ -69,7 +69,7 @@ module.exports = {
           available: false,
           reason: 'This legacy deployment has no verified app recovery target.'
         }
-    const { target, ...recoveryDisplay } = recovery
+    const { target, bootstrapState, ...recoveryDisplay } = recovery
     if (target) recoveryDisplay.gitCommit = target.gitCommit || null
 
     return {

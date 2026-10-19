@@ -104,9 +104,9 @@ function advance(app, state, release, kind = 'deploy') {
     app
   )
 }
-async function write(app, release, kind, db) {
+async function write(app, release, kind, db, seedState = null) {
   const { row, state } = await load(app, db)
-  const next = advance(app, state, release, kind)
+  const next = advance(app, state || seedState, release, kind)
   if (row)
     await Setting.updateOne({ id: row.id })
       .set({ value: JSON.stringify(next) })

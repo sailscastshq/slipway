@@ -78,7 +78,11 @@ function fixture(t) {
             if (data.missing) throw new Error('missing local image')
             return {
               imageId: imageReference,
-              compatibility: data.compatibility
+              compatibility:
+                data.declarations &&
+                Object.hasOwn(data.declarations, imageReference)
+                  ? data.declarations[imageReference]
+                  : data.compatibility
             }
           }
         }
@@ -115,14 +119,30 @@ test('failed deployments, missing images, stale current generation and busy work
   data.hold = true
   assert.match((await resolve()).reason, /operator/)
 })
-test('unknown or mismatched declared compatibility blocks rollback without claiming database reversal', async (t) => {
-  const { data, resolve } = fixture(t)
-  for (const value of [null, 'schema-2']) {
-    data.compatibility = value
-    const result = await resolve()
-    assert.equal(result.available, false)
-    assert.match(result.reason, /Database and data changes are not reversed/)
-  }
+test('unlabelled images require acknowledgement while explicit conflicting declarations block recovery', async (t) => {
+  const { data, state, resolve } = fixture(t)
+  data.compatibility = null
+  state.current.compatibility = state.previous.compatibility = null
+  let result = await resolve()
+  assert.equal(result.available, true)
+  assert.equal(result.compatibilityStatus, 'unknown')
+  assert.equal(result.requiresCompatibilityAcknowledgement, true)
+  data.compatibility = 'schema-2'
+  result = await resolve()
+  assert.equal(result.available, false)
+  assert.match(result.reason, /conflict/)
+})
+test('optional declarations distinguish known conflict, known match and one unknown side', async (t) => {
+  const { data, state, resolve } = fixture(t)
+  state.current.compatibility = 'schema-2'
+  state.previous.compatibility = 'schema-1'
+  data.declarations = { [image(9)]: 'schema-2', [image(4)]: 'schema-1' }
+  assert.equal((await resolve()).available, false)
+  state.current.compatibility = data.declarations[image(9)] = 'schema-1'
+  assert.equal((await resolve()).requiresCompatibilityAcknowledgement, false)
+  state.previous.compatibility = data.declarations[image(4)] = null
+  assert.equal((await resolve()).available, true)
+  assert.equal((await resolve()).requiresCompatibilityAcknowledgement, true)
 })
 test('rejected, same-image and malformed recovery metadata fail closed', async (t) => {
   const { state, resolve } = fixture(t)

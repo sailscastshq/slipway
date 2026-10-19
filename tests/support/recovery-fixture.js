@@ -1,6 +1,6 @@
 const recovery = require('../../api/lib/deployment-recovery')
 const image = (n) => 'sha256:' + String(n).padStart(64, '0')
-async function prepare({ sails, world }) {
+async function prepare({ sails, world, compatibility = null, legacy = false }) {
   const environment = world.current.environments.production
   const app = world.current.apps.web
   const previous = await world.create('deployment').with({
@@ -40,27 +40,56 @@ async function prepare({ sails, world }) {
       rejectedImages: [],
       current: {
         deploymentId: String(current.id),
-        imageId: current.imageId,
+        imageId: image(2),
         promotedAt: current.finishedAt,
-        compatibility: 'schema-1'
+        compatibility
       },
       previous: {
         deploymentId: String(previous.id),
-        imageId: previous.imageId,
+        imageId: image(1),
         promotedAt: previous.finishedAt,
-        compatibility: 'schema-1'
+        compatibility
       }
     },
     live
   )
-  await sails.models.setting.create({
-    key: recovery.key(app.id),
-    value: JSON.stringify(state)
-  })
+  if (!legacy)
+    await sails.models.setting.create({
+      key: recovery.key(app.id),
+      value: JSON.stringify(state)
+    })
+  else {
+    for (const [deployment, number] of [
+      [previous, 1],
+      [current, 2]
+    ]) {
+      const imageName = await sails.models.app.generateImageName(
+        environment.id,
+        String(deployment.id),
+        app.slug
+      )
+      const buildLogs = `#12 writing image ${image(
+        number
+      )} done\n#12 naming to docker.io/${imageName} done\n`
+      Object.assign(
+        deployment,
+        await sails.models.deployment
+          .updateOne({ id: deployment.id })
+          .set({ imageId: null, imageName, buildLogs })
+      )
+    }
+    Object.assign(
+      live,
+      await sails.models.app
+        .updateOne({ id: app.id })
+        .set({ imageId: null, imageName: current.imageName })
+    )
+  }
+
   const original = sails.helpers.docker.inspectDeploymentImage
   const artifacts = new Map([
-    [image(1), 'schema-1'],
-    [image(2), 'schema-1']
+    [image(1), compatibility],
+    [image(2), compatibility]
   ])
   const inspect = async ({ imageReference }) => {
     if (!artifacts.has(imageReference))

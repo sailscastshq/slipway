@@ -35,7 +35,15 @@ module.exports = {
         return unavailable(
           'Traffic recovery requires operator inspection before another deployment or rollback.'
         )
-      const { state } = await recovery.load(app)
+      let { state } = await recovery.load(app)
+      let bootstrapState = null
+      if (!state) {
+        const legacy = await sails.helpers.deploy.resolveLegacyRecovery.with({
+          app
+        })
+        if (!legacy.available) return unavailable(legacy.reason)
+        state = bootstrapState = legacy.state
+      }
       if (!state?.previous)
         return unavailable(
           'No verified previous healthy recovery image is recorded for this app.'
@@ -59,7 +67,7 @@ module.exports = {
       })
       if (
         !target ||
-        target.imageId !== previous.imageId ||
+        (!bootstrapState && target.imageId !== previous.imageId) ||
         recovery.id(target.id) === recovery.id(app.currentDeployment) ||
         previous.imageId === state.current.imageId ||
         state.rejectedImages.includes(previous.imageId)
@@ -95,16 +103,21 @@ module.exports = {
           'The local recovery image identity changed.',
           details
         )
+      const targetDeclaration = artifact.compatibility
+      const currentDeclaration = current.compatibility
       if (
-        !artifact.compatibility ||
-        artifact.compatibility !== current.compatibility ||
-        artifact.compatibility !== previous.compatibility ||
-        current.compatibility !== state.current.compatibility
+        (targetDeclaration &&
+          currentDeclaration &&
+          targetDeclaration !== currentDeclaration) ||
+        targetDeclaration !== previous.compatibility ||
+        currentDeclaration !== state.current.compatibility
       )
         return unavailable(
-          'Rollback compatibility is unknown or incompatible. Both images must declare the same io.slipway.rollback.compatibility window. Database and data changes are not reversed.',
+          'The recorded image compatibility declarations conflict. Database and data changes are not reversed.',
           details
         )
+      const compatibilityStatus =
+        targetDeclaration && currentDeclaration ? 'declared' : 'unknown'
       return {
         available: true,
         reason: null,
@@ -112,7 +125,10 @@ module.exports = {
         appId: app.id,
         appSlug: app.slug,
         currentDeploymentId: app.currentDeployment,
-        compatibility: artifact.compatibility,
+        compatibility: targetDeclaration,
+        compatibilityStatus,
+        requiresCompatibilityAcknowledgement: compatibilityStatus === 'unknown',
+        bootstrapState,
         target
       }
     } catch (error) {

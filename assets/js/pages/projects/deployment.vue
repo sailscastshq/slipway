@@ -1,5 +1,6 @@
 <script setup>
 import Button from '@/components/ui/button/Button.vue'
+import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
@@ -161,10 +162,21 @@ const rollingBack = ref(false)
 const rollbackError = ref('')
 const page = usePage()
 const rollbackReview = ref(false)
+const acknowledgeUnknownCompatibility = ref(false)
+function openRollbackReview() {
+  acknowledgeUnknownCompatibility.value = false
+  rollbackReview.value = true
+}
 onBeforeUnmount(() => disconnectDeploymentStream())
 
 async function executeRollback() {
-  if (rollingBack.value || !canRollback.value) return
+  if (
+    rollingBack.value ||
+    !canRollback.value ||
+    (props.recovery.requiresCompatibilityAcknowledgement &&
+      !acknowledgeUnknownCompatibility.value)
+  )
+    return
   rollingBack.value = true
   rollbackError.value = ''
   try {
@@ -180,7 +192,8 @@ async function executeRollback() {
         body: JSON.stringify({
           deploymentId: String(props.recovery.targetDeploymentId),
           appSlug: props.recovery.appSlug,
-          expectedCurrent: String(props.recovery.currentDeploymentId)
+          expectedCurrent: String(props.recovery.currentDeploymentId),
+          acknowledgeUnknownCompatibility: acknowledgeUnknownCompatibility.value
         })
       }
     )
@@ -265,7 +278,13 @@ async function executeRollback() {
     >
       {{
         canRollback
-          ? `Previous healthy release: #${recovery.targetDeploymentId} · local immutable image available · compatibility ${recovery.compatibility}`
+          ? `Previous healthy release: #${
+              recovery.targetDeploymentId
+            } · local immutable image available · ${
+              recovery.compatibilityStatus === 'unknown'
+                ? 'schema compatibility unverified'
+                : 'declared compatibility ' + recovery.compatibility
+            }`
           : recovery.reason
       }}
     </p>
@@ -314,7 +333,7 @@ async function executeRollback() {
             data-test="rollback-action"
             class="w-full sm:w-auto"
             :disabled="rollingBack"
-            @click="rollbackReview = true"
+            @click="openRollbackReview"
           >
             Roll back to previous release
           </Button>
@@ -438,12 +457,33 @@ async function executeRollback() {
         recovery?.gitCommit?.slice(0, 7) || 'retained image'
       }) for ${recovery?.appSlug || 'this app'} in ${
         environment.slug
-      } with current runtime configuration. Both images declare compatibility window ${
-        recovery?.compatibility || 'unknown'
-      }. Database schema, data, files and external effects are not reversed. The current image will be marked rejected as an automatic recovery target.`"
+      } with current configuration. ${
+        recovery?.compatibilityStatus === 'unknown'
+          ? 'Schema compatibility is unverified.'
+          : 'Declared compatibility: ' + recovery?.compatibility + '.'
+      } Rollback does not undo database migrations, data changes, files or external effects.`"
+      :confirm-disabled="
+        recovery?.requiresCompatibilityAcknowledgement &&
+        !acknowledgeUnknownCompatibility
+      "
       confirm-label="Roll back"
       @confirm="executeRollback"
       @cancel="rollbackReview = false"
-    />
+    >
+      <template v-if="recovery?.requiresCompatibilityAcknowledgement" #form>
+        <label
+          class="mt-4 flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300"
+        >
+          <Checkbox
+            v-model="acknowledgeUnknownCompatibility"
+            class="mt-0.5 shrink-0"
+          />
+          <span
+            >I confirm the previous app can use the current schema and
+            configuration.</span
+          >
+        </label>
+      </template>
+    </ConfirmModal>
   </div>
 </template>

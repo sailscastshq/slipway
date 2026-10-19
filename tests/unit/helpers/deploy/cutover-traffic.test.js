@@ -1324,3 +1324,60 @@ test(
     }
   }
 )
+
+test(
+  'a normal promotion preserves a provable unlabelled legacy current image without requiring a rebuild or configuration',
+  { world: cutoverWorld('legacy-current-promotion') },
+  async ({ sails, world, expect }) => {
+    const fixture = await require('../../../support/recovery-fixture').prepare({
+      sails,
+      world,
+      legacy: true
+    })
+    const recovery = require('../../../../api/lib/deployment-recovery')
+    const originalUpdate = sails.helpers.caddy.updateRoute
+    const originalFinish = sails.helpers.caddy.finishRouteUpdate
+    sails.helpers.caddy.updateRoute = machineStub(async () => stagedRoute())
+    sails.helpers.caddy.finishRouteUpdate = machineStub(async () => ({
+      action: 'committed'
+    }))
+    try {
+      const candidate = await world.create('deployment').with({
+        app: fixture.app.id,
+        environment: fixture.environment.id,
+        status: 'deploying'
+      })
+      await sails.helpers.deploy.cutoverTraffic.with({
+        deploymentId: candidate.id,
+        appId: fixture.app.id,
+        environmentId: fixture.environment.id,
+        candidate: {
+          containerName: 'safe-legacy-candidate',
+          containerId: 'safe-fixture-id',
+          imageName: 'slipway/legacy:9',
+          imageId: 'sha256:' + '3'.padStart(64, '0'),
+          port: 1337,
+          hostPort: 1448,
+          recoveryCompatibility: null
+        }
+      })
+      const state = JSON.parse(
+        (
+          await sails.models.setting.findOne({
+            key: recovery.key(fixture.app.id)
+          })
+        ).value
+      )
+      expect(state.previous.deploymentId).toBe(String(fixture.current.id))
+      expect(state.previous.compatibility).toBe(null)
+      expect(
+        (await sails.models.deployment.findOne({ id: fixture.current.id }))
+          .imageId
+      ).toBe(state.previous.imageId)
+    } finally {
+      sails.helpers.caddy.updateRoute = originalUpdate
+      sails.helpers.caddy.finishRouteUpdate = originalFinish
+      fixture.restore()
+    }
+  }
+)

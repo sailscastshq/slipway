@@ -7,23 +7,30 @@ A stopped successful predecessor is accepted when it is the recorded target, its
 full immutable local image exists, and compatibility and current-generation checks
 pass. Failed/cancelled deployments and another app's history are never targets.
 
-## Compatibility contract
+## Compatibility review
 
-Declare a backward-compatible application/data/configuration window in both images:
+No Dockerfile or environment change is required for normal rollback. An unlabelled
+image has **unknown** schema compatibility; unchanged models or a passing HTTP health
+check do not establish compatibility. The existing review dialog requires a concise
+explicit acknowledgement that the previous app can use the current schema and
+configuration. The API requires `acknowledgeUnknownCompatibility: true` for that
+case, and the durable intent carries the acknowledgement through worker execution.
+
+Applications may optionally declare a compatible window:
 
 ```dockerfile
 LABEL io.slipway.rollback.compatibility="schema-1"
 ```
 
-Choose a new value when the previous image cannot safely use the current database,
-data or current runtime configuration. This is an explicit application-owner
-assertion, not automatic proof from an HTTP health response. Test upgrade and
-downgrade behavior against representative migrated data before declaring a window.
-Missing, changed or invalid declarations block rollback. The UI explains that
-application-image rollback does not reverse database schema, data, uploads, queues,
-service changes or external side effects. It uses current configuration and secrets;
-it does not restore old or revoked credentials. Database restore requires a separate
-explicit recovery procedure. No down migration or backup restoration runs here.
+Matching declarations are application-owner evidence, not an automatic proof. Two
+conflicting declarations block rollback even if acknowledgement is supplied. One
+missing declaration remains unknown and requires acknowledgement. No declaration is
+inferred from unchanged source, models, or schema. Invalid declarations fail closed.
+
+Rollback does not reverse database migrations, data, uploads, queues, service changes
+or external side effects. It uses current configuration and secrets; it does not
+restore old or revoked credentials. Database restore is a separate explicitly
+approved recovery procedure. No down migration or backup restoration runs here.
 
 ## Promotion and recovery
 
@@ -68,12 +75,25 @@ independent cleanup candidates to proceed.
 
 No database schema migration is required. Recovery and intent records use private
 namespaced rows in the existing settings table; keep the persistent writable `db`
-volume. This implementation does not guess immutable identity or successful
-promotion metadata for legacy tag-only history. Such history reports no verified
-recovery target until successful deployments establish current/previous records.
+volume. Existing apps can acquire recovery metadata immediately when successful app/environment
+provenance and immutable local identity are provable. A recorded full image ID is
+accepted after local inspection. Otherwise, a bounded completed Docker export receipt
+must contain a full image ID and name the exact generated deployment-specific tag in
+the same export step. A tag alone, arbitrary hash in logs, incomplete/ambiguous receipt,
+wrong app/environment, unfinished history, missing image or unsupported legacy rollback
+history does not qualify. The inspector verifies exact identity and Docker-host platform
+without pulling or rebuilding.
+
+Page eligibility is read-only. Rollback admission rechecks provenance and receipts,
+then atomically binds current/previous image IDs and recovery metadata with the queued
+intent under shared image-use admission. Normal promotion also preserves a provable
+legacy current image as its predecessor. Existing labelled builds and two rebuilds are
+not prerequisites. Where proof is absent, the UI explains why recovery is unavailable;
+it never guesses from the current contents of a mutable tag.
+
 No records, pins, images or containers are deleted merely by installing this feature.
 The API now requires `expectedCurrent` with the chosen `deploymentId` and app slug;
-clients must refresh after a stale-target rejection.
+clients must refresh after a stale-target rejection. Unknown compatibility additionally requires the explicit acknowledgement field described above.
 
 UI and lifecycle evidence use synthetic local fixtures. No production rollback,
 cleanup, installation or database/data operation is part of those tests.

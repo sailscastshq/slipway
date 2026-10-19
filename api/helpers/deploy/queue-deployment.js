@@ -26,6 +26,7 @@ module.exports = {
       description: 'Existing deployment whose image a rollback will reuse.'
     },
     expectedCurrent: { type: 'string' },
+    acknowledgeUnknownCompatibility: { type: 'boolean', defaultsTo: false },
     dispatch: {
       type: 'boolean',
       defaultsTo: true,
@@ -48,7 +49,8 @@ module.exports = {
     kind,
     targetDeploymentId,
     dispatch,
-    expectedCurrent
+    expectedCurrent,
+    acknowledgeUnknownCompatibility
   }) {
     const environmentId = normalizeId(values.environment)
     if (!environmentId) {
@@ -78,6 +80,7 @@ module.exports = {
         'Traffic recovery requires operator inspection before another deployment or rollback.'
       )
     let recoveryIntent = null
+    let bootstrapState = null
     if (kind === 'rollback') {
       if (!app || !expectedCurrent)
         throw new Error(
@@ -91,13 +94,25 @@ module.exports = {
         expectedCurrent
       })
       if (!target.available) throw new Error(target.reason)
+      if (
+        target.requiresCompatibilityAcknowledgement &&
+        !acknowledgeUnknownCompatibility
+      )
+        throw new Error(
+          'Unknown schema compatibility requires explicit acknowledgement; rollback does not undo migrations.'
+        )
+      bootstrapState = target.bootstrapState
       recoveryIntent = {
         appId: app.id,
         environmentId,
         expectedCurrent,
         targetDeploymentId,
         imageId: target.imageId,
-        compatibility: target.compatibility
+        compatibility: target.compatibility,
+        compatibilityStatus: target.compatibilityStatus,
+        acknowledgeUnknownCompatibility: Boolean(
+          acknowledgeUnknownCompatibility
+        )
       }
       values = {
         ...values,
@@ -121,6 +136,56 @@ module.exports = {
           throw new Error(
             'The current release changed before rollback admission.'
           )
+        if (bootstrapState) {
+          const recovery = require('../../lib/deployment-recovery')
+          const existing = await Setting.findOne({
+            key: recovery.key(app.id)
+          }).usingConnection(db)
+          if (existing)
+            throw new Error(
+              'Recovery state changed during bootstrap; refresh before retrying.'
+            )
+          if (
+            currentApp.imageId &&
+            currentApp.imageId !== bootstrapState.current.imageId
+          )
+            throw new Error(
+              'The current immutable image changed during bootstrap.'
+            )
+          for (const release of [
+            bootstrapState.current,
+            bootstrapState.previous
+          ]) {
+            const source = await Deployment.findOne({
+              id: release.deploymentId,
+              app: app.id,
+              environment: environmentId
+            }).usingConnection(db)
+            if (
+              !require('../../lib/legacy-deployment-artifact').verifyBinding(
+                source,
+                release,
+                currentApp
+              )
+            )
+              throw new Error(
+                'Successful deployment provenance or immutable receipt changed during bootstrap.'
+              )
+            await Deployment.updateOne({ id: source.id })
+              .set({ imageId: release.imageId })
+              .usingConnection(db)
+          }
+          await App.updateOne({
+            id: app.id,
+            currentDeployment: currentApp.currentDeployment
+          })
+            .set({ imageId: bootstrapState.current.imageId })
+            .usingConnection(db)
+          await Setting.create({
+            key: recovery.key(app.id),
+            value: JSON.stringify(bootstrapState)
+          }).usingConnection(db)
+        }
       }
       deployment = await Deployment.create({
         ...values,

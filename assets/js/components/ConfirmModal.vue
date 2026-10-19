@@ -29,6 +29,7 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  confirmDisabled: { type: Boolean, default: false },
   loading: {
     type: Boolean,
     default: false
@@ -45,7 +46,7 @@ function cancel() {
 }
 
 function confirm() {
-  if (!props.loading) emit('confirm')
+  if (!props.loading && !props.confirmDisabled) emit('confirm')
 }
 
 function handleOpenChange(open) {
@@ -84,7 +85,7 @@ function handleOpenChange(open) {
       </Button>
       <Button
         type="button"
-        :disabled="loading"
+        :disabled="loading || confirmDisabled"
         :aria-busy="loading ? 'true' : undefined"
         :class="[
           'min-h-0 min-w-0 cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50',
