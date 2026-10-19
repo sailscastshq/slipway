@@ -103,6 +103,7 @@ module.exports = {
 
     const upload = attribute.field.upload
     if (
+      (upload.immutable === true && payload.strategy !== 'multipart') ||
       payload.fileSize > upload.maxBytes ||
       !acceptsMimeType(payload.fileType, upload.accept)
     ) {

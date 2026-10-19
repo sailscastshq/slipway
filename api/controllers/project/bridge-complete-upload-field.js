@@ -81,7 +81,10 @@ module.exports = {
       })
       if (
         verified.size !== payload.fileSize ||
-        normalizeType(verified.type) !== normalizeType(payload.fileType)
+        normalizeType(verified.type) !== normalizeType(payload.fileType) ||
+        (session.upload?.immutable === true &&
+          (payload.strategy !== 'multipart' ||
+            verified.bridgeImmutable !== 'multipart-v1'))
       ) {
         throw new Error(
           'The stored object does not match the selected file. Choose it again.'
@@ -90,6 +93,9 @@ module.exports = {
 
       const receipt = await sails.helpers.bridge.createUploadReceipt.with({
         url: payload.url,
+        completedMultipart:
+          payload.strategy === 'multipart' &&
+          verified.bridgeImmutable === 'multipart-v1',
         context: {
           actorId: session.actorId,
           projectId: session.project.id,

@@ -136,6 +136,8 @@ module.exports = {
               url: values[key]?.url,
               context: {
                 ...uploadContext,
+                requireCompletedMultipart:
+                  attribute.field?.upload?.immutable === true,
                 resource: resource.identity,
                 field: key
               }

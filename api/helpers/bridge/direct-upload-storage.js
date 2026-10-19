@@ -37,6 +37,7 @@ module.exports = {
       type: 'string',
       maxLength: 255
     },
+    immutable: { type: 'boolean', defaultsTo: false },
     uploadId: {
       type: 'string',
       maxLength: 2048
@@ -69,6 +70,7 @@ module.exports = {
     storage,
     objectPath,
     contentType,
+    immutable,
     uploadId,
     partNumbers,
     parts,
@@ -94,7 +96,10 @@ module.exports = {
         requireContentType(contentType)
         const created = await client.createMultipartUpload({
           ...base,
-          ContentType: contentType
+          ContentType: contentType,
+          ...(immutable === true
+            ? { Metadata: { bridgeimmutable: 'multipart-v1' } }
+            : {})
         })
         if (!created.UploadId) {
           throw new Error(
@@ -164,7 +169,10 @@ module.exports = {
       return {
         size: metadata.ContentLength,
         type: normalizeType(metadata.ContentType),
-        etag: normalizeEtag(metadata.ETag)
+        etag: normalizeEtag(metadata.ETag),
+        ...(metadata.Metadata?.bridgeimmutable
+          ? { bridgeImmutable: metadata.Metadata.bridgeimmutable }
+          : {})
       }
     } catch (cause) {
       if (isMissingMultipart(cause)) {

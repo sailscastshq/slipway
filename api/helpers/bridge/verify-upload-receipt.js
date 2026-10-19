@@ -61,6 +61,8 @@ module.exports = {
     }
     if (
       payload.version !== 1 ||
+      (context.requireCompletedMultipart === true &&
+        payload.completedMultipart !== true) ||
       payload.url !== url ||
       (payload.appId ?? null) !==
         (context.appId == null ? null : String(context.appId)) ||

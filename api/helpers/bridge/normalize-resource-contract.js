@@ -2255,7 +2255,8 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
         'filename',
         'store',
         'accept',
-        'maxBytes'
+        'maxBytes',
+        'immutable'
       ],
       `Bridge field "${identity}.${name}".upload`
     )
@@ -2293,6 +2294,14 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     if (upload.store !== undefined && upload.store !== 'url') {
       throw new Error(
         `Bridge field "${identity}.${name}".upload.store must be "url".`
+      )
+    }
+    if (
+      upload.immutable !== undefined &&
+      typeof upload.immutable !== 'boolean'
+    ) {
+      throw new Error(
+        `Bridge field "${identity}.${name}".upload.immutable must be a boolean.`
       )
     }
     if (
@@ -2357,6 +2366,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       directory: readString(upload.directory) || '',
       filename: readString(upload.filename) || '',
       store: upload.store || 'url',
+      ...(upload.immutable === true ? { immutable: true } : {}),
       accept,
       maxBytes:
         upload.maxBytes ||
