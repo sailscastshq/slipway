@@ -4,15 +4,21 @@ const workspace = require('../../../api/lib/quest-workspace')
 
 const executionFields = (run) =>
   Object.fromEntries(
-    [
-      'sequence',
-      'requestedAt',
-      'startedAt',
-      'finishedAt',
-      'exitCode',
-      'result'
-    ].map((name) => [name, run[name]])
+    ['requestedAt', 'startedAt', 'finishedAt', 'exitCode', 'result'].map(
+      (name) => [name, run[name]]
+    )
   )
+
+// Running log events may advance the resident sequence during an outage trial.
+// Recovery must preserve execution facts and never regress that evidence cursor.
+function assertRecoveryExecution(run, original, previousSequence) {
+  assert.deepEqual(executionFields(run), executionFields(original))
+  assert.ok(
+    Number.isSafeInteger(run.sequence) && run.sequence >= previousSequence,
+    `Recovery sequence must not regress: ${run.sequence} < ${previousSequence}`
+  )
+  return run.sequence
+}
 
 async function recoveryTrials({
   sails,
@@ -42,33 +48,32 @@ async function recoveryTrials({
   })
   const original = await row(active.run.runId)
   assert.equal(original.state, 'running')
-  const originalFields = executionFields(original)
+  let sequence = original.sequence
+  const preserved = async () => {
+    const current = await row(active.run.runId)
+    sequence = assertRecoveryExecution(current, original, sequence)
+    return current
+  }
   await setTarget({ status: 'stopped' })
   await readPersisted(active.run.runId, 'unconfirmed')
-  assert.match((await row(active.run.runId)).error, /app is stopped/)
-  assert.deepEqual(executionFields(await row(active.run.runId)), originalFields)
-  // A verified same-sequence resident read may restore Running. No re-invocation.
+  assert.match((await preserved()).error, /app is stopped/)
+  // A verified resident read may restore Running at the same or a newer log
+  // sequence. It must not alter execution facts or re-invoke the job.
   await setTarget({ status: 'running' })
   await readPersisted(active.run.runId, 'running')
-  assert.equal((await row(active.run.runId)).error, null)
-  assert.deepEqual(executionFields(await row(active.run.runId)), originalFields)
+  assert.equal((await preserved()).error, null)
   const actualContainer = app.containerName
   try {
     await setTarget({
       containerName: `slipway-quest-unreachable-${randomUUID()}`
     })
     await readPersisted(active.run.runId, 'unconfirmed')
-    assert.match((await row(active.run.runId)).error, /could not be read/)
-    assert.deepEqual(
-      executionFields(await row(active.run.runId)),
-      originalFields
-    )
+    assert.match((await preserved()).error, /could not be read/)
   } finally {
     await setTarget({ containerName: actualContainer })
   }
   await readPersisted(active.run.runId, 'running')
-  assert.equal((await row(active.run.runId)).error, null)
-  assert.deepEqual(executionFields(await row(active.run.runId)), originalFields)
+  assert.equal((await preserved()).error, null)
   assert.equal((await waitForRun(active.run.runId)).state, 'completed')
   await readPersisted(active.run.runId, 'completed')
   assert.equal(
@@ -139,8 +144,10 @@ async function recoveryTrials({
     400
   )
   await readPersisted(lost.run.runId, 'unconfirmed')
-  assert.match((await row(lost.run.runId)).error, /no longer retains evidence/)
-  assert.deepEqual(executionFields(await row(lost.run.runId)), pendingFields)
+  const retained = await row(lost.run.runId)
+  assert.match(retained.error, /no longer retains evidence/)
+  assert.deepEqual(executionFields(retained), pendingFields)
+  assert.equal(retained.sequence, pending.sequence)
   const skips = after.runs.filter((run) => run.jobName === 'retention-pressure')
   assert.ok(skips.length > 0)
   for (const skip of skips) {
@@ -174,4 +181,4 @@ async function recoveryTrials({
     retentionPressureSkips: 40
   }
 }
-module.exports = { recoveryTrials }
+module.exports = { recoveryTrials, assertRecoveryExecution }
