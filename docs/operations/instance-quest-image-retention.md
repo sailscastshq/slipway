@@ -86,7 +86,8 @@ protection or expands eligibility.
 ## Interrupted-operation holds
 
 A held run removed nothing unless its summary explicitly records earlier successful
-removals. Mode is still reported as `remove` or `dry-run`; it describes policy, not
+removals. The summary distinguishes `inventoryStatus: not-started` from an assessed plan.
+Mode is still reported as `remove` or `dry-run`; it describes policy, not
 permission to bypass the hold. Summaries and CLI logs include the hold reason:
 `image-use-guard-present`, `image-cleanup-guard-present`, or
 `image-admission-guard-busy`. The separate cleanup lock reports

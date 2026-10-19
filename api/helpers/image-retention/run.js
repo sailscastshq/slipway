@@ -37,6 +37,7 @@ module.exports = {
           status: 'busy',
           mode,
           holds: ['image-retention-lock-present'],
+          inventoryStatus: 'not-started',
           candidates: 0,
           removed: 0,
           untagged: 0,
@@ -244,6 +245,7 @@ module.exports = {
         status: result.status,
         mode: result.mode,
         holds,
+        inventoryStatus: result.plan?.status || 'not-started',
         skippedReasons: reasonCounts(
           result.skipped.map((item) => [item.reason])
         ),
@@ -281,11 +283,11 @@ module.exports = {
       sails.log.info(
         `Clean up deployment images: ${summary.status} (${
           summary.mode
-        }); candidates ${summary.candidates}, removed ${
-          summary.removed
-        }, skipped ${summary.skipped}, errors ${summary.errors}, deferred ${
-          summary.deferred
-        }, untagged ${summary.untagged}.${
+        }); inventory ${summary.inventoryStatus}; candidates ${
+          summary.candidates
+        }, removed ${summary.removed}, skipped ${summary.skipped}, errors ${
+          summary.errors
+        }, deferred ${summary.deferred}, untagged ${summary.untagged}.${
           holds.length ? ` Hold: ${holds.join('; ')}. No hold was cleared.` : ''
         }`
       )

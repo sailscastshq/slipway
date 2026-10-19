@@ -49,3 +49,48 @@ test('installer upgrades forward cleanup defaults and preserve an explicit saved
     })
   )
 })
+
+test('installer forwards and persists independent build-cache removal opt-outs', () => {
+  for (const [saved, requested, expected] of [
+    ['', '', 'true'],
+    ['false', '', 'false'],
+    ['true', 'false', 'false'],
+    ['false', 'true', 'true']
+  ]) {
+    const output = execFileSync(
+      'bash',
+      [
+        '-c',
+        `${resolvePolicy}\n${runContainer}\ndocker() { printf '%s\\n' "$@"; }\nrun_slipway_container fixture-slipway 1337`
+      ],
+      {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          SLIPWAY_BUILD_CACHE_RETENTION_REMOVE: saved,
+          REQUESTED_SLIPWAY_BUILD_CACHE_RETENTION_REMOVE: requested,
+          SLIPWAY_IMAGE_RETENTION_REMOVE: 'true',
+          SLIPWAY_IMAGE: 'fixture:local'
+        }
+      }
+    )
+      .trim()
+      .split('\n')
+    const index = output.indexOf(
+      `SLIPWAY_BUILD_CACHE_RETENTION_REMOVE=${expected}`
+    )
+    assert.ok(index > 0)
+    assert.equal(output[index - 1], '-e')
+  }
+  assert.match(source, /persist_setting SLIPWAY_BUILD_CACHE_RETENTION_REMOVE/)
+  assert.throws(() =>
+    execFileSync('bash', ['-c', resolvePolicy], {
+      env: {
+        ...process.env,
+        SLIPWAY_BUILD_CACHE_RETENTION_REMOVE: 'invalid',
+        SLIPWAY_IMAGE_RETENTION_REMOVE: 'true'
+      },
+      stdio: 'pipe'
+    })
+  )
+})

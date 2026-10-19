@@ -10,8 +10,13 @@ const JOBS = Object.freeze([
   'maintain-wake',
   'reconcile-deployments',
   'run-scheduled-backups',
-  'retain-deployment-images'
+  'retain-deployment-images',
+  'retain-build-cache'
 ])
+const CLEANUP_POLICIES = {
+  'retain-deployment-images': 'imageRetention',
+  'retain-build-cache': 'buildCacheRetention'
+}
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/
 const ACTIVE = new Set(['requested', 'running', 'cancelling', 'unconfirmed'])
 const LIMIT = 100
@@ -182,11 +187,12 @@ function create(sails) {
             nextRunAt: job.nextRunAt,
             paused: job.paused,
             runningCount: job.runningCount,
-            ...(job.name === 'retain-deployment-images'
+            ...(CLEANUP_POLICIES[job.name]
               ? {
                   cleanupEnabled:
-                    sails.config.imageRetention?.remove === undefined ||
-                    sails.config.imageRetention?.remove === true
+                    sails.config[CLEANUP_POLICIES[job.name]]?.remove ===
+                      undefined ||
+                    sails.config[CLEANUP_POLICIES[job.name]]?.remove === true
                 }
               : {}),
             manualAllowed:
@@ -219,14 +225,14 @@ function create(sails) {
       Array.isArray(inputs) ||
       (Object.keys(inputs).length &&
         !(
-          name === 'retain-deployment-images' &&
+          CLEANUP_POLICIES[name] &&
           Object.keys(inputs).length === 1 &&
           typeof inputs.preview === 'boolean'
         ))
     )
       throw Object.assign(
         new Error(
-          'Choose a registered instance job. Only deployment-image cleanup accepts a boolean preview input.'
+          'Choose a registered instance job. Only registered cleanup jobs accept a boolean preview input.'
         ),
         { status: 400 }
       )
