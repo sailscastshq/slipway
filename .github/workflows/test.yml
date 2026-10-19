@@ -26,6 +26,8 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --no-audit
+      - name: Verify native deployment-image metadata with real Docker
+        run: node --test tests/contracts/deployment-image-inspection.cjs
       - run: docker build -t slipway:port-proof tests/fixtures/docker-port-allocation
       - run: node_modules/.bin/sounding test --file tests/contracts/docker-port-allocation.test.js --test-concurrency=1
 
