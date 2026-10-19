@@ -21,28 +21,24 @@ are bounded to 16 KiB and may be unavailable when larger.
 
 ## How the daily cleanup works
 
-**Local implementation behavior:** deployment image retention runs every 24 hours
-in preview mode by default. Removal stays disabled unless explicitly enabled in
-server configuration. No database schema migration is needed. The internal
-`retain-deployment-images` script identity stays unchanged so schedules and existing
-history remain compatible.
+**Upgrade behavior:** from v0.0.104, cleanup removes eligible old Slipway app
+deployment images by default, every 24 hours. The internal
+`retain-deployment-images` script identity stays unchanged for schedule/history
+compatibility; Bosun calls it **Clean up deployment images**.
 
-In Bosun → Quest, **Clean up** runs cleanup immediately. **Preview** explicitly
-checks candidates without deleting anything and does not change the regular schedule.
-Both actions retain instance-admin authorization, CSRF, admission and shared guards.
-The only accepted cleanup input is `{ "preview": true }` (or boolean false for the
-normal configured mode); arbitrary removal overrides are rejected.
+Every job uses the existing horizontal ellipsis action menu with **Run now**.
+Cleanup uses the same menu and requires review before triggering. It has no
+separate Preview UI action or policy paragraph in the list.
 
-`SLIPWAY_IMAGE_RETENTION_REMOVE=true` explicitly enables removal. Unset, `false`,
-or invalid values keep preview mode. The installer now persists
-and forwards this variable from `/etc/slipway/.env` (or `SLIPWAY_ENV_FILE`). An explicit
-variable supplied to the installer takes precedence over its saved value. Existing
-self-update containers preserve their environment, including an explicit opt-out.
-For a custom Docker/Compose installation, change the container’s actual environment
-and recreate it using the same image; a plain `docker restart` cannot change its
-Docker environment. A new release is not required to change this configuration.
-Bosun’s generic Environment editor currently saves database overrides only and does
-not apply this startup setting. Preview is the supported per-run runtime option.
+`SLIPWAY_IMAGE_RETENTION_REMOVE=false` explicitly opts out of removal. Unset or
+`true` enables cleanup; invalid values fail closed to preview. The installer
+persists and forwards this variable from `/etc/slipway/.env` (or
+`SLIPWAY_ENV_FILE`), with an explicit installer variable taking precedence. For
+custom Docker/Compose installs, recreate the container to change its environment;
+a restart alone cannot do that. Bosun's generic Environment editor only saves
+database overrides and does not apply this startup setting. The backend retains
+the validated boolean `preview` diagnostic for API compatibility; ordinary UI
+triggers always send the configured defaults (`{}`).
 
 1. Acquire the cleanup lock and exclusive shared image-operation admission.
    Deployment enqueueing, reconciliation and deploy/rollback workers hold shared
@@ -79,7 +75,7 @@ plan and outcomes stay in the audit records and `imageRetentionLastRun`. No recl
 byte total is claimed. Review actual host usage separately.
 
 A run reports the backlog deferred by its image/time bound. The next daily run
-continues it, or an administrator can select **Clean up** again after completion.
+continues it, or an administrator can select **Run now** again after completion.
 The bound avoids holding deployment/rollback admission indefinitely. Inventory is
 still refreshed before every individual non-force removal; a backlog never weakens
 protection or expands eligibility.

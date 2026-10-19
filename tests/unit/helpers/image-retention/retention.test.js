@@ -13,7 +13,7 @@ const NOW = Date.UTC(2026, 9, 16)
 const id = (n) => `sha256:${n.toString(16).padStart(64, '0')}`
 const tag = (n) => `slipway/demo-production-web:${n}`
 
-async function fixture(t, config = { remove: true }) {
+async function fixture(t, config = {}) {
   const keys = [
     'sails',
     'Deployment',
@@ -65,7 +65,7 @@ async function fixture(t, config = { remove: true }) {
     create: async (value) => state.audits.push(structuredClone(value))
   }
   global.sails = {
-    config: { appPath: root, imageRetention: { remove: true, ...config } },
+    config: { appPath: root, imageRetention: config },
     log: { info: (line) => state.logs.push(line), error() {} },
     helpers: {
       setting: {
@@ -134,22 +134,6 @@ test('explicit removal keeps a bounded daily backlog, 14 days and three successf
   await assert.rejects(getPolicy.fn(), /Invalid image retention limit/)
   sails.config.imageRetention = { remove: 'true' }
   assert.equal((await getPolicy.fn()).remove, false)
-})
-
-test('missing removal configuration previews candidates without invoking Docker removal', async (t) => {
-  const { state, deployment, policy } = await fixture(t, { remove: undefined })
-  for (let n = 1; n <= 5; n++) deployment(n)
-  assert.equal(policy.remove, false)
-  const outcome = await job.fn()
-  assert.equal(outcome.mode, 'dry-run')
-  assert.equal(outcome.candidates, 2)
-  assert.equal(outcome.removed, 0)
-  assert.deepEqual(state.removed, [])
-  assert.ok(
-    !state.audits.some(
-      (entry) => entry.action === 'image-retention.removal-started'
-    )
-  )
 })
 
 test('old active and stopped-container images stay; latest three successful images stay', async (t) => {
@@ -307,14 +291,14 @@ test('default backlog sweep removes at most 100 and reports deferred images for 
   assert.equal(state.removed.length, 105)
 })
 
-test('startup config defaults to preview and enables removal only with explicit opt-in', async () => {
+test('startup config enables removal by default and preserves explicit opt-out', async () => {
   const vm = require('node:vm')
   const source = await fs.readFile(
     require.resolve('../../../../config/image-retention'),
     'utf8'
   )
   for (const [value, expected] of [
-    [undefined, false],
+    [undefined, true],
     ['true', true],
     ['false', false],
     ['invalid', false]

@@ -206,8 +206,6 @@ test('a torn history record disables instance controls without preventing Slipwa
 test('cleanup accepts only an explicit boolean preview and keeps request identity tied to its mode', async (t) => {
   const { adapter, job, finish, inputsSent, sails } = await fixture(t)
   job.name = 'retain-deployment-images'
-  assert.equal((await adapter.snapshot()).jobs[0].cleanupEnabled, false)
-  sails.config.imageRetention = { remove: true }
   assert.equal((await adapter.snapshot()).jobs[0].cleanupEnabled, true)
   for (const input of [
     { remove: true },

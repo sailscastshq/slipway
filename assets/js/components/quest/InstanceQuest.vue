@@ -8,6 +8,7 @@ import Button from '@/components/ui/button/Button.vue'
 import Select from '@/components/ui/select/Select.vue'
 import Refresh from '@/components/ui/icons/Refresh.vue'
 import Play from '@/components/ui/icons/Play.vue'
+import RowActions from '@/components/ui/row-actions/RowActions.vue'
 
 const props = defineProps({ csrf: String })
 const data = ref({ jobs: [], runs: [], available: false })
@@ -88,8 +89,8 @@ function jobName(name) {
     (name === 'retain-deployment-images' ? 'Clean up deployment images' : name)
   )
 }
-function ask(job, preview = false) {
-  review.value = { ...job, preview }
+function ask(job) {
+  review.value = job
   requestId.value = crypto.randomUUID()
 }
 async function run() {
@@ -106,7 +107,7 @@ async function run() {
       body: JSON.stringify({
         name: review.value.name,
         requestId: requestId.value,
-        jobInputs: review.value.preview ? { preview: true } : {}
+        jobInputs: {}
       })
     })
     const value = await response.json()
@@ -163,14 +164,14 @@ onBeforeUnmount(() => {
     </p>
     <div
       v-else
-      class="divide-y divide-gray-200 border-y border-gray-200 dark:divide-gray-800 dark:border-gray-800"
+      class="divide-y divide-dashed divide-gray-200 border-y border-dashed border-gray-200 dark:divide-gray-800 dark:border-gray-800"
     >
       <article
         v-for="job in data.jobs"
         :key="job.name"
-        class="flex flex-wrap items-start justify-between gap-4 py-4"
+        class="flex items-start justify-between gap-4 py-4"
       >
-        <div class="min-w-0 space-y-1">
+        <div class="min-w-0 flex-1 space-y-1">
           <div class="flex flex-wrap items-center gap-2">
             <h3 class="text-sm font-medium text-gray-900 dark:text-white">
               {{ job.friendlyName || job.name }}
@@ -193,45 +194,29 @@ onBeforeUnmount(() => {
             {{ job.schedule?.timezone || 'UTC' }}
           </p>
           <p class="text-xs text-gray-500">Next: {{ time(job.nextRunAt) }}</p>
-          <p
-            v-if="job.name === 'retain-deployment-images'"
-            class="text-xs text-gray-500"
-          >
-            {{
-              job.cleanupEnabled === false
-                ? 'Cleanup is disabled by instance configuration; runs preview only.'
-                : 'Removes eligible images older than 14 days; keeps at least three successful images.'
-            }}
-          </p>
         </div>
-        <div class="flex shrink-0 gap-2">
-          <Button
-            v-if="job.name === 'retain-deployment-images'"
-            class="border border-dashed border-gray-300 bg-transparent text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-transparent dark:text-gray-300 dark:hover:bg-gray-900"
-            :disabled="!job.manualAllowed || submitting"
-            aria-label="Preview deployment image cleanup"
-            @click="ask(job, true)"
-            >Preview</Button
-          >
-          <Button
-            variant="outline"
-            :disabled="
-              !job.manualAllowed ||
-              submitting ||
-              (job.name === 'retain-deployment-images' &&
-                job.cleanupEnabled === false)
-            "
-            :aria-label="
-              job.name === 'retain-deployment-images'
-                ? 'Clean up deployment images'
-                : `Run ${job.friendlyName || job.name}`
-            "
-            @click="ask(job)"
-            ><Play class="h-3.5 w-3.5" />{{
-              job.name === 'retain-deployment-images' ? 'Clean up' : 'Run'
-            }}</Button
-          >
-        </div>
+        <RowActions
+          :id="`instance-job-actions-${job.name}`"
+          :label="`Actions for ${job.friendlyName || job.name}`"
+          :busy="submitting"
+          class="shrink-0 text-gray-400 dark:text-gray-400"
+        >
+          <template #menu>
+            <button
+              type="button"
+              :disabled="
+                !job.manualAllowed ||
+                submitting ||
+                (job.name === 'retain-deployment-images' &&
+                  job.cleanupEnabled === false)
+              "
+              class="flex w-full items-center rounded px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
+              @click="ask(job)"
+            >
+              <Play class="mr-2 h-4 w-4" />Run now
+            </button>
+          </template>
+        </RowActions>
       </article>
     </div>
     <div class="space-y-3">
@@ -309,25 +294,17 @@ onBeforeUnmount(() => {
       :show="Boolean(review)"
       :loading="submitting"
       :title="
-        review?.preview
-          ? 'Preview deployment image cleanup?'
-          : review?.name === 'retain-deployment-images'
+        review?.name === 'retain-deployment-images'
           ? 'Clean up deployment images?'
           : `Run ${review?.friendlyName || review?.name || 'job'}?`
       "
       :message="
         review?.name === 'retain-deployment-images'
-          ? review.preview
-            ? 'Inspect eligible images without removing anything. The regular cleanup schedule stays in place.'
-            : 'Remove eligible old deployment images now, preserving container, deployment and recovery references. Cleanup runs in bounded batches; run again for a remaining backlog.'
+          ? 'Remove eligible old deployment images now, preserving container, deployment and recovery references. Cleanup runs in bounded batches; run again for a remaining backlog.'
           : 'This runs the instance job immediately with its existing configured defaults. It can perform operational work. Its regular schedule stays in place.'
       "
       :confirm-label="
-        review?.preview
-          ? 'Preview'
-          : review?.name === 'retain-deployment-images'
-          ? 'Clean up'
-          : 'Run job'
+        review?.name === 'retain-deployment-images' ? 'Clean up' : 'Run job'
       "
       @confirm="run"
       @cancel="review = null"

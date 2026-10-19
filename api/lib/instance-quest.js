@@ -184,7 +184,9 @@ function create(sails) {
             runningCount: job.runningCount,
             ...(job.name === 'retain-deployment-images'
               ? {
-                  cleanupEnabled: sails.config.imageRetention?.remove === true
+                  cleanupEnabled:
+                    sails.config.imageRetention?.remove === undefined ||
+                    sails.config.imageRetention?.remove === true
                 }
               : {}),
             manualAllowed:
