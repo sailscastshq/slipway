@@ -3,7 +3,7 @@ import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
-import { inject, ref, computed, onMounted } from 'vue'
+import { inject, ref, computed, onMounted, onUnmounted } from 'vue'
 import BridgePageLayout from '@/layouts/BridgePageLayout.vue'
 import { useToast } from '@/composables/toast'
 import Spinner from '@/components/SlipwaySpinner.vue'
@@ -18,6 +18,7 @@ import { usePrecognitionValidation } from '@/composables/precognition'
 import BridgePageHeader from '@/components/bridge/BridgePageHeader.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import ErrorState from '@/components/ui/error-state/ErrorState.vue'
+import { createDependentDefaults } from '@/lib/bridge/dependent-defaults.mjs'
 
 defineOptions({
   layout: BridgePageLayout
@@ -86,6 +87,10 @@ function displayIdentifier(value) {
 // Form state
 const formValues = ref({})
 const formErrors = ref({})
+const defaultsPending = ref(false)
+const defaultsError = ref('')
+let dependentDefaults
+onUnmounted(() => dependentDefaults?.dispose())
 const form = useForm({ values: {} })
   .withPrecognition('post', () => actionUrl.value)
   .setValidationTimeout(350)
@@ -117,6 +122,52 @@ onMounted(() => {
 
   formValues.value = values
   form.values = values
+  const provider = props.modelMeta.defaultsProvider
+  if (
+    provider &&
+    [...provider.dependsOn, ...provider.fields].every((name) =>
+      Object.hasOwn(values, name)
+    )
+  ) {
+    dependentDefaults = createDependentDefaults({
+      provider,
+      getValues: () => formValues.value,
+      emptyValue: (name) =>
+        toBridgeFieldInputValue(props.modelMeta.attributes[name], undefined),
+      applyValues: (patch) => {
+        for (const [name, value] of Object.entries(patch)) {
+          if (!sameRelationshipValue(formValues.value[name], value))
+            clearDependentRelationshipValues(name)
+        }
+        Object.assign(formValues.value, patch)
+        for (const name of Object.keys(patch)) clearFieldError({ name })
+      },
+      onPending: (value) => {
+        defaultsPending.value = value
+      },
+      onError: () => {
+        defaultsError.value =
+          'Suggested values are unavailable. You can enter them manually.'
+      },
+      fetchDefaults: async (dependencies, signal) => {
+        defaultsError.value = ''
+        const params = new URLSearchParams({
+          surface: isEdit.value ? 'edit' : 'create',
+          dependencies: JSON.stringify(dependencies),
+          ...(isEdit.value ? { recordId: props.recordId } : {})
+        })
+        const response = await fetch(
+          `${bridgeApiBasePath.value}/${encodePathSegment(
+            resourceSlug.value
+          )}/defaults?${params}`,
+          { signal, headers: { Accept: 'application/json' } }
+        )
+        if (!response.ok) throw new Error('Defaults unavailable')
+        return response.json()
+      }
+    })
+    dependentDefaults.refresh()
+  }
 })
 
 // Editable fields
@@ -160,6 +211,7 @@ const hasBridgeFieldErrors = computed(() =>
 )
 const isFormReady = computed(
   () =>
+    !defaultsPending.value &&
     editableFields.value.every(hasRequiredValue) &&
     Object.keys(formErrors.value).length === 0 &&
     !hasBridgeFieldErrors.value
@@ -211,10 +263,15 @@ function validateAndRemember(field, validateOnServer = true) {
 }
 
 function updateField(field, value) {
+  dependentDefaults?.markEdited(field.name)
   const previous = formValues.value[field.name]
   formValues.value[field.name] = value
   if (!sameRelationshipValue(previous, value)) {
     clearDependentRelationshipValues(field.name)
+    if (props.modelMeta.defaultsProvider?.dependsOn.includes(field.name)) {
+      defaultsError.value = ''
+      dependentDefaults?.refresh()
+    }
   }
   if (formErrors.value[serverFieldName(field)]) {
     validateAndRemember(field, false)
@@ -532,6 +589,13 @@ function recordUrl() {
           </div>
 
           <!-- Actions -->
+          <p
+            v-if="defaultsPending || defaultsError"
+            role="status"
+            class="text-sm text-gray-500 dark:text-gray-400"
+          >
+            {{ defaultsPending ? 'Loading suggested values…' : defaultsError }}
+          </p>
           <div class="flex items-center justify-end gap-3 pt-1">
             <Link
               :href="isEdit ? recordUrl() : modelUrl()"

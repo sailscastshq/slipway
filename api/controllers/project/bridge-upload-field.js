@@ -124,6 +124,13 @@ module.exports = {
       directory,
       configuredFilename
     } = target
+    if (upload.immutable === true) {
+      throw {
+        badRequest: {
+          message: 'This field requires a completed direct multipart upload.'
+        }
+      }
+    }
     const objectId = crypto.randomUUID()
 
     const uploadedFiles = await new Promise((resolve, reject) => {

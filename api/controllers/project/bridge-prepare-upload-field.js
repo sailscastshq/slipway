@@ -112,7 +112,10 @@ module.exports = {
     }
 
     const url = publicUrlFor(target.storage.publicUrl, objectPath)
-    const strategy = fileSize > MULTIPART_THRESHOLD ? 'multipart' : 'single'
+    const strategy =
+      target.upload.immutable === true || fileSize > MULTIPART_THRESHOLD
+        ? 'multipart'
+        : 'single'
     const partSize = strategy === 'multipart' ? choosePartSize(fileSize) : null
     const partCount = partSize ? Math.ceil(fileSize / partSize) : null
     let uploadId = null
@@ -123,7 +126,8 @@ module.exports = {
           operation: 'createMultipart',
           storage: target.storage,
           objectPath,
-          contentType: normalizedType
+          contentType: normalizedType,
+          immutable: target.upload.immutable === true
         })
         uploadId = created.uploadId
       }

@@ -9,6 +9,58 @@ const storage = {
   region: 'auto'
 }
 
+test('Bridge sets immutable metadata server-side at multipart creation and reads it from HEAD', async ({
+  sails
+}) => {
+  const assert = require('node:assert/strict')
+  const markers = []
+  const server = http.createServer((req, res) => {
+    req.resume()
+    if (req.method === 'POST') {
+      markers.push(req.headers['x-amz-meta-bridgeimmutable'])
+      res.writeHead(200, { 'Content-Type': 'application/xml' })
+      res.end(
+        '<InitiateMultipartUploadResult><Bucket>course-videos</Bucket><Key>talks/proposal-1/id.mp4</Key><UploadId>fixture-upload</UploadId></InitiateMultipartUploadResult>'
+      )
+    } else {
+      assert.equal(req.method, 'HEAD')
+      res.writeHead(200, {
+        'Content-Length': '1024',
+        'Content-Type': 'video/mp4',
+        ETag: '"complete"',
+        'x-amz-meta-bridgeimmutable': 'multipart-v1'
+      })
+      res.end()
+    }
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const local = {
+      ...storage,
+      endpoint: `http://127.0.0.1:${server.address().port}`
+    }
+    for (const immutable of [true, false]) {
+      const created = await sails.helpers.bridge.directUploadStorage.with({
+        operation: 'createMultipart',
+        storage: local,
+        objectPath: 'talks/proposal-1/id.mp4',
+        contentType: 'video/mp4',
+        immutable
+      })
+      assert.equal(created.uploadId, 'fixture-upload')
+    }
+    assert.deepEqual(markers, ['multipart-v1', undefined])
+    const head = await sails.helpers.bridge.directUploadStorage.with({
+      operation: 'head',
+      storage: local,
+      objectPath: 'talks/proposal-1/id.mp4'
+    })
+    assert.equal(head.bridgeImmutable, 'multipart-v1')
+  } finally {
+    await new Promise((resolve) => server.close(resolve))
+  }
+})
+
 test('Bridge signs a short-lived direct PUT for the exact R2 object', async ({
   sails,
   expect

@@ -16,6 +16,10 @@ module.exports = {
       type: 'ref',
       required: true
     },
+    completedMultipart: {
+      type: 'boolean',
+      defaultsTo: false
+    },
     expiresInMs: {
       type: 'number',
       defaultsTo: 30 * 60 * 1000,
@@ -30,11 +34,12 @@ module.exports = {
     }
   },
 
-  fn: async function ({ url, context, expiresInMs }) {
+  fn: async function ({ url, context, completedMultipart, expiresInMs }) {
     assertSafeUrl(url)
     assertContext(context)
     const payload = {
       version: 1,
+      ...(completedMultipart === true ? { completedMultipart: true } : {}),
       url,
       actorId: String(context.actorId),
       ...(context.appId == null ? {} : { appId: String(context.appId) }),

@@ -706,6 +706,51 @@ normalized. Rich text supports the explicit Markdown format and repeats the
 raw-HTML denial on the server. Relationship and upload fields are not action
 inputs; use record forms for those workflows.
 
+### Private video and PDF action previews
+
+A record action can return a native media preview instead of a toast:
+
+```js
+return {
+  preview: {
+    type: 'video', // or 'pdf'
+    title: file.filename,
+    url: `/api/files/${file.id}/preview`
+  }
+}
+```
+
+This result is available only in the app-host Bridge, where the browser already
+has the app's authenticated session. Slipway authorizes the action normally,
+validates the bounded result and opens the existing Klean Dialog. Only video
+and PDF are supported. External slide links and PPTX/ZIP downloads remain
+separate app actions. No arbitrary HTML, storage URLs or remote embeds are
+accepted.
+
+`url` must be a root-relative ASCII path (maximum 2,048 characters) without
+query strings, fragments, encoded characters, empty or dot segments, backslashes
+or an origin. The configured helper must construct the path from authorized
+server-side asset IDs. Titles are plain text, at most 512 characters on input,
+and shortened to 120 characters for display. No client-supplied URL chooses the
+preview target.
+
+The app endpoint must independently reauthorize **HEAD, GET and every Range
+request**, enforce owner/team access, and return `video/mp4`, `video/webm` or
+`application/pdf` as appropriate. Serve inline with `X-Content-Type-Options:
+nosniff`, private/no-store caching, and no redirects or exposed storage URLs.
+The viewer first makes a same-origin authenticated HEAD request with redirects
+disabled to check access and MIME. Videos then use the native player and the
+private endpoint's range support without buffering the whole recording.
+
+PDFs are fetched once through the private endpoint with redirects disabled,
+checked again for PDF MIME and a PDF signature, and displayed as a browser-local
+PDF blob. Downloads are capped at 64 MiB even if Content-Length is absent. This
+avoids framing a mutable HTML response and supports the browser's built-in PDF
+viewer without a generic HTML sandbox escape. It creates no storage copy or
+staging object. Closing or navigating away stops video, aborts pending requests,
+releases the PDF blob, and restores dialog focus. A failed permission/MIME check
+shows an unavailable message without mounting the media.
+
 ### Submit captions for a boolean intent field
 
 An action may keep its menu/dialog `label` while changing its submit button for a
@@ -1123,6 +1168,55 @@ one-to-many detach can still be rejected by Waterline when the related foreign
 key is required; Bridge returns that model error instead of forcing an invalid
 state.
 
+## Dependent form defaults
+
+A resource can suggest editable values from selected form dependencies without
+turning a custom record into a read-only form:
+
+```js
+resources: {
+  shipment: {
+    defaultsProvider: {
+      helper: 'bridge.customerAddressDefaults',
+      dependsOn: ['country', 'customer'],
+      fields: ['street', 'city', 'postalCode']
+    }
+  }
+}
+```
+
+The configured app helper receives `{ actor, surface, recordId?, values }`.
+`surface` is `create` or `edit`; `recordId` is the authorized canonical ID on
+edit only. `values` contains typed declared dependencies, for example
+`{ country, customer }`. Return `{ values: { street, city, postalCode } }`, or a
+partial values object. Return `{ values: {} }` when no suggestions apply. The
+helper must be read-only and must resolve the selected customer within the
+selected country and the actor's permitted scope.
+
+Bridge authorizes create/update before calling the configured helper. It
+checks relationship dependencies before execution and validates and authorizes
+returned values before sending them to the form. Configure the customer
+relationship's existing `where: { country: { fromField: 'country' } }` scope
+as appropriate. The provider receives no arbitrary client helper name, target
+field list or additional form values. Defaults remain suggestions; submission
+uses the ordinary mutation authorization and validation rules.
+
+`dependsOn` and `fields` each contain 1–10 unique editable scalar or belongs-to
+field names available on the resource's enabled create/edit forms. They cannot
+overlap; targets cannot include the primary key, protected, encrypted,
+sensitive, read-only, upload or JSON fields. Results are bounded to 12,000
+characters and may contain only configured target fields. The JSON endpoint is
+`GET <Bridge API base>/<resource slug>/defaults`, with `surface`, optional edit
+`recordId`, and a JSON `dependencies` query. Responses use `Cache-Control:
+no-store`. Missing dependencies return no suggestions without calling the app.
+
+Suggestions fill blank fields and replace only earlier automatic suggestions.
+Manual edits, deliberate clears and existing nonblank record values are
+preserved. Changing or clearing a dependency immediately clears automatically
+owned values; custom entries remain editable. Requests are aborted and stale
+responses ignored after another selection or navigation. Submission waits for
+the current request; a failed lookup leaves manual entry available.
+
 ## Upload configuration boundary
 
 Upload fields describe behavior only. Never put R2 or S3 credentials in
@@ -1221,6 +1315,48 @@ the current actor, project, environment, resource, and field. The target model
 stores only the URL. A browser therefore cannot forge a different remote URL,
 alter the file size or type, or reuse an upload session or receipt across apps,
 records, or fields.
+
+For final material objects that must not retain a reusable browser write
+capability after attachment, opt in on the upload field:
+
+```js
+upload: {
+  storage: 'bridge',
+  scope: 'bucket',
+  directory: 'documents/{id}',
+  immutable: true,
+  accept: ['application/pdf'],
+  maxBytes: 64 * 1024 * 1024
+}
+```
+
+For a record-scoped action, `{id}` comes from the authorized stored record;
+submitted values cannot select another record or object ID. With no filename
+template, the final key is `documents/<recordId>/<server-generated UUID>.<ext>`.
+No staging object or copy is involved. The action still receives a verified URL
+string, and can use the UUID as its asset identity for idempotent attachment.
+
+`immutable: true` forces multipart even for files at or below 16 MiB (including
+a single final part below the normal minimum part size). Bridge sets object
+metadata `bridgeimmutable: multipart-v1` at server-side multipart creation.
+Completion closes the upload, verifies the exact size, MIME type and marker,
+then signs `completedMultipart: true` into the existing target-bound receipt.
+Submission requires that claim for immutable fields. The browser receives only
+part-upload URLs; once completed, that upload ID cannot overwrite the object.
+This does not restrict administrators or other holders of bucket credentials.
+Cleanup can recognize new immutable objects from the metadata marker, while
+still checking application references and retention rules before deletion.
+
+Missing multipart IDs recover a lost completion response only if HEAD verifies
+the marked final object. Incomplete parts, failed completion, failed HEAD or a
+missing marker cannot issue an immutable receipt. The legacy proxied upload
+route and old single-PUT intents cannot bypass the immutable contract.
+
+Ordinary upload fields retain their existing behavior. Finish and submit any
+already completed legacy uploads before activating `immutable` in the app's
+field configuration. Old receipts lack the proof claim and fail closed after
+activation; an unmarked legacy upload then needs an explicit new upload. There
+is no database migration and no automatic conversion or copying of old objects.
 
 Because the browser uploads directly, the bucket must allow `PUT` from every
 origin where Bridge is rendered. For example, an app available both in Slipway

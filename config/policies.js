@@ -143,6 +143,7 @@ module.exports.policies = {
   'project/bridge-action-options': 'is-bridge-authenticated',
   'project/bridge-execute-action': 'is-bridge-authenticated',
   'project/bridge-relationship-options': 'is-bridge-authenticated',
+  'project/bridge-form-defaults': 'is-bridge-authenticated',
   'project/bridge-update-relationship': 'is-bridge-authenticated',
   'project/bridge-upload-field': 'is-bridge-authenticated',
   'project/bridge-prepare-upload-field': 'is-bridge-authenticated',

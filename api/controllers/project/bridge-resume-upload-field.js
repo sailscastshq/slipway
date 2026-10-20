@@ -68,7 +68,11 @@ module.exports = {
         })
       } catch (error) {
         if (error.code !== 'BRIDGE_MULTIPART_UPLOAD_MISSING') throw error
-        const completed = await completedObject(storage, payload)
+        const completed = await completedObject(
+          storage,
+          payload,
+          session.upload
+        )
         if (!completed) throw error
         return {
           strategy: 'multipart',
@@ -115,7 +119,7 @@ module.exports = {
   }
 }
 
-async function completedObject(storage, payload) {
+async function completedObject(storage, payload, upload) {
   try {
     const object = await sails.helpers.bridge.directUploadStorage.with({
       operation: 'head',
@@ -124,7 +128,8 @@ async function completedObject(storage, payload) {
     })
     return (
       object.size === payload.fileSize &&
-      normalizeType(object.type) === normalizeType(payload.fileType)
+      normalizeType(object.type) === normalizeType(payload.fileType) &&
+      (upload?.immutable !== true || object.bridgeImmutable === 'multipart-v1')
     )
   } catch {
     return false
