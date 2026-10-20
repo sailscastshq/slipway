@@ -6,6 +6,7 @@ const props = defineProps({
   id: String,
   modelValue: { type: Array, default: () => [] },
   searchUrl: { type: String, required: true },
+  placeholder: { type: String, default: 'Search options' },
   dependencies: { type: Object, default: () => ({}) },
   recordId: [String, Number],
   conditionToken: String,
@@ -63,7 +64,7 @@ async function search(q = '') {
   } catch (cause) {
     if (current === sequence && cause.name !== 'AbortError') {
       options.value = []
-      error.value = 'Could not load people. Try searching again.'
+      error.value = 'Could not load options. Try searching again.'
     }
   } finally {
     if (current === sequence) loading.value = false
@@ -114,8 +115,8 @@ onBeforeUnmount(() => {
       :error="error"
       :aria-invalid="invalid || undefined"
       :aria-describedby="describedBy"
-      placeholder="Search by name or email"
-      empty-text="No eligible people found."
+      :placeholder="placeholder"
+      empty-text="No eligible options found."
       class="focus:border-brand dark:focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 text-sm shadow-none focus:outline-none dark:border-gray-700 dark:bg-transparent dark:focus:outline-none"
       @update:query="setQuery"
       @search="search"
@@ -128,11 +129,10 @@ onBeforeUnmount(() => {
       @blur="emit('blur')"
     />
     <p v-if="hasMore" class="mt-1 text-xs text-gray-500">
-      More people match. Keep typing to narrow the search.
+      More options match. Keep typing to narrow the search.
     </p>
     <p v-if="modelValue.length" class="mt-1 text-xs text-gray-500">
-      {{ modelValue.length }}
-      {{ modelValue.length === 1 ? 'person' : 'people' }} selected
+      {{ modelValue.length }} selected
     </p>
   </div>
 </template>

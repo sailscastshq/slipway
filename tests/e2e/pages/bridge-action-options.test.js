@@ -40,13 +40,16 @@ test(
         exact: true
       })
       await expect(submit).toBeDisabled()
-      const search = dialog.getByPlaceholder('Search by name or email')
+      const search = dialog.getByPlaceholder('Search options')
       await search.fill('alex@example.com')
       await page.raw.getByRole('option', { name: /Alex/ }).click()
       await expect(
         dialog.getByRole('button', { name: 'Remove Alex' })
       ).toBeVisible()
       await expect(submit).toBeEnabled()
+      await expect(
+        dialog.getByText('1 selected', { exact: true })
+      ).toBeVisible()
       expect(
         await search.evaluate((el) => getComputedStyle(el).borderBottomStyle)
       ).toBe('dashed')
@@ -63,6 +66,52 @@ test(
       await expect(submit).toBeDisabled()
       expect(state.calls.length).toBe(0)
       await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+      // The normalized action-field placeholder must reach the native picker.
+      state.contract.resources.proposal.actionDefinitions.sendDecision.fields.people.field.placeholder =
+        'Search available documents'
+      await page.raw.reload()
+      await page.raw.getByRole('button', { name: /Actions for/ }).click()
+      await page.raw
+        .locator('[data-test=bridge-record-action-menu-sendDecision]')
+        .click()
+      await dialog.getByLabel('Selection Mode', { exact: true }).click()
+      await page.raw
+        .getByRole('option', { name: 'selected', exact: true })
+        .click()
+      const customSearch = dialog.getByPlaceholder('Search available documents')
+      await expect(customSearch).toBeVisible()
+      await page.raw.route('**/fields/people/options?**', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ options: [], hasMore: true })
+        })
+      )
+      await customSearch.fill('missing')
+      await expect(
+        page.raw.getByText('No eligible options found.', { exact: true })
+      ).toBeVisible()
+      await expect(
+        dialog.getByText(
+          'More options match. Keep typing to narrow the search.',
+          { exact: true }
+        )
+      ).toBeVisible()
+      await page.raw.route('**/fields/people/options?**', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: 'invalid JSON'
+        })
+      )
+      await customSearch.fill('retry')
+      await expect(
+        page.raw.getByText('Could not load options. Try searching again.', {
+          exact: true
+        })
+      ).toBeVisible()
+      await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+      expect(state.calls.length).toBe(0)
       expect(page).toHaveNoSmoke()
     } finally {
       state.restore()

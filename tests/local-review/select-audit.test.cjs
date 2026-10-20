@@ -128,7 +128,7 @@ test('shared selects preserve underline, states, focus and recipient selection a
     const people = page.locator('#recipients')
     await people.click()
     await page.getByRole('option', { name: 'Ada Fixture', exact: true }).click()
-    await expect(page.getByText('1 person selected')).toBeVisible()
+    await expect(page.getByText('1 selected', { exact: true })).toBeVisible()
     await expect(page.getByText('Ada Fixture', { exact: true })).toBeVisible()
     expect(errors).toEqual([])
     console.log(

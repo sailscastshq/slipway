@@ -825,6 +825,7 @@ function defaultPlaceholder(fieldType) {
         :id="fieldId"
         :model-value="Array.isArray(modelValue) ? modelValue : []"
         v-bind="actionOptions"
+        :placeholder="attribute.field?.placeholder"
         :invalid="Boolean(visibleError)"
         :described-by="describedBy"
         @update:model-value="update"
