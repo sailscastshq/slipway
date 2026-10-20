@@ -686,6 +686,15 @@ Bulk actions accept at most 100 selected IDs per execution. Slipway normalizes
 and deduplicates every identifier against the resource primary-key contract
 before authorization or helper execution.
 
+After a successful record action, Bridge checks whether its record still exists
+with a primary-key-only lookup in the same worker and a two-second advisory
+deadline. A
+confirmed missing record returns to the resource list. An existing record or an
+inconclusive lookup retains the record-detail destination. A helper result with
+`cleanupPending: true` or a media preview skips this lookup. Errors retain their
+normal handling, and cancellation never invokes the helper. No redirect URL or
+`recordRemoved` flag supplied by a helper or request controls this navigation.
+
 Actions without fields, confirmation, or destructive behavior execute
 directly from the menu. An action with fields or confirmation opens one focused
 dialog. `destructive: true` supplies a safe confirmation message when none is

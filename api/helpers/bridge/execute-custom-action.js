@@ -147,7 +147,36 @@ module.exports = {
           : ''
       }
       const result = await helper.with(inputs);
-      if (result === undefined || result === null) return {};
+      // This is advisory navigation after success, never another mutation.
+      // Do not trust a helper-supplied redirect or recordRemoved flag.
+      let recordRemoved = false;
+      if (${JSON.stringify(
+        action.scope === 'record'
+      )} && recordId !== undefined &&
+          result?.cleanupPending !== true && result?.preview === undefined) {
+        let probeTimer;
+        try {
+          recordRemoved = await Promise.race([
+            Promise.resolve().then(async () => {
+              const record = await sails.models[${JSON.stringify(
+                resource.identity
+              )}]
+                .findOne(${JSON.stringify({ [resource.primaryKey]: recordId })})
+                .select([${JSON.stringify(resource.primaryKey)}]);
+              return record === null || record === undefined;
+            }),
+            new Promise(resolve => {
+              probeTimer = setTimeout(() => resolve(false), 2000);
+            })
+          ]);
+        } catch {
+          // A completed helper must not be reported as failed due to this probe.
+        } finally {
+          clearTimeout(probeTimer);
+        }
+      }
+      const navigation = recordRemoved ? { recordRemoved: true } : {};
+      if (result === undefined || result === null) return navigation;
       if (result.preview !== undefined && JSON.stringify(result.preview).length > 4096) throw new Error('Bridge preview is too large.');
       if (invocation && invocation.result && invocation.result.message) {
         if (typeof result !== 'object' || Array.isArray(result)) {
@@ -172,11 +201,12 @@ module.exports = {
             return String(value);
           }
         );
-        return { message, preview: result.preview, notification: result.notification && JSON.stringify(result.notification).length <= 64000 ? result.notification : undefined };
+        return { ...navigation, message, preview: result.preview, notification: result.notification && JSON.stringify(result.notification).length <= 64000 ? result.notification : undefined };
       }
-      if (typeof result === 'string') return { message: result };
-      if (typeof result !== 'object' || Array.isArray(result)) return {};
+      if (typeof result === 'string') return { ...navigation, message: result };
+      if (typeof result !== 'object' || Array.isArray(result)) return navigation;
       return {
+        ...navigation,
         preview: result.preview,
         notification: result.notification && JSON.stringify(result.notification).length <= 64000 ? result.notification : undefined,
         message:
@@ -257,6 +287,7 @@ module.exports = {
       )
     return {
       message: safeMessage(output?.message) || action.success,
+      ...(output?.recordRemoved === true ? { recordRemoved: true } : {}),
       ...(preview ? { preview } : {}),
       ...(notification ? { notification } : {})
     }
