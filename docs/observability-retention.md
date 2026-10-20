@@ -45,8 +45,8 @@ and log streams keep their existing continuity.
 Measure the subscription lifecycle without assuming CPU or RAM savings:
 
 ```sh
-node scripts/measure-hidden-lookout.mjs 0b1c3a6
-node scripts/measure-hidden-lookout.mjs
+node tools/measure-hidden-lookout.mjs 0b1c3a6
+node tools/measure-hidden-lookout.mjs
 ```
 
 The harness counts active connections and delivered callbacks over four simulated

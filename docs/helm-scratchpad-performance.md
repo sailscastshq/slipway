@@ -29,7 +29,7 @@ crash before an autosave can lose edits made within the short pending window.
 Run from the repository root after installing dependencies:
 
 ```sh
-node scripts/benchmark-helm-scratchpads.mjs --baseline-ref=88c53d2
+node tools/benchmark-helm-scratchpads.mjs --baseline-ref=88c53d2
 ```
 
 The optional baseline ref must contain the pre-change composable; omit it to

@@ -38,7 +38,7 @@ The existing `~/.slipway/config.json` connection resolved `https://slipway.sails
 - `node --test tests/contracts/quest-registry-initialization.cjs`: 2 passed.
 - Existing mocked manual-backup browser trial: passed.
 - New backup-row browser trial: passed, including last success after failure, enabled retry, grouped actions, desktop/mobile overflow and dark/light screenshots.
-- Normal CLI invocation: `npm run check:consistency`, `node scripts/rehearse-coolify-migration.cjs --help`, and the synthetic `node scripts/benchmark-migration-catalog.cjs` completed successfully. The deleted Bridge benchmark has no remaining executable references. Repository search found no stale executable `.js` references to renamed tools.
+- Normal CLI invocation: `npm run check:consistency`, `node tools/rehearse-coolify-migration.cjs --help`, and the synthetic `node tools/benchmark-migration-catalog.cjs` completed successfully. The deleted Bridge benchmark has no remaining executable references. Repository search found no stale executable `.js` references to renamed tools.
 - Prettier on changed source and command scripts, and `git diff --check`: passed.
 
 Direct live resident-registry inspection is not exposed by the read endpoints used; the production evidence above is deliberately limited. No live database backup, restore, schedule mutation, migration, deployment, merge or release was performed.

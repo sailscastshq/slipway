@@ -12,7 +12,7 @@ Check the installed version without printing credentials:
 docker exec slipway node -p 'require("./package.json").version'
 ```
 
-Download `scripts/bootstrap-unpublished-update.cjs` from a reviewed commit in this repository, then run it inside the existing management container:
+Download `tools/bootstrap-unpublished-update.cjs` from a reviewed commit in this repository, then run it inside the existing management container:
 
 ```bash
 docker exec -i slipway node < /tmp/slipway-update-bootstrap.cjs

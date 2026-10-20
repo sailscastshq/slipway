@@ -27,7 +27,7 @@ on:
       - packages/hook/lib/quest*
       - config/routes.js
       - config/shipwright.js
-      - scripts/quest-preload-manifest.js
+      - tools/quest-preload-manifest.js
       - views/app.ejs
       - config/policies.js
       - tests/e2e/pages/projects/quest.test.js

@@ -8,7 +8,7 @@ const renderInertia = require('inertia-sails/lib/render')
 const {
   QuestPreloadManifestPlugin,
   questPreloadAssets
-} = require('../../../scripts/quest-preload-manifest')
+} = require('../../../tools/quest-preload-manifest')
 
 const js = '/js/async/1234.0123456789.js'
 const css = '/css/async/1234.abcdef0123.css'

@@ -16,7 +16,7 @@ After:
 
 ![Resource-specific warning](images/resource-alert-after.png)
 
-[Mobile rendering](images/resource-alert-after-mobile.png). These are synthetic fixture renders of the actual EJS template and mail layout, not a live email or the user's screenshot. Regenerate with `node scripts/render-resource-alert-examples.cjs`; Playwright checks desktop and mobile horizontal overflow.
+[Mobile rendering](images/resource-alert-after-mobile.png). These are synthetic fixture renders of the actual EJS template and mail layout, not a live email or the user's screenshot. Regenerate with `node tools/render-resource-alert-examples.cjs`; Playwright checks desktop and mobile horizontal overflow.
 
 ## Delivery contract
 
@@ -44,7 +44,7 @@ No existing table is altered or dropped. The migration contract test runs the sc
 
 ## Collector impact and verification
 
-[Recorded benchmark data](evidence/resource-alert-collector-benchmark.json) compares baseline commit `0fb573776551106a91a4d0f67f6a2be3712d5513` with this implementation. Run `node scripts/benchmark-resource-alert-collector.cjs` to repeat it.
+[Recorded benchmark data](evidence/resource-alert-collector-benchmark.json) compares baseline commit `0fb573776551106a91a4d0f67f6a2be3712d5513` with this implementation. Run `node tools/benchmark-resource-alert-collector.cjs` to repeat it.
 
 Seven paired synthetic runs, each containing 100 collector cycles with 50 healthy containers, produced median totals of 4.8145 ms before and 5.3539 ms after: approximately 5.39 microseconds more per 50-container cycle. Both performed 5,000 state reads and 5,000 state writes, with zero outbox reads or writes in the healthy collector path. For 50 already active incidents, the collector adds one indexed existence read per active resource per cycle for legacy backfill. The separate idle dispatcher performs one due query per 30-second tick; 10,000 empty local SQLite queries averaged 0.333 microseconds each.
 

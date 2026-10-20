@@ -474,7 +474,7 @@ test('legacy updater bootstrap refuses unknown sources and is idempotent without
     path.join(require('node:os').tmpdir(), 'slipway-bootstrap-')
   )
   const helper = path.join(root, 'api/helpers/system/apply-update.js')
-  const script = path.resolve('scripts/bootstrap-unpublished-update.cjs')
+  const script = path.resolve('tools/bootstrap-unpublished-update.cjs')
   try {
     await fs.mkdir(path.dirname(helper), { recursive: true })
     await fs.writeFile(
@@ -527,7 +527,7 @@ test('0.0.87 bootstrap validates both helpers before changing files and allows m
   const docker = path.join(root, 'api/helpers/docker')
   const helper = path.join(system, 'apply-update.js')
   const swap = path.join(system, 'build-update-swap-script.js')
-  const script = path.resolve('scripts/bootstrap-unpublished-update.cjs')
+  const script = path.resolve('tools/bootstrap-unpublished-update.cjs')
   const source =
     "module.exports = { fn: async function () { tempArgs.push('-p', formatPortBinding(portHost, tempPort, 1337))\n await sails.helpers.docker.healthCheckContainer.with({ timeout: 60000, path: '/health' }) } }"
   try {
