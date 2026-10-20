@@ -1,0 +1,5 @@
+{"cycle":0,"elapsedMs":1540,"rssMiB":185}
+{"cycle":10,"elapsedMs":7893,"rssMiB":225}
+{"cycle":20,"elapsedMs":12653,"rssMiB":225}
+{"cycle":30,"elapsedMs":17423,"rssMiB":226}
+{"completedCycles":40,"workerResults":[{"workerOk":40,"busy":0},{"workerOk":40,"busy":0}],"elapsedMs":21736,"maxRssMiB":226.984375,"node":"v22.23.3","arch":"x64","sqlite":"12.11.1","method":"synthetic SQLite WAL readers/writers plus multi-megabyte redaction, mmap=0, two short-lived console analogues; excludes full Sails/production data; x64 emulation on ARM64 Mac"}
