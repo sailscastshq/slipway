@@ -18,7 +18,7 @@ Short numeric environment values no longer erase digits inside unrelated address
 
 ## One-time repair for an already running legacy updater
 
-An older running updater needs a bootstrap before it can start the fixed image. `scripts/bootstrap-unpublished-update.cjs` supports 0.0.88/0.0.89 and removes only the known unnecessary validation-port publication statement. It checks source shape and JavaScript syntax, retains a private source backup, preserves source ownership, replaces the helper atomically and is idempotent. Unsupported versions or unexpected source stop without replacing the helper.
+An older running updater needs a bootstrap before it can start the fixed image. `tools/bootstrap-unpublished-update.cjs` supports 0.0.88/0.0.89 and removes only the known unnecessary validation-port publication statement. It checks source shape and JavaScript syntax, retains a private source backup, preserves source ownership, replaces the helper atomically and is idempotent. Unsupported versions or unexpected source stop without replacing the helper.
 
 Run the repair inside the existing management container, restart only `slipway` to reload its helper, then use Settings to update. Customer application containers remain running; the repair does not open database files or change credentials. See [bootstrap instructions](https://github.com/sailscastshq/slipway/blob/v0.0.91/docs/self-update-port-bootstrap.md).
 

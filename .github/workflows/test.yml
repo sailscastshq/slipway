@@ -146,7 +146,7 @@ jobs:
       - run: npm ci --no-audit
       - run: npx playwright install --with-deps chromium
       - name: Capture matching baseline and current terminal fixtures
-        run: bash scripts/compare-helm-terminal-prompt.sh
+        run: bash tools/compare-helm-terminal-prompt.sh
       - name: Verify current component files were restored
         if: always()
         run: git diff --exit-code -- assets/js/components/HelmCommandConsole.vue assets/js/components/HelmWriteGuardDialog.vue
@@ -253,7 +253,7 @@ jobs:
           cache: 'npm'
       - run: npm ci --no-audit
       - run: docker pull '${{ matrix.image }}'
-      - run: node scripts/verify-schema-diff-containers.cjs
+      - run: node tools/verify-schema-diff-containers.cjs
         env:
           SLIPWAY_SCHEMA_TEST_DIALECT: ${{ matrix.dialect }}
 

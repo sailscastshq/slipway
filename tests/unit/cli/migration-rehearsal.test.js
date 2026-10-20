@@ -9,7 +9,7 @@ const { test } = require('sounding')
 test('migration rehearsal requires a disposable local Docker target and respects context precedence', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'migration-guard-'))
   const calls = path.join(root, 'calls.json')
-  const script = path.resolve('scripts/rehearse-coolify-migration.cjs')
+  const script = path.resolve('tools/rehearse-coolify-migration.cjs')
   const docker = path.join(root, 'docker')
   await fs.writeFile(
     docker,

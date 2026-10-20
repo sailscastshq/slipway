@@ -33,7 +33,7 @@ the critical path, not the small storage, schema, or asset checks.
 
 ## Helm terminal prompt review evidence
 
-`bash scripts/compare-helm-terminal-prompt.sh` runs a version-neutral browser
+`bash tools/compare-helm-terminal-prompt.sh` runs a version-neutral browser
 capture against baseline components from pinned commit
 `4c79b78f30ce8ed434f60cefb9e7957521e5cb6c` and then the current components. Run it
 only in a disposable checkout with that Git object and browser dependencies
@@ -62,7 +62,7 @@ Generated artifacts live in
 
 ## Coolify migration rehearsal
 
-Run `node scripts/rehearse-coolify-migration.cjs` from a clean checkout with its
+Run `node tools/rehearse-coolify-migration.cjs` from a clean checkout with its
 lockfile dependencies installed. It composes existing offline contracts with
 `tests/functional/api/coolify-migration.test.js`, which inspects three isolated
 source/configuration inventories. The generated sources intentionally refuse

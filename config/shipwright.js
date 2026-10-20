@@ -4,7 +4,7 @@ try {
   const { pluginInertia } = require('rsbuild-plugin-inertia')
   const {
     QuestPreloadManifestPlugin
-  } = require('../scripts/quest-preload-manifest')
+  } = require('../tools/quest-preload-manifest')
 
   module.exports.shipwright = {
     build: {

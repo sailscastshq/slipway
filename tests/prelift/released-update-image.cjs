@@ -262,7 +262,7 @@ async function main() {
     assert.equal(loaded().legacyPort, true)
     docker([
       'cp',
-      path.resolve('scripts/bootstrap-unpublished-update.cjs'),
+      path.resolve('tools/bootstrap-unpublished-update.cjs'),
       'slipway:/tmp/update-bootstrap.cjs'
     ])
     proof.bootstrap = JSON.parse(

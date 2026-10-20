@@ -2,7 +2,7 @@ import { effectScope } from '../node_modules/vue/index.mjs'
 import { readFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 // Deterministic lifecycle work counter; this does not measure CPU or RAM.
-// Usage: node scripts/measure-hidden-lookout.mjs [baseline-git-ref]
+// Usage: node tools/measure-hidden-lookout.mjs [baseline-git-ref]
 const gitRef = process.argv[2]
 const source = gitRef
   ? execFileSync('git', ['show', `${gitRef}:assets/js/composables/sse.js`], {

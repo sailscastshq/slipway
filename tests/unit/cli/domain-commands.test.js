@@ -72,7 +72,7 @@ test('documentation consistency rejects invented CLI commands', async ({
     let failure
     try {
       await run(process.execPath, [
-        'scripts/check-docs-config-consistency.cjs',
+        'tools/check-docs-config-consistency.cjs',
         file
       ])
     } catch (error) {

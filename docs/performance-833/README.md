@@ -58,7 +58,7 @@ The Slipway code change replaces `split/filter` line counting with incremental c
 
 Runtime for both matched benchmarks: Node v24.14.1, macOS ARM64; PostgreSQL 16.13 for the warning benchmark. Production uses Linux/x64 Node v22.23.3, so absolute timings are not transferable. Source test coverage proves blank/Unicode-whitespace/final-line behavior, an 89,146-line count and existing resource-alert incident/delivery/idempotency contracts. No notification behavior is changed.
 
-Reproduce counting with `node scripts/benchmark-log-lines.cjs`. The FlossAfrica repair PR contains its guarded PostgreSQL benchmark. Replot with Python and matplotlib using `python3 scripts/plot-performance-evidence.py`; checked-in raw runs generate the graphs without network access.
+Reproduce counting with `node tools/benchmark-log-lines.cjs`. The FlossAfrica repair PR contains its guarded PostgreSQL benchmark. Replot with Python and matplotlib using `python3 tools/plot-performance-evidence.py`; checked-in raw runs generate the graphs without network access.
 
 ## Old generations and native investigation boundaries
 
@@ -78,7 +78,7 @@ Do not merge broad optimizations, deploy, change live limits, apply the migratio
 
 `native-probe.txt` records a successful 40-cycle probe (21.7 seconds of measured loop time, about 227 MiB maximum sampled RSS) using cached published image v0.0.103, whose Node v22.23.3 / better-sqlite3 12.11.1 / sails-sqlite 0.2.6 match the inspected native runtime. It loads this branch's redactor, uses four synthetic SQLite WAL databases with mmap disabled, multi-megabyte log payloads, and two short-lived reader/writer analogues. Both children completed 40 iterations without busy errors. It does **not** boot the complete production app, replay production data or establish a soak result. The exact v0.0.113 image download is tracked independently; it must not be silently substituted in the evidence.
 
-The bounded probe is `scripts/probe-sqlite-redaction.cjs`, intended inside the Linux image. Mount it at `/native-fixture.cjs` and this repository's `api` directory read-only at `/fixture/api`; run Node with network disabled, one CPU, 2 GiB memory and a 512 MiB `/tmp` tmpfs. The probe creates synthetic files only in that tmpfs and contains no production secrets. Native failure attribution remains open.
+The bounded probe is `tools/probe-sqlite-redaction.cjs`, intended inside the Linux image. Mount it at `/native-fixture.cjs` and this repository's `api` directory read-only at `/fixture/api`; run Node with network disabled, one CPU, 2 GiB memory and a 512 MiB `/tmp` tmpfs. The probe creates synthetic files only in that tmpfs and contains no production secrets. Native failure attribution remains open.
 
 ### Recurrence update at 11:36 UTC
 
