@@ -103,6 +103,7 @@ async function setup(sails, world) {
         }),
         decision: helper(async (inputs) => {
           state.calls.push(inputs)
+          if (state.onDecision) return state.onDecision(inputs)
           return {}
         })
       }

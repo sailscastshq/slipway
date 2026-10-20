@@ -310,14 +310,16 @@ module.exports = {
     return actionRedirect({
       bridgeBasePath,
       resource: loaded.resource,
-      loaded
+      loaded,
+      recordRemoved: outcome.recordRemoved === true
     })
   }
 }
 
-function actionRedirect({ bridgeBasePath, resource, loaded }) {
+function actionRedirect({ bridgeBasePath, resource, loaded, recordRemoved }) {
   const modelPath = `${bridgeBasePath}/${resource.slug || resource.identity}`
-  if (loaded.actionDefinition.scope !== 'record') return modelPath
+  if (loaded.actionDefinition.scope !== 'record' || recordRemoved)
+    return modelPath
   return `${modelPath}/${encodeURIComponent(String(loaded.recordId))}`
 }
 
