@@ -564,6 +564,8 @@ module.exports.routes = {
     'project/view-bridge',
   'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity':
     'project/view-bridge-model',
+  'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/defaults':
+    'project/bridge-form-defaults',
   'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/relationships/:relationshipAlias/options':
     'project/bridge-relationship-options',
   'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/new':
@@ -633,6 +635,10 @@ module.exports.routes = {
   'GET /projects/:slug/bridge': 'project/view-bridge',
   'GET /projects/:slug/environments/:envSlug/bridge': 'project/view-bridge',
   'GET /projects/:slug/bridge/:modelIdentity': 'project/view-bridge-model',
+  'GET /projects/:slug/bridge/:modelIdentity/defaults':
+    'project/bridge-form-defaults',
+  'GET /projects/:slug/environments/:envSlug/bridge/:modelIdentity/defaults':
+    'project/bridge-form-defaults',
   'GET /projects/:slug/environments/:envSlug/bridge/:modelIdentity':
     'project/view-bridge-model',
   'GET /projects/:slug/bridge/:modelIdentity/new': 'project/view-bridge-create',
@@ -697,6 +703,12 @@ module.exports.routes = {
   'GET /projects/:slug/environments/:envSlug/bridge/:modelIdentity/actions/:actionName/fields/:fieldName/options':
     'project/bridge-action-options',
   // Bridge relationship search is JSON transport for async comboboxes.
+  'GET /api/v1/projects/:slug/bridge/:modelIdentity/defaults':
+    'project/bridge-form-defaults',
+  'GET /api/v1/projects/:slug/environments/:envSlug/bridge/:modelIdentity/defaults':
+    'project/bridge-form-defaults',
+  'GET /api/v1/projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/defaults':
+    'project/bridge-form-defaults',
   'GET /api/v1/projects/:slug/bridge/:modelIdentity/relationships/:relationshipAlias/options':
     'project/bridge-relationship-options',
   'GET /api/v1/projects/:slug/environments/:envSlug/bridge/:modelIdentity/relationships/:relationshipAlias/options':

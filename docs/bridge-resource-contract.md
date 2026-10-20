@@ -1123,6 +1123,55 @@ one-to-many detach can still be rejected by Waterline when the related foreign
 key is required; Bridge returns that model error instead of forcing an invalid
 state.
 
+## Dependent form defaults
+
+A resource can suggest editable values from selected form dependencies without
+turning a break, sponsor entry or other custom record into a read-only form:
+
+```js
+resources: {
+  session: {
+    defaultsProvider: {
+      helper: 'bridge.programmeEntryDefaults',
+      dependsOn: ['event', 'proposal'],
+      fields: ['title', 'speaker', 'track']
+    }
+  }
+}
+```
+
+The configured app helper receives `{ actor, surface, recordId?, values }`.
+`surface` is `create` or `edit`; `recordId` is the authorized canonical ID on
+edit only. `values` contains typed declared dependencies, for example
+`{ event, proposal }`. Return `{ values: { title, speaker, track } }`, or a
+partial values object. Return `{ values: {} }` when no suggestions apply. The
+helper must be read-only and must resolve the selected proposal within the
+selected event and the actor's permitted scope.
+
+Bridge authorizes create/update before calling the configured helper. It
+checks relationship dependencies before execution and validates and authorizes
+returned values before sending them to the form. Configure the proposal and
+track relationships' existing `where: { event: { fromField: 'event' } }` scopes
+as appropriate. The provider receives no arbitrary client helper name, target
+field list or additional form values. Defaults remain suggestions; submission
+uses the ordinary mutation authorization and validation rules.
+
+`dependsOn` and `fields` each contain 1–10 unique editable scalar or belongs-to
+field names available on the resource's enabled create/edit forms. They cannot
+overlap; targets cannot include the primary key, protected, encrypted,
+sensitive, read-only, upload or JSON fields. Results are bounded to 12,000
+characters and may contain only configured target fields. The JSON endpoint is
+`GET <Bridge API base>/<resource slug>/defaults`, with `surface`, optional edit
+`recordId`, and a JSON `dependencies` query. Responses use `Cache-Control:
+no-store`. Missing dependencies return no suggestions without calling the app.
+
+Suggestions fill blank fields and replace only earlier automatic suggestions.
+Manual edits, deliberate clears and existing nonblank record values are
+preserved. Changing or clearing a dependency immediately clears automatically
+owned values; custom entries remain editable. Requests are aborted and stale
+responses ignored after another selection or navigation. Submission waits for
+the current request; a failed lookup leaves manual entry available.
+
 ## Upload configuration boundary
 
 Upload fields describe behavior only. Never put R2 or S3 credentials in

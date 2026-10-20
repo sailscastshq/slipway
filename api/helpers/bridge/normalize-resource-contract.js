@@ -169,6 +169,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'actions',
     'authorization',
     'fields',
+    'defaultsProvider',
     'relationships'
   ]
   const RELATIONSHIP_OPTION_KEYS = [
@@ -475,6 +476,69 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       authorization: null,
       attributes,
       associations
+    }
+    if (raw.defaultsProvider !== undefined) {
+      const provider = raw.defaultsProvider
+      const path = `Bridge resource "${identity}".defaultsProvider`
+      if (!isPlainObject(provider))
+        throw new Error(`${path} must be an object.`)
+      rejectUnknownKeys(provider, ['helper', 'dependsOn', 'fields'], path)
+      if (!isSafeHelperIdentity(provider.helper))
+        throw new Error(`${path}.helper is invalid.`)
+      for (const option of ['dependsOn', 'fields']) {
+        const names = provider[option]
+        if (
+          !Array.isArray(names) ||
+          names.length < 1 ||
+          names.length > 10 ||
+          new Set(names).size !== names.length ||
+          names.some((name) => !isSafeIdentifier(name))
+        )
+          throw new Error(`${path}.${option} must name 1 to 10 unique fields.`)
+        for (const name of names) {
+          const attr = attributes[name]
+          if (
+            !attr ||
+            attr.protect ||
+            attr.encrypt ||
+            attr.sensitive ||
+            attr.field?.readOnly ||
+            ![
+              'text',
+              'textarea',
+              'email',
+              'url',
+              'number',
+              'currency',
+              'boolean',
+              'select',
+              'date',
+              'datetime',
+              'timestamp',
+              'belongsTo'
+            ].includes(attr.field?.type) ||
+            ![resource.create, resource.edit]
+              .filter((surface) => surface.length)
+              .every((surface) => surface.includes(name))
+          )
+            throw new Error(
+              `${path}.${option} requires editable scalar or belongs-to form fields.`
+            )
+        }
+      }
+      if (
+        provider.fields.some(
+          (name) => provider.dependsOn.includes(name) || name === primaryKey
+        )
+      )
+        throw new Error(
+          `${path} targets cannot be dependencies or the primary key.`
+        )
+      resource.defaultsProvider = {
+        helper: provider.helper,
+        dependsOn: [...provider.dependsOn],
+        fields: [...provider.fields]
+      }
     }
 
     for (const action of Object.values(resource.actionDefinitions))
