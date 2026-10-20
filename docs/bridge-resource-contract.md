@@ -714,8 +714,8 @@ A record action can return a native media preview instead of a toast:
 return {
   preview: {
     type: 'video', // or 'pdf'
-    title: asset.filename,
-    url: `/api/talk-assets/${asset.id}/preview`
+    title: file.filename,
+    url: `/api/files/${file.id}/preview`
   }
 }
 ```
@@ -1171,15 +1171,15 @@ state.
 ## Dependent form defaults
 
 A resource can suggest editable values from selected form dependencies without
-turning a break, sponsor entry or other custom record into a read-only form:
+turning a custom record into a read-only form:
 
 ```js
 resources: {
-  session: {
+  shipment: {
     defaultsProvider: {
-      helper: 'bridge.programmeEntryDefaults',
-      dependsOn: ['event', 'proposal'],
-      fields: ['title', 'speaker', 'track']
+      helper: 'bridge.customerAddressDefaults',
+      dependsOn: ['country', 'customer'],
+      fields: ['street', 'city', 'postalCode']
     }
   }
 }
@@ -1188,15 +1188,15 @@ resources: {
 The configured app helper receives `{ actor, surface, recordId?, values }`.
 `surface` is `create` or `edit`; `recordId` is the authorized canonical ID on
 edit only. `values` contains typed declared dependencies, for example
-`{ event, proposal }`. Return `{ values: { title, speaker, track } }`, or a
+`{ country, customer }`. Return `{ values: { street, city, postalCode } }`, or a
 partial values object. Return `{ values: {} }` when no suggestions apply. The
-helper must be read-only and must resolve the selected proposal within the
-selected event and the actor's permitted scope.
+helper must be read-only and must resolve the selected customer within the
+selected country and the actor's permitted scope.
 
 Bridge authorizes create/update before calling the configured helper. It
 checks relationship dependencies before execution and validates and authorizes
-returned values before sending them to the form. Configure the proposal and
-track relationships' existing `where: { event: { fromField: 'event' } }` scopes
+returned values before sending them to the form. Configure the customer
+relationship's existing `where: { country: { fromField: 'country' } }` scope
 as appropriate. The provider receives no arbitrary client helper name, target
 field list or additional form values. Defaults remain suggestions; submission
 uses the ordinary mutation authorization and validation rules.
@@ -1323,16 +1323,16 @@ capability after attachment, opt in on the upload field:
 upload: {
   storage: 'bridge',
   scope: 'bucket',
-  directory: 'talks/{id}',
+  directory: 'documents/{id}',
   immutable: true,
-  accept: ['video/mp4', 'video/webm'],
-  maxBytes: 512 * 1024 * 1024
+  accept: ['application/pdf'],
+  maxBytes: 64 * 1024 * 1024
 }
 ```
 
 For a record-scoped action, `{id}` comes from the authorized stored record;
-submitted values cannot select another proposal or asset ID. With no filename
-template, the final key is `talks/<recordId>/<server-generated UUID>.<ext>`.
+submitted values cannot select another record or object ID. With no filename
+template, the final key is `documents/<recordId>/<server-generated UUID>.<ext>`.
 No staging object or copy is involved. The action still receives a verified URL
 string, and can use the UUID as its asset identity for idempotent attachment.
 
