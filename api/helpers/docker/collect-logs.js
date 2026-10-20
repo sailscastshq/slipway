@@ -1,6 +1,7 @@
 const { execFile } = require('child_process')
 const util = require('util')
 const execFileAsync = util.promisify(execFile)
+const countLogLines = require('../../lib/count-log-lines')
 
 module.exports = {
   friendlyName: 'Collect logs',
@@ -41,11 +42,10 @@ module.exports = {
 
       // Docker logs outputs to both stdout and stderr
       const combined = (stdout || '') + (stderr || '')
-      const lines = combined.split('\n').filter((l) => l.trim())
 
       return {
         logs: combined,
-        lineCount: lines.length
+        lineCount: countLogLines(combined)
       }
     } catch (err) {
       sails.log.verbose(
