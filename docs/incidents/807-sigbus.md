@@ -12,11 +12,11 @@ Tests register each real datastore configuration against disposable files, verif
 
 Sources: [SQLite mmap behavior](https://sqlite.org/mmap.html), [incident #807](https://github.com/sailscastshq/slipway/issues/807).
 
-## Separate proposal: console worker isolation
+## Separate mitigation: console worker isolation
 
 Quest launches `sails run` workers in the console environment. The console config disables several web hooks but currently leaves Lookout enabled. Every worker therefore initializes additional metrics/reconciliation/alert timers. Quest's log line saying it started seven jobs is unconditional even when child scheduling is disabled; it is not proof of recursive scheduling or a container restart.
 
-A separate small change could add `lookout: false` to the hooks object in `config/env/console.js`. This would leave the resident web collector active and preserve explicitly invoked scheduled maintenance helpers while removing duplicate worker-side collectors. Validate console job dependencies and test that worker loading creates no Lookout timers while the resident process still collects. This proposal is not applied in this mitigation branch and is not proven to resolve SIGBUS. Adapter connection initialization also performs ANALYZE, so disabling Lookout alone would not eliminate every worker write.
+The console environment now disables the `lookout` hook. The resident web collector remains active, and explicitly invoked scheduled maintenance helpers remain available. Real Sails loader tests verify that console workers skip the installed collector hook while production loads it; existing collector and maintenance tests verify resident behavior. This removes duplicate worker-side collectors, but is not proven to resolve SIGBUS. Adapter connection initialization also performs ANALYZE, so this does not eliminate every worker write.
 
 ## Apport evidence, metadata only
 
