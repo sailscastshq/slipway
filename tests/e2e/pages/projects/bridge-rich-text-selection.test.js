@@ -82,9 +82,13 @@ for (const browser of ['desktop', 'mobile']) {
         await editor.click()
         const text = 'Boring releases are good.'
         await page.raw.keyboard.type(text)
-        // Invoke the actual toolbar handler at native keyup, before the browser
-        // delivers selectionchange. No sleeps or forged editor-state selection.
+        // Hold ProseMirror's observer while the browser makes a real native
+        // selection. Linux can deliver selectionchange before keyup, so event
+        // ordering alone cannot establish this pending-selection precondition.
+        // The actual toolbar handler must flush it; no selection is forged.
         await editor.evaluate((element) => {
+          const observer = element.editor.view.domObserver
+          observer.stop()
           document.addEventListener(
             'keyup',
             function format(event) {
@@ -94,7 +98,11 @@ for (const browser of ['desktop', 'mobile']) {
                 dom: window.getSelection().toString(),
                 empty: element.editor.state.selection.empty
               }
-              document.querySelector('[aria-label="Bold"]').click()
+              try {
+                document.querySelector('[aria-label="Bold"]').click()
+              } finally {
+                observer.start()
+              }
             },
             true
           )
