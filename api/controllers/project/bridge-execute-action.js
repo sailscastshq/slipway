@@ -228,6 +228,13 @@ module.exports = {
           ? { recordIds: loaded.recordIds }
           : {})
       })
+      if (outcome.preview && resolved.bridgeHostOrigin !== true)
+        throw Object.assign(
+          new Error(
+            'Open this action from the app’s Bridge to preview this material.'
+          ),
+          { code: 'BRIDGE_ACTION_EXECUTION_FAILED' }
+        )
     } catch (error) {
       const requestId = randomUUID()
       const diagnostic = error.diagnostic || {
@@ -284,7 +291,12 @@ module.exports = {
       ipAddress: this.req.ip
     })
 
-    if (outcome.notification) {
+    if (outcome.preview) {
+      sails.inertia.flash('bridgeActionPreview', {
+        ...outcome.preview,
+        id: randomUUID()
+      })
+    } else if (outcome.notification) {
       sails.inertia.flash('bridgeActionResult', {
         ...outcome.notification,
         id: randomUUID()

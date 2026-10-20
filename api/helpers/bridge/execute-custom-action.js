@@ -1,3 +1,5 @@
+const { normalizeMediaPreview } = require('../../lib/bridge-media-preview')
+
 module.exports = {
   friendlyName: 'Execute Bridge custom action',
 
@@ -146,6 +148,7 @@ module.exports = {
       }
       const result = await helper.with(inputs);
       if (result === undefined || result === null) return {};
+      if (result.preview !== undefined && JSON.stringify(result.preview).length > 4096) throw new Error('Bridge preview is too large.');
       if (invocation && invocation.result && invocation.result.message) {
         if (typeof result !== 'object' || Array.isArray(result)) {
           throw new Error('Configured Bridge action result must be an object.');
@@ -169,11 +172,12 @@ module.exports = {
             return String(value);
           }
         );
-        return { message, notification: result.notification && JSON.stringify(result.notification).length <= 64000 ? result.notification : undefined };
+        return { message, preview: result.preview, notification: result.notification && JSON.stringify(result.notification).length <= 64000 ? result.notification : undefined };
       }
       if (typeof result === 'string') return { message: result };
       if (typeof result !== 'object' || Array.isArray(result)) return {};
       return {
+        preview: result.preview,
         notification: result.notification && JSON.stringify(result.notification).length <= 64000 ? result.notification : undefined,
         message:
           typeof result.message === 'string'
@@ -245,8 +249,15 @@ module.exports = {
     const notification = sails.helpers.bridge.normalizeActionNotification.with({
       value: output?.notification
     })
+    const preview = normalizeMediaPreview(output?.preview)
+    if (output?.preview !== undefined && !preview)
+      throw bridgeActionError(
+        'The app returned an unsupported media preview.',
+        'BRIDGE_ACTION_EXECUTION_FAILED'
+      )
     return {
       message: safeMessage(output?.message) || action.success,
+      ...(preview ? { preview } : {}),
       ...(notification ? { notification } : {})
     }
   }

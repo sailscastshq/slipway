@@ -706,6 +706,51 @@ normalized. Rich text supports the explicit Markdown format and repeats the
 raw-HTML denial on the server. Relationship and upload fields are not action
 inputs; use record forms for those workflows.
 
+### Private video and PDF action previews
+
+A record action can return a native media preview instead of a toast:
+
+```js
+return {
+  preview: {
+    type: 'video', // or 'pdf'
+    title: asset.filename,
+    url: `/api/talk-assets/${asset.id}/preview`
+  }
+}
+```
+
+This result is available only in the app-host Bridge, where the browser already
+has the app's authenticated session. Slipway authorizes the action normally,
+validates the bounded result and opens the existing Klean Dialog. Only video
+and PDF are supported. External slide links and PPTX/ZIP downloads remain
+separate app actions. No arbitrary HTML, storage URLs or remote embeds are
+accepted.
+
+`url` must be a root-relative ASCII path (maximum 2,048 characters) without
+query strings, fragments, encoded characters, empty or dot segments, backslashes
+or an origin. The configured helper must construct the path from authorized
+server-side asset IDs. Titles are plain text, at most 512 characters on input,
+and shortened to 120 characters for display. No client-supplied URL chooses the
+preview target.
+
+The app endpoint must independently reauthorize **HEAD, GET and every Range
+request**, enforce owner/team access, and return `video/mp4`, `video/webm` or
+`application/pdf` as appropriate. Serve inline with `X-Content-Type-Options:
+nosniff`, private/no-store caching, and no redirects or exposed storage URLs.
+The viewer first makes a same-origin authenticated HEAD request with redirects
+disabled to check access and MIME. Videos then use the native player and the
+private endpoint's range support without buffering the whole recording.
+
+PDFs are fetched once through the private endpoint with redirects disabled,
+checked again for PDF MIME and a PDF signature, and displayed as a browser-local
+PDF blob. Downloads are capped at 64 MiB even if Content-Length is absent. This
+avoids framing a mutable HTML response and supports the browser's built-in PDF
+viewer without a generic HTML sandbox escape. It creates no storage copy or
+staging object. Closing or navigating away stops video, aborts pending requests,
+releases the PDF blob, and restores dialog focus. A failed permission/MIME check
+shows an unavailable message without mounting the media.
+
 ### Submit captions for a boolean intent field
 
 An action may keep its menu/dialog `label` while changing its submit button for a
