@@ -30,6 +30,14 @@ async function inspect(name) {
     throw new Error('Cannot verify the provisioning owner container.')
   }
 }
+function isSelf(container, hostname) {
+  return Boolean(
+    container?.running &&
+      /^[a-f0-9]{12,64}$/.test(hostname) &&
+      container.hostname === hostname &&
+      container.id?.startsWith(hostname)
+  )
+}
 async function current() {
   const owner = { instance, pid: process.pid, startedAt }
   try {
@@ -39,7 +47,7 @@ async function current() {
     owner.namespace = await fs.readlink('/proc/self/ns/pid')
     owner.ticks = ticks(await fs.readFile('/proc/self/stat', 'utf8'))
     const container = await inspect('slipway')
-    if (container?.running && container.hostname === os.hostname()) {
+    if (isSelf(container, os.hostname())) {
       owner.container = container
       // The normal installer stops the old coordinator before publishing this one.
       // A retained live coordinator makes legacy, ownerless recovery ambiguous.
@@ -97,4 +105,9 @@ function legacyInterrupted(service, self) {
       service.createdAt < Date.parse(self.container.startedAt)
   )
 }
-module.exports = { current, dead, legacyInterrupted, _private: { ticks } }
+module.exports = {
+  current,
+  dead,
+  legacyInterrupted,
+  _private: { ticks, isSelf }
+}

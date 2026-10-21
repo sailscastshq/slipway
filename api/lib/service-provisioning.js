@@ -215,6 +215,7 @@ async function provision({ serviceId, retry = false, actor = {} }) {
       containerName: decrypted.containerName
     })
     await owned(serviceId, token)
+    await artifacts.verifyCredentials(decrypted)
     return await finish(serviceId, token, result)
   } catch (error) {
     await transaction(async (db) => {

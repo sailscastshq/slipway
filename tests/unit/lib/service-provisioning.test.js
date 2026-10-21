@@ -129,7 +129,8 @@ const existing = () => ({
     Env: [
       'POSTGRES_USER=fixture',
       'POSTGRES_PASSWORD=fixture-secret',
-      'POSTGRES_DB=db'
+      'POSTGRES_DB=db',
+      'PGDATA=/var/lib/postgresql/data'
     ]
   },
   Mounts: [
@@ -139,6 +140,7 @@ const existing = () => ({
       Destination: '/var/lib/postgresql'
     }
   ],
+  NetworkSettings: { Networks: { slipway: {} } },
   State: { Running: true, Status: 'running' }
 })
 test('a matching running container is adopted without restarting or creating anything', async () => {
@@ -202,4 +204,67 @@ test('malformed process snapshots and completed provisioning records never enabl
     ),
     { eligible: false }
   )
+})
+
+test('container adoption rejects a different network or data path before starting anything', async () => {
+  for (const mismatch of ['network', 'data-path']) {
+    const c = existing()
+    c.State = { Running: false, Status: 'exited' }
+    if (mismatch === 'network') c.NetworkSettings.Networks = { other: {} }
+    else
+      c.Config.Env = c.Config.Env.map((x) =>
+        x.startsWith('PGDATA=') ? 'PGDATA=/tmp/other' : x
+      )
+    const f = fixture({ container: c, volume: {} })
+    await assert.rejects(f.runtime.reconcile(f.service), /does not match/)
+    assert.equal(
+      f.calls.some((args) => args[0] === 'start'),
+      false
+    )
+  }
+})
+test('credential verification authenticates over TCP and rejects authentication failures', async () => {
+  const commands = []
+  const success = create(async (args) => {
+    commands.push(args)
+    return '1\n'
+  })
+  const service = fixture().service
+  await success.verifyCredentials(service)
+  assert.ok(commands[0].includes('127.0.0.1'))
+  assert.ok(commands[0].includes('SELECT 1'))
+  assert.ok(commands[0].includes('-w'))
+  await assert.rejects(
+    create(async () => 'authentication failed').verifyCredentials(service, {
+      attempts: 1
+    }),
+    (error) => !error.message.includes('fixture-secret')
+  )
+  await assert.rejects(
+    create(async () => null).verifyCredentials(service, { attempts: 1 })
+  )
+  await create(async () => 'PONG\n').verifyCredentials({
+    ...service,
+    type: 'redis'
+  })
+})
+test('verified self runtime requires Docker container identity, not just an arbitrary shared hostname', () => {
+  const { isSelf } = owners._private
+  const c = { id: 'a'.repeat(64), hostname: 'a'.repeat(12), running: true }
+  assert.equal(isSelf(c, 'a'.repeat(12)), true)
+  assert.equal(isSelf({ ...c, hostname: 'host' }, 'host'), false)
+  assert.equal(isSelf({ ...c, id: 'b'.repeat(64) }, c.hostname), false)
+})
+
+test('authenticated readiness tolerates bounded initialization before accepting the stored credentials', async () => {
+  let calls = 0
+  const runtime = create(async () => {
+    if (++calls < 3) throw new Error('initializing')
+    return '1'
+  })
+  await runtime.verifyCredentials(fixture().service, {
+    attempts: 3,
+    intervalMs: 0
+  })
+  assert.equal(calls, 3)
 })

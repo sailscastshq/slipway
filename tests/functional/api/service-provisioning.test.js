@@ -17,6 +17,7 @@ test(
       current: owners.current,
       dead: owners.dead,
       reconcile: artifacts.reconcile,
+      verify: artifacts.verifyCredentials,
       resolve: sails.helpers.docker.resolveServiceImage,
       run: sails.helpers.docker.runServiceContainer,
       wait: sails.helpers.docker.waitForService
@@ -37,6 +38,7 @@ test(
       }
     })
     owners.dead = async () => false
+    artifacts.verifyCredentials = async () => true
     artifacts.reconcile = async () => null
     const replace = (key, fn) => {
       fn.with = fn
@@ -135,6 +137,7 @@ test(
       owners.current = originals.current
       owners.dead = originals.dead
       artifacts.reconcile = originals.reconcile
+      artifacts.verifyCredentials = originals.verify
       sails.helpers.docker.resolveServiceImage = originals.resolve
       sails.helpers.docker.runServiceContainer = originals.run
       sails.helpers.docker.waitForService = originals.wait
@@ -155,6 +158,7 @@ test(
       current: owners.current,
       dead: owners.dead,
       reconcile: artifacts.reconcile,
+      verify: artifacts.verifyCredentials,
       wait: sails.helpers.docker.waitForService,
       auditCreate: sails.models.auditlog.create
     }
@@ -163,6 +167,10 @@ test(
     const auditBefore = await sails.models.auditlog.count({
       action: 'service.provisioning.recovered'
     })
+    let credentialsValid = true
+    artifacts.verifyCredentials = async () => {
+      if (!credentialsValid) throw new Error('invalid original-password')
+    }
     let adopts = 0
     artifacts.reconcile = async (s) => {
       adopts++
@@ -234,6 +242,21 @@ test(
       await sails.models.environment
         .updateOne(envId)
         .set({ envVars: { DATABASE_URL: 'existing-user-configuration' } })
+      credentialsValid = false
+      let authenticationRejected = false
+      try {
+        await provisioning.provision(args)
+      } catch (error) {
+        authenticationRejected = true
+        expect(error.message.includes('original-password')).toBe(false)
+      }
+      expect(authenticationRejected).toBe(true)
+      env = await sails.models.environment.findOne(envId).decrypt()
+      expect(env.envVars.DB_URL).toBe(undefined)
+      expect((await sails.models.service.findOne(service.id)).status).toBe(
+        'failed'
+      )
+      credentialsValid = true
       let failAudit = true
       sails.models.auditlog.create = function (values) {
         if (failAudit && values.action === 'service.provisioning.recovered')
@@ -270,7 +293,7 @@ test(
       expect(saved.password).toBe('original-password')
       expect(saved.containerId).toBe('retained-container')
       expect(saved.status).toBe('running')
-      expect(adopts).toBe(3)
+      expect(adopts).toBe(4)
       expect(
         await sails.models.auditlog.count({
           action: 'service.provisioning.recovered'
@@ -282,6 +305,7 @@ test(
       owners.current = originals.current
       owners.dead = originals.dead
       artifacts.reconcile = originals.reconcile
+      artifacts.verifyCredentials = originals.verify
       sails.helpers.docker.waitForService = originals.wait
       sails.models.auditlog.create = originals.auditCreate
     }

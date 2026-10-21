@@ -86,6 +86,12 @@ function create(run = docker) {
       mount.Name !== volume ||
       !volumeRaw ||
       !redisMatches ||
+      !container.NetworkSettings?.Networks?.[
+        global.sails?.config?.custom?.slipwayNetwork || 'slipway'
+      ] ||
+      (service.type === 'postgresql' &&
+        (env.PGDATA !== '/var/lib/postgresql/data' ||
+          env.POSTGRES_HOST_AUTH_METHOD === 'trust')) ||
       (credentials &&
         Object.entries(credentials).some(([k, v]) => env[k] !== v))
     )
@@ -104,6 +110,110 @@ function create(run = docker) {
       volumeName: volume
     }
   }
-  return { reconcile }
+  async function verifyCredentials(
+    service,
+    { attempts = 10, intervalMs = 1000 } = {}
+  ) {
+    let command, expected
+    switch (service.type) {
+      case 'postgresql':
+        command = [
+          'exec',
+          '-e',
+          `PGPASSWORD=${service.password}`,
+          service.containerName,
+          'psql',
+          '-h',
+          '127.0.0.1',
+          '-U',
+          service.username,
+          '-d',
+          service.database,
+          '-p',
+          String(service.internalPort || 5432),
+          '-X',
+          '-w',
+          '-tA',
+          '-c',
+          'SELECT 1'
+        ]
+        expected = '1'
+        break
+      case 'mysql':
+        command = [
+          'exec',
+          '-e',
+          `MYSQL_PWD=${service.password}`,
+          service.containerName,
+          'mysql',
+          '--host=127.0.0.1',
+          '--port',
+          String(service.internalPort || 3306),
+          '--user',
+          service.username,
+          '--database',
+          service.database,
+          '--batch',
+          '--skip-column-names',
+          '--execute',
+          'SELECT 1'
+        ]
+        expected = '1'
+        break
+      case 'redis':
+        command = [
+          'exec',
+          ...(service.password
+            ? ['-e', `REDISCLI_AUTH=${service.password}`]
+            : []),
+          service.containerName,
+          'redis-cli',
+          '--no-auth-warning',
+          '-p',
+          String(service.internalPort || 6379),
+          'ping'
+        ]
+        expected = 'PONG'
+        break
+      case 'mongodb':
+        command = [
+          'exec',
+          '-e',
+          `SLIPWAY_VERIFY_USER=${service.username}`,
+          '-e',
+          `SLIPWAY_VERIFY_PASSWORD=${service.password}`,
+          service.containerName,
+          'mongosh',
+          '--quiet',
+          '--port',
+          String(service.internalPort || 27017),
+          '--eval',
+          'const a=db.getSiblingDB("admin"); const auth=await a.auth(process.env.SLIPWAY_VERIFY_USER, process.env.SLIPWAY_VERIFY_PASSWORD); if (!(auth===1 || auth?.ok===1)) quit(1); print((await a.runCommand({ping:1})).ok)'
+        ]
+        expected = '1'
+        break
+      default:
+        throw new Error('Unsupported provisioning credential check.')
+    }
+    // Official images can briefly accept local readiness probes while their
+    // initialization server is still creating the final user/database. Verify
+    // authentication with a bounded wait instead of publishing a false failure.
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      try {
+        const output = await run(command)
+        if (output?.trim() === expected) return
+        if (output === null) break
+      } catch {
+        /* Never retain or return command errors containing credentials. */
+      }
+      if (attempt + 1 < attempts)
+        await new Promise((resolve) => setTimeout(resolve, intervalMs))
+    }
+    throw new Error(
+      'The stored database credentials could not be verified. Existing artifacts were preserved.'
+    )
+  }
+
+  return { reconcile, verifyCredentials }
 }
 module.exports = { ...create(), _private: { create } }
