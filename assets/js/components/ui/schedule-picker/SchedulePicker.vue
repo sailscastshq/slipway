@@ -101,6 +101,25 @@ const calendarBounds = computed(() =>
   scheduleCalendarBounds({ ...constraints.value, timeZone: zone.value })
 )
 const fields = computed(() => timeFields(selectedTime.value, props.locale))
+const preciseInstant = computed(() => {
+  const date = new Date(interpretation.value.iso)
+  return !Number.isNaN(date.getTime()) &&
+    (date.getUTCSeconds() || date.getUTCMilliseconds())
+    ? date.toISOString()
+    : ''
+})
+const preciseTimeLabel = computed(() =>
+  preciseInstant.value
+    ? new Intl.DateTimeFormat(props.locale, {
+        timeZone: zone.value,
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+        fractionalSecondDigits: 3,
+        timeZoneName: 'short'
+      }).format(new Date(preciseInstant.value))
+    : ''
+)
 const minutes = Array.from({ length: 60 }, (_, minute) =>
   String(minute).padStart(2, '0')
 )
@@ -204,15 +223,20 @@ function handleInput(event) {
   readDraft(event.target.value)
 }
 
-function stage(date = selectedDate.value, time = selectedTime.value) {
+function stage(
+  date = selectedDate.value,
+  time = selectedTime.value,
+  exactInstant
+) {
   if (props.disabled || props.readonly) return
   validationClock.value = Date.now()
   // Opening or reselecting an unchanged instant must not discard its seconds.
   const previous = interpretation.value
   const iso =
-    previous.iso && previous.date === date && previous.time === time
+    exactInstant ??
+    (previous.iso && previous.date === date && previous.time === time
       ? previous.iso
-      : wallClockToIso({ date, time, timeZone: zone.value })
+      : wallClockToIso({ date, time, timeZone: zone.value }))
   selectedDate.value = date
   selectedTime.value = time
   if (!iso) {
@@ -299,6 +323,15 @@ function chooseDate(nextDate) {
 
 function chooseTime(nextTime) {
   stage(selectedDate.value, nextTime)
+}
+
+function useExactMinute() {
+  if (props.disabled || props.readonly || !preciseInstant.value) return
+  // Preserve the occurrence of an ambiguous local hour during DST overlaps.
+  const instant = new Date(preciseInstant.value)
+  instant.setUTCSeconds(0, 0)
+  stage(selectedDate.value, selectedTime.value, instant.toISOString())
+  commitProposal()
 }
 
 function chooseTimeField(part, nextValue) {
@@ -461,6 +494,25 @@ defineExpose({
               >
                 {{ zone }}
               </p>
+            </div>
+            <div
+              v-if="preciseInstant"
+              data-slot="schedule-picker-precision"
+              class="grid gap-1 text-xs text-gray-600 dark:text-gray-400"
+            >
+              <p class="wrap-anywhere">
+                This time includes seconds:
+                <time :datetime="preciseInstant">{{ preciseTimeLabel }}</time
+                >. Opening or saving preserves this exact instant.
+              </p>
+              <button
+                type="button"
+                class="min-h-9 w-fit text-start font-medium text-gray-950 underline underline-offset-4 disabled:opacity-40 dark:text-white"
+                :disabled="disabled || readonly"
+                @click="useExactMinute"
+              >
+                Use {{ selectedTime }} exactly (zero seconds)
+              </button>
             </div>
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div
