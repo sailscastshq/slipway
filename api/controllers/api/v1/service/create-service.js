@@ -128,91 +128,20 @@ module.exports = {
     }).fetch()
     sails.hooks.secrets?.remember({ password })
 
-    // Create the Docker container
     try {
-      await sails.helpers.docker.createService(service.id)
-    } catch (error) {
-      throw {
-        badRequest: {
-          problems: [
-            {
-              service:
-                error?.message ||
-                'Docker could not create the service container.'
-            }
-          ]
+      await require('../../../../lib/service-provisioning').provision({
+        serviceId: service.id,
+        actor: {
+          userId: String(user.id),
+          userName: user.fullName,
+          teamId: String(project.team.id),
+          ipAddress: this.req.ip
         }
-      }
+      })
+    } catch (error) {
+      throw { badRequest: { problems: [{ service: error.message }] } }
     }
-
-    // Get connection URL
     const connectionUrl = await Service.getConnectionUrl(service.id)
-
-    // Auto-inject connection URL into environment variables
-    let envVarKey = Service.getDefaultEnvVarKey(type)
-    if (envVarKey) {
-      const currentVars = environment.envVars || {}
-      // If the canonical key is already taken by another service, use SERVICE_NAME_URL
-      if (currentVars[envVarKey] !== undefined) {
-        envVarKey = `${name.replace(/-/g, '_').toUpperCase()}_URL`
-      }
-      const updatedVars = { ...currentVars, [envVarKey]: connectionUrl }
-      const updatedMetadata =
-        sails.helpers.configuration.normalizeEnvVarMetadata.with({
-          values: updatedVars,
-          metadata: {
-            ...(environment.envVarMetadata || {}),
-            [envVarKey]: {
-              kind: 'secret',
-              redaction: 'credential',
-              managed: true,
-              previewPolicy: 'omit',
-              description: `Connection URL managed by ${name}`
-            }
-          },
-          currentValues: currentVars,
-          currentMetadata: environment.envVarMetadata || {},
-          managedKeys: [envVarKey],
-          changedBy: String(user.id),
-          changedByName: user.fullName
-        })
-      await Environment.updateOne({ id: environment.id }).set({
-        envVars: updatedVars,
-        envVarMetadata: updatedMetadata
-      })
-      sails.hooks.secrets?.remember({
-        envVars: updatedVars,
-        envVarMetadata: updatedMetadata
-      })
-      await Service.updateOne({ id: service.id }).set({ envVarKey })
-      await sails.helpers.configuration.recordEnvVarChanges.with({
-        before: currentVars,
-        after: updatedVars,
-        beforeMetadata: environment.envVarMetadata || {},
-        afterMetadata: updatedMetadata,
-        scope: 'environment',
-        resourceType: 'environment',
-        resourceId: String(environment.id),
-        userId: String(user.id),
-        teamId: String(project.team.id),
-        ipAddress: this.req.ip
-      })
-    }
-
-    sails.log.info(
-      `Service ${service.name} (${type}) created for ${project.slug}/${environment.slug}`
-    )
-
-    // Audit log
-    await sails.helpers.audit.log.with({
-      action: 'service.created',
-      resourceType: 'service',
-      resourceId: service.id,
-      details: { name: service.name, type, projectSlug },
-      userId: user.id,
-      teamId: project.team.id,
-      ipAddress: this.req.ip
-    })
 
     return {
       service: {

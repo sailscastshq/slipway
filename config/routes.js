@@ -231,6 +231,8 @@ module.exports.routes = {
   'GET /api/v1/services/:serviceId/logs/stream': 'api/v1/service/stream-logs',
   'POST /api/v1/services/:serviceId/stop': 'api/v1/service/stop-service',
   'POST /api/v1/services/:serviceId/start': 'api/v1/service/restart-service',
+  'POST /api/v1/services/:serviceId/retry-provisioning':
+    'api/v1/service/retry-provisioning',
   'POST /api/v1/services/:serviceId/restart': 'api/v1/service/restart-service',
   'POST /api/v1/services/:serviceId/upgrade': 'api/v1/service/upgrade-service',
   'GET /api/v1/services/:serviceId/upgrade/stream':

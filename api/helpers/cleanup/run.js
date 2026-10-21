@@ -97,34 +97,46 @@ module.exports = {
         throw 'notFound'
       }
 
-      if (
-        await Service.count({
-          id: { in: snapshot.records.serviceIds },
-          type: 'custom',
-          status: { in: ['creating', 'changing'] }
-        })
-      )
-        throw new Error(
-          'Wait for the active custom service operation before cleanup.'
-        )
       try {
-        operation = await CleanupOperation.create({
-          targetKey,
-          requestKey: requestKey || targetKey,
-          scopeType,
-          resourceId,
-          projectId: snapshot.target.projectId,
-          environmentId: snapshot.target.environmentId,
-          appId: snapshot.target.appId,
-          serviceId: snapshot.target.serviceId,
-          retentionPolicy,
-          status: 'pending',
-          stage: 'pending',
-          snapshot,
-          requestedBy: userId || null,
-          team: teamId,
-          ipAddress: ipAddress || null
-        }).fetch()
+        // Admission shares the same transaction as provisioning's claim. Either
+        // cleanup is recorded first or a provisioner owns the service, never both.
+        operation = await require('../../lib/with-datastore-transaction')(
+          async (db) => {
+            const services = await Service.find({
+              id: { in: snapshot.records.serviceIds }
+            }).usingConnection(db)
+            if (
+              services.some(
+                (service) =>
+                  (service.type === 'custom' &&
+                    ['creating', 'changing'].includes(service.status)) ||
+                  service.imageMetadata?.provisioning?.state === 'running'
+              )
+            )
+              throw new Error(
+                'Wait for the active service operation before cleanup.'
+              )
+            return CleanupOperation.create({
+              targetKey,
+              requestKey: requestKey || targetKey,
+              scopeType,
+              resourceId,
+              projectId: snapshot.target.projectId,
+              environmentId: snapshot.target.environmentId,
+              appId: snapshot.target.appId,
+              serviceId: snapshot.target.serviceId,
+              retentionPolicy,
+              status: 'pending',
+              stage: 'pending',
+              snapshot,
+              requestedBy: userId || null,
+              team: teamId,
+              ipAddress: ipAddress || null
+            })
+              .usingConnection(db)
+              .fetch()
+          }
+        )
       } catch (error) {
         if (!isUniqueConflict(error)) throw error
         operation = await CleanupOperation.findOne({ targetKey })
