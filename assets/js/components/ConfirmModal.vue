@@ -3,6 +3,7 @@ import { useId } from 'vue'
 import Button from '@/components/ui/button/Button.vue'
 import Dialog from '@/components/ui/dialog/Dialog.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
+import Slide from '@/components/ui/slide/Slide.vue'
 
 const props = defineProps({
   show: {
@@ -30,6 +31,7 @@ const props = defineProps({
     default: false
   },
   confirmDisabled: { type: Boolean, default: false },
+  confirmWithSlide: { type: Boolean, default: false },
   loading: {
     type: Boolean,
     default: false
@@ -73,7 +75,12 @@ function handleOpenChange(open) {
     </p>
     <!-- Form fields only: keep dialogs to the two actions in the footer. -->
     <slot name="form" />
-    <div class="mt-4 flex justify-end gap-3">
+    <div
+      class="mt-4 flex justify-end gap-3"
+      :class="
+        confirmWithSlide ? 'flex-col-reverse sm:flex-row sm:items-center' : ''
+      "
+    >
       <Button
         type="button"
         autofocus
@@ -83,7 +90,19 @@ function handleOpenChange(open) {
       >
         {{ cancelLabel }}
       </Button>
+      <Slide
+        v-if="confirmWithSlide"
+        :pending="loading"
+        :disabled="loading || confirmDisabled"
+        :aria-describedby="messageId"
+        class="w-full sm:w-56"
+        @confirm="confirm"
+        >{{
+          loading ? 'Working...' : `Slide to ${confirmLabel.toLowerCase()}`
+        }}</Slide
+      >
       <Button
+        v-else
         type="button"
         :disabled="loading || confirmDisabled"
         :aria-busy="loading ? 'true' : undefined"
