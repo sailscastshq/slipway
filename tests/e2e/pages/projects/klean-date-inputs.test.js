@@ -204,6 +204,31 @@ test(
       } finally {
         await cdp.detach()
       }
+      await page.goto(
+        '/projects/date-controls/environments/production/bridge/event/42/edit'
+      )
+      await date.focus()
+      await date.press('ArrowDown')
+      const precision = page.raw.locator(
+        '[data-slot="schedule-picker-precision"]'
+      )
+      await expect(precision.locator('time')).toHaveAttribute(
+        'datetime',
+        storedInstant
+      )
+      await expect(precision).toContainText('27.123')
+      fs.mkdirSync(path.resolve('output/issue-842'), { recursive: true })
+      await page.screenshot(
+        path.resolve('output/issue-842/precision-visible.png'),
+        { animations: 'disabled' }
+      )
+      await precision.getByRole('button', { name: /zero seconds/ }).click()
+      await expect(precision).not.toBeVisible()
+      await page.raw
+        .getByRole('button', { name: 'Save changes', exact: true })
+        .click()
+      await page.raw.waitForURL((url) => url.pathname.endsWith('/event/42'))
+      expect(savedValues.startsAt).toBe('2020-02-29T14:35:00.000Z')
       expect(page).toHaveNoJavascriptErrors()
     } finally {
       Object.assign(sails.helpers.bridge, original)
