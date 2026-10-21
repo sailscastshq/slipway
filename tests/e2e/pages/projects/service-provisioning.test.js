@@ -1,8 +1,10 @@
 const { test } = require('sounding')
 const provisioning = require('../../../../api/lib/service-provisioning')
+const fs = require('node:fs')
+const path = require('node:path')
 
 test(
-  'Retry provisioning appears only for eligible services and reports recovery errors without success',
+  'Retry setup appears only for eligible services and reports recovery errors without success',
   {
     browser: true,
     world: {
@@ -37,7 +39,7 @@ test(
         .click()
       await expect(
         page.raw.getByRole('menuitem', {
-          name: 'Retry provisioning',
+          name: 'Retry setup',
           exact: true
         })
       ).toHaveCount(0)
@@ -56,8 +58,27 @@ test(
             json: { message: 'The previous provisioner is still active.' }
           })
       )
+      const retry = page.raw.getByRole('menuitem', {
+        name: 'Retry setup',
+        exact: true
+      })
+      await expect(retry).toHaveAccessibleDescription(
+        'Retry provisioning for this service.'
+      )
+      await expect(retry.locator('svg')).toHaveAttribute('aria-hidden', 'true')
+      fs.mkdirSync(path.resolve('output/issue-840'), { recursive: true })
+      await page.raw.evaluate(
+        () =>
+          new Promise((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(resolve))
+          )
+      )
+      await page.screenshot(
+        path.resolve('output/issue-840/retry-setup-menu.png'),
+        { animations: 'disabled' }
+      )
       await page.raw
-        .getByRole('menuitem', { name: 'Retry provisioning', exact: true })
+        .getByRole('menuitem', { name: 'Retry setup', exact: true })
         .click()
       const toasts = page.raw.locator(
         '[data-slot="toast"]:not([data-state="closing"])'
