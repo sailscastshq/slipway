@@ -335,7 +335,7 @@ async function executeRollback() {
             :disabled="rollingBack"
             @click="openRollbackReview"
           >
-            Roll back to previous release
+            Review rollback
           </Button>
         </div>
 
@@ -467,6 +467,7 @@ async function executeRollback() {
         !acknowledgeUnknownCompatibility
       "
       confirm-label="Roll back"
+      confirm-with-slide
       @confirm="executeRollback"
       @cancel="rollbackReview = false"
     >
