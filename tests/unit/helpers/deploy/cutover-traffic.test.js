@@ -246,6 +246,72 @@ test(
   }
 )
 
+for (const superseded of [false, true]) {
+  test(
+    superseded
+      ? 'first promotion rejects a concurrent owner without overwriting App state'
+      : 'first promotion commits a pre-created App with a NULL current deployment',
+    { world: cutoverWorld(`cutover-existing-first-${superseded}`) },
+    async ({ sails, world, expect }) => {
+      const setup = await prepareCutover({ sails, world })
+      await sails.models.app.updateOne({ id: setup.app.id }).set({
+        status: 'stopped',
+        currentDeployment: null,
+        containerId: null,
+        containerName: null
+      })
+      const originalUpdate = sails.helpers.caddy.updateRoute
+      const originalFinish = sails.helpers.caddy.finishRouteUpdate
+      const finishActions = []
+      sails.helpers.caddy.updateRoute = machineStub(async () => {
+        // A competing promotion after the snapshot must still defeat the CAS.
+        if (superseded)
+          await sails.models.app.updateOne({ id: setup.app.id }).set({
+            currentDeployment: setup.app.currentDeployment,
+            status: 'running',
+            containerName: 'concurrent-owner'
+          })
+        return stagedRoute('created')
+      })
+      sails.helpers.caddy.finishRouteUpdate = machineStub(
+        async ({ action }) => {
+          finishActions.push(action)
+          return { action }
+        }
+      )
+      try {
+        const perform = () =>
+          sails.helpers.deploy.cutoverTraffic.with({
+            deploymentId: setup.deployment.id,
+            environmentId: setup.environment.id,
+            appId: setup.app.id,
+            candidate: setup.candidate
+          })
+        if (superseded) {
+          const error = await captureError(perform())
+          expect(error.message).toContain('App state was not updated')
+          expect(finishActions).toEqual(['rollback'])
+        } else {
+          const result = await perform()
+          expect(result.app.id).toBe(setup.app.id)
+          expect(finishActions).toEqual(['commit'])
+        }
+        const persisted = await sails.models.app.findOne({ id: setup.app.id })
+        expect(persisted.currentDeployment).toBe(
+          superseded ? setup.app.currentDeployment : setup.deployment.id
+        )
+        expect(persisted.containerName).toBe(
+          superseded ? 'concurrent-owner' : setup.candidate.containerName
+        )
+        expect(persisted.status).toBe('running')
+      } finally {
+        sails.helpers.caddy.updateRoute = originalUpdate
+        sails.helpers.caddy.finishRouteUpdate = originalFinish
+      }
+    }
+  )
+}
+
 test(
   'failed first App commit removes the candidate route and leaves no partial App state',
   { world: cutoverWorld('cutover-first-deployment-failure') },
