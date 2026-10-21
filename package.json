@@ -63,7 +63,7 @@
     "sails-hook-quest": "^0.0.8",
     "sails-hook-sockets": "^3.0.1",
     "sails-hook-uploads": "^0.4.3",
-    "sails-sqlite": "^0.2.6",
+    "sails-sqlite": "^0.2.7",
     "sails-stash": "^0.2.0",
     "sharp": "0.35.5",
     "tailwind-merge": "^3.6.0",
