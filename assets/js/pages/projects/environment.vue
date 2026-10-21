@@ -2005,6 +2005,7 @@ onBeforeUnmount(() => {
                             :disabled="retryingServiceId !== null"
                             class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
                           >
+                            <Refresh class="h-4 w-4" stroke-width="2" />
                             {{
                               retryingServiceId === service.id
                                 ? 'Retrying...'
