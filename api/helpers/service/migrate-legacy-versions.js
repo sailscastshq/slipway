@@ -24,6 +24,7 @@ module.exports = {
     const result = { migrated: 0, unresolved: 0 }
 
     for (const service of candidates) {
+      if (service.imageMetadata?.provisioning) continue
       if (!service.containerName) {
         result.unresolved += 1
         continue
@@ -42,28 +43,45 @@ module.exports = {
           resolvedVersion && resolvedVersion !== 'latest'
         )
 
-        await Service.updateOne({ id: service.id }).set({
-          version: resolvedVersion || service.version,
-          imageReference: inspected.imageReference,
-          imageMetadata: {
-            ...(service.imageMetadata || {}),
-            source: 'running-container',
-            migratedAt: Date.now(),
-            configuredImage: inspected.configuredImage,
-            detectedVersion: inspected.detectedVersion,
-            versionDetectionSource: inspected.versionDetectionSource,
-            imageId: inspected.imageId,
-            repoDigest: inspected.repoDigest,
-            versionResolution: {
-              schemaVersion: LEGACY_VERSION_RESOLUTION_SCHEMA,
-              status: versionResolved ? 'resolved' : 'unresolved',
-              source:
-                service.version === 'latest'
-                  ? inspected.versionDetectionSource
-                  : 'stored-version'
-            }
+        const updated = await require('../../lib/with-datastore-transaction')(
+          async (db) => {
+            const current = await Service.findOne({
+              id: service.id
+            }).usingConnection(db)
+            if (
+              !current ||
+              current.imageMetadata?.provisioning ||
+              current.version !== service.version ||
+              current.containerName !== service.containerName
+            )
+              return null
+            return Service.updateOne({ id: service.id })
+              .set({
+                version: resolvedVersion || service.version,
+                imageReference: inspected.imageReference,
+                imageMetadata: {
+                  ...(current.imageMetadata || {}),
+                  source: 'running-container',
+                  migratedAt: Date.now(),
+                  configuredImage: inspected.configuredImage,
+                  detectedVersion: inspected.detectedVersion,
+                  versionDetectionSource: inspected.versionDetectionSource,
+                  imageId: inspected.imageId,
+                  repoDigest: inspected.repoDigest,
+                  versionResolution: {
+                    schemaVersion: LEGACY_VERSION_RESOLUTION_SCHEMA,
+                    status: versionResolved ? 'resolved' : 'unresolved',
+                    source:
+                      service.version === 'latest'
+                        ? inspected.versionDetectionSource
+                        : 'stored-version'
+                  }
+                }
+              })
+              .usingConnection(db)
           }
-        })
+        )
+        if (!updated) continue
         result.migrated += 1
 
         if (!versionResolved) {

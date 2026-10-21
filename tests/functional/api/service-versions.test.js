@@ -1,4 +1,5 @@
 const { test } = require('sounding')
+const provisioning = require('../../../api/lib/service-provisioning')
 const { withCsrfFromPage } = require('../../support/csrf-request')
 
 test(
@@ -31,8 +32,8 @@ test(
     }
   },
   async ({ sails, world, request, expect }) => {
-    const originalCreate = sails.helpers.docker.createService
-    const markRunning = async (serviceId) => {
+    const originalCreate = provisioning.provision
+    const markRunning = async ({ serviceId }) => {
       await sails.models.service.updateOne({ id: serviceId }).set({
         status: 'running',
         containerId: 'test-service-container',
@@ -40,7 +41,7 @@ test(
       })
       return { containerId: 'test-service-container' }
     }
-    sails.helpers.docker.createService = markRunning
+    provisioning.provision = markRunning
 
     try {
       const dashboard = await withCsrfFromPage(
@@ -74,7 +75,7 @@ test(
       expect(mutable).toHaveStatus(303)
       expect(mutable).toHaveHeader('x-exit', 'badRequest')
     } finally {
-      sails.helpers.docker.createService = originalCreate
+      provisioning.provision = originalCreate
     }
   }
 )

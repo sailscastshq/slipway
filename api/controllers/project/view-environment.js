@@ -83,24 +83,30 @@ module.exports = {
           .filter((service) => Service.isBackupSupported(service.type))
           .map((service) => service.id)
       )
-      return (environment.services || []).map((service) => {
-        const connectionUrl =
-          service.managementMode === 'external'
-            ? null
-            : Service.getPublicConnectionUrl(service)
-        const { lastBackup, lastSuccessfulBackup } = metadata[service.id] || {
-          lastBackup: null,
-          lastSuccessfulBackup: null
-        }
-        return {
-          ...Service.toPublic(service),
-          connectionUrl,
-          lastBackup,
-          lastSuccessfulBackup,
-          backupSupported: Service.isBackupSupported(service.type),
-          versionSupport: getVersionSupport(service)
-        }
-      })
+      return Promise.all(
+        (environment.services || []).map(async (service) => {
+          const connectionUrl =
+            service.managementMode === 'external'
+              ? null
+              : Service.getPublicConnectionUrl(service)
+          const { lastBackup, lastSuccessfulBackup } = metadata[service.id] || {
+            lastBackup: null,
+            lastSuccessfulBackup: null
+          }
+          return {
+            ...Service.toPublic(service),
+            provisioningRetry:
+              await require('../../lib/service-provisioning').eligibility(
+                service
+              ),
+            connectionUrl,
+            lastBackup,
+            lastSuccessfulBackup,
+            backupSupported: Service.isBackupSupported(service.type),
+            versionSupport: getVersionSupport(service)
+          }
+        })
+      )
     })
     const loadAppsWithHealth = once(async () => {
       const allApps = await loadAllApps()

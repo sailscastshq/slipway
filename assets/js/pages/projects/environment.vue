@@ -882,6 +882,36 @@ async function stopService(service) {
   }
 }
 
+const retryingServiceId = ref(null)
+async function retryProvisioning(service) {
+  if (retryingServiceId.value !== null) return
+  retryingServiceId.value = service.id
+  const actionId = startAction({
+    serviceName: service.name,
+    serviceType: service.type,
+    action: 'provisioning',
+    projectName: props.project.name,
+    environmentName: props.environment.name
+  })
+  try {
+    const response = await fetch(
+      `/api/v1/services/${service.id}/retry-provisioning`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }
+    )
+    await assertMutationResponse(response)
+    completeAction(actionId, true)
+  } catch (error) {
+    completeAction(actionId, false)
+    toast({ message: mutationFailureMessage(error), type: 'error' })
+  } finally {
+    retryingServiceId.value = null
+    router.reload({ only: ['environment'] })
+  }
+}
+
 async function startService(service) {
   startingServiceId.value = service.id
 
@@ -1969,6 +1999,18 @@ onBeforeUnmount(() => {
                           :offset="4"
                           class="w-36 rounded-md border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
                         >
+                          <button
+                            v-if="service.provisioningRetry?.eligible"
+                            @click.stop="retryProvisioning(service)"
+                            :disabled="retryingServiceId !== null"
+                            class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                          >
+                            {{
+                              retryingServiceId === service.id
+                                ? 'Retrying...'
+                                : 'Retry provisioning'
+                            }}
+                          </button>
                           <button
                             v-if="service.status === 'running'"
                             @click.stop="stopService(service)"

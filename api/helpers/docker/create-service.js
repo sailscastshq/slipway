@@ -9,7 +9,8 @@ module.exports = {
       type: 'string',
       required: true,
       description: 'Service record ID'
-    }
+    },
+    deferRunning: { type: 'boolean', defaultsTo: false }
   },
 
   exits: {
@@ -19,7 +20,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ serviceId }) {
+  fn: async function ({ serviceId, deferRunning }) {
     const service = await Service.findOne({ id: serviceId }).decrypt()
     sails.hooks.secrets?.remember(service)
     if (service?.managementMode === 'external')
@@ -42,6 +43,7 @@ module.exports = {
         })
         imageReference = resolved.imageReference
         imageMetadata = {
+          ...imageMetadata,
           source: 'provisioning',
           tag: resolved.imageTag,
           imageId: resolved.imageId,
@@ -72,7 +74,7 @@ module.exports = {
         containerId: started.containerId,
         imageReference,
         imageMetadata: { ...imageMetadata, volumeName },
-        status: 'running'
+        ...(deferRunning ? {} : { status: 'running' })
       })
 
       sails.log.info(
@@ -86,7 +88,9 @@ module.exports = {
         type: service.type
       }
     } catch (error) {
-      sails.log.error(`Failed to create service: ${error.message || error}`)
+      sails.log.error(
+        'Failed to create service container; existing artifacts were retained.'
+      )
       await Service.updateOne({ id: serviceId }).set({ status: 'failed' })
       throw error
     }

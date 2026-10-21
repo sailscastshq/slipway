@@ -19,10 +19,16 @@ const actionLabel = computed(() => {
       starting: 'Starting',
       stopping: 'Stopping',
       restarting: 'Restarting',
-      creating: 'Creating'
+      creating: 'Creating',
+      provisioning: 'Provisioning'
     }
     return labels[props.action.action] || props.action.action
   }
+  if (
+    props.action.status === 'failed' &&
+    props.action.action === 'provisioning'
+  )
+    return 'Provisioning failed for'
   if (props.action.status === 'failed')
     return (
       'Failed to ' + props.action.action.replace('ing', '').replace('pp', 'p')
@@ -31,7 +37,8 @@ const actionLabel = computed(() => {
     starting: 'Started',
     stopping: 'Stopped',
     restarting: 'Restarted',
-    creating: 'Created'
+    creating: 'Created',
+    provisioning: 'Provisioned'
   }
   return labels[props.action.action] || 'Done'
 })

@@ -128,6 +128,10 @@ function present(kind, record) {
       .filter((key) => Object.hasOwn(record, key))
       .map((key) => [key, record[key]])
   )
+  if (kind === 'service' && result.imageMetadata) {
+    result.imageMetadata = { ...result.imageMetadata }
+    delete result.imageMetadata.provisioning
+  }
   if (kind === 'environment') {
     for (const [key, type] of [
       ['app', 'app'],
