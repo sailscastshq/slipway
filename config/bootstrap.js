@@ -10,6 +10,14 @@
  */
 
 module.exports.bootstrap = async function () {
+  // Quest inherits this requirement before changing NODE_ENV to `console`.
+  // This is provenance, not a readiness receipt: children still verify the schema.
+  if (
+    sails.config.environment === 'production' ||
+    process.env.NODE_ENV === 'production'
+  )
+    process.env.SLIPWAY_RELEASE_SCHEMA_REQUIRED = '1'
+
   // User hydration may occur in subsequent helpers on safe-migrate upgrades.
   await sails.helpers.auth.ensureSchema()
   await sails.helpers.team.ensureSchema()

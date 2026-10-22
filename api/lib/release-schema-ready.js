@@ -6,7 +6,8 @@ const migrations = require('./release-migrations')
 module.exports = function releaseSchemaReady(sails) {
   if (
     sails.config?.environment !== 'production' &&
-    process.env.NODE_ENV !== 'production'
+    process.env.NODE_ENV !== 'production' &&
+    process.env.SLIPWAY_RELEASE_SCHEMA_REQUIRED !== '1'
   )
     return false
   for (const datastore of Object.keys(migrations.files)) {
