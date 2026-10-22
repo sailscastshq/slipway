@@ -8,49 +8,149 @@ const { spawnSync } = require('node:child_process')
 const migrations = require('../../api/lib/release-migrations')
 const root = path.resolve(__dirname, '../..')
 
-async function bootstrapEnvironment(environment, nodeEnvironment) {
+function configureEnvironment(environment, nodeEnvironment) {
   const env = { NODE_ENV: nodeEnvironment }
-  const stop = Error('fixture stops before schema initialization')
   const context = {
     module: { exports: {} },
     process: { env },
-    sails: {
-      config: { environment },
-      helpers: {
-        auth: {
-          ensureSchema: async () => {
-            throw stop
-          }
-        }
+    require: () => ({
+      create() {
+        throw Error('initialization is outside this fixture')
       }
-    }
+    })
   }
   vm.runInNewContext(
-    fs.readFileSync(path.join(root, 'config/bootstrap.js'), 'utf8'),
+    fs.readFileSync(
+      path.join(root, 'api/hooks/instance-quest/index.js'),
+      'utf8'
+    ),
     context
   )
-  await assert.rejects(
-    context.module.exports.bootstrap(),
-    (error) => error === stop
-  )
+  context.module.exports({ config: { environment } }).configure()
   return env
 }
 
-test('production bootstrap passes the schema requirement to a console child without changing NODE_ENV', async () => {
+test('production hook configuration passes the schema requirement to a console child without changing NODE_ENV', async () => {
   for (const [environment, nodeEnvironment] of [
     ['production', 'production'],
     ['production', 'development'],
     ['test', 'production']
   ]) {
-    const env = await bootstrapEnvironment(environment, nodeEnvironment)
+    const env = configureEnvironment(environment, nodeEnvironment)
     assert.equal(env.SLIPWAY_RELEASE_SCHEMA_REQUIRED, '1')
     assert.equal(env.NODE_ENV, nodeEnvironment)
   }
   for (const environment of ['console', 'development', 'test']) {
-    const env = await bootstrapEnvironment(environment, environment)
+    const env = configureEnvironment(environment, environment)
     assert.equal(env.SLIPWAY_RELEASE_SCHEMA_REQUIRED, undefined)
   }
 })
+
+test(
+  'real Quest scheduled child inherits production policy while another hook still blocks bootstrap',
+  { timeout: 25000 },
+  async (t) => {
+    const { Sails } = require('sails')
+    const defineQuest = require('sails-hook-quest')
+    const defineInstanceQuest = require('../../api/hooks/instance-quest')
+    const directory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'slipway-early-quest-')
+    )
+    const output = path.join(directory, 'child-policy.json')
+    const previous = process.env.SLIPWAY_RELEASE_SCHEMA_REQUIRED
+    delete process.env.SLIPWAY_RELEASE_SCHEMA_REQUIRED
+    const app = new Sails()
+    let bootstrapEntered = false
+    let childBeforeBootstrap = false
+    t.after(async () => {
+      await app.quest?.stop()
+      await new Promise((resolve) => app.lower(resolve))
+      if (previous === undefined)
+        delete process.env.SLIPWAY_RELEASE_SCHEMA_REQUIRED
+      else process.env.SLIPWAY_RELEASE_SCHEMA_REQUIRED = previous
+      fs.rmSync(directory, { recursive: true, force: true })
+    })
+    fs.mkdirSync(path.join(directory, 'scripts'))
+    fs.mkdirSync(path.join(directory, 'config', 'env'), { recursive: true })
+    fs.symlinkSync(
+      path.join(root, 'node_modules'),
+      path.join(directory, 'node_modules'),
+      'dir'
+    )
+    fs.writeFileSync(
+      path.join(directory, 'package.json'),
+      JSON.stringify({ name: 'early-quest-policy-fixture', scripts: {} })
+    )
+    fs.writeFileSync(
+      path.join(directory, 'config/env/console.js'),
+      `module.exports={bootstrap:false,loadHooks:['moduleloader','userconfig','userhooks'],hooks:{orm:false,grunt:false,session:false,sockets:false}}`
+    )
+    fs.writeFileSync(
+      path.join(directory, 'scripts/early-policy.js'),
+      `module.exports={friendlyName:'Early policy fixture',quest:{interval:100,withoutOverlapping:true},fn:async function(){require('node:fs').writeFileSync(${JSON.stringify(
+        output
+      )},JSON.stringify({marker:process.env.SLIPWAY_RELEASE_SCHEMA_REQUIRED,nodeEnvironment:process.env.NODE_ENV}));return true}}`
+    )
+    await new Promise((resolve, reject) =>
+      app.lift(
+        {
+          appPath: directory,
+          environment: 'production',
+          globals: false,
+          log: { level: 'silent' },
+          hookTimeout: 20000,
+          loadHooks: [
+            'moduleloader',
+            'userconfig',
+            'userhooks',
+            'quest',
+            'schema-policy',
+            'hold-hooks'
+          ],
+          hooks: {
+            quest: defineQuest,
+            'schema-policy': (sails) => ({
+              configure: defineInstanceQuest(sails).configure
+            }),
+            'hold-hooks': () => ({
+              initialize(done) {
+                const deadline = Date.now() + 15000
+                const poll = () => {
+                  if (fs.existsSync(output)) {
+                    childBeforeBootstrap = !bootstrapEntered
+                    done()
+                  } else if (Date.now() > deadline)
+                    done(
+                      Error('scheduled child did not complete before bootstrap')
+                    )
+                  else setTimeout(poll, 25)
+                }
+                poll()
+              }
+            })
+          },
+          quest: {
+            autoStart: true,
+            environment: 'console',
+            sailsPath: path.join(root, 'node_modules/.bin/sails'),
+            scriptsDir: 'scripts'
+          },
+          bootstrap(done) {
+            bootstrapEntered = true
+            done()
+          }
+        },
+        (error) => (error ? reject(error) : resolve())
+      )
+    )
+    assert.equal(bootstrapEntered, true)
+    assert.equal(childBeforeBootstrap, true)
+    assert.deepEqual(JSON.parse(fs.readFileSync(output, 'utf8')), {
+      marker: '1',
+      nodeEnvironment: 'console'
+    })
+  }
+)
 
 const child = `
 const assert = require('node:assert/strict')
@@ -103,7 +203,7 @@ test('production-origin console helpers verify real receipts, suppress DDL and f
   )
   try {
     await migrations.run({ directory })
-    const inherited = await bootstrapEnvironment('production', 'production')
+    const inherited = configureEnvironment('production', 'production')
     const run = (environment, env, expected, database = directory) => {
       const result = spawnSync(
         process.execPath,
