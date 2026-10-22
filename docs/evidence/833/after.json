@@ -1,0 +1,36 @@
+{
+  "revision": "5f5b1119b49ea905d51594c9498da26f3112690f",
+  "source": "committed revision",
+  "fixtureVersion": 1,
+  "node": "v24.14.1",
+  "betterSqlite": "12.11.1",
+  "helperCalls": 17,
+  "rows": [
+    { "helper": "auth.ensureSchema", "opens": 0, "closes": 0 },
+    { "helper": "team.ensureSchema", "opens": 0, "closes": 0 },
+    { "helper": "git.ensureWebhookSchema", "opens": 0, "closes": 0 },
+    { "helper": "source.ensureSchema", "opens": 0, "closes": 0 },
+    { "helper": "backup.ensureRestoreSchema", "opens": 0, "closes": 0 },
+    { "helper": "backup.ensureTestSchema", "opens": 0, "closes": 0 },
+    { "helper": "cleanup.ensureSchema", "opens": 0, "closes": 0 },
+    { "helper": "bridge.ensureSchema", "opens": 0, "closes": 0 },
+    { "helper": "bearing.ensureSchema", "opens": 0, "closes": 0 },
+    { "helper": "wake.ensureAppSchema", "opens": 0, "closes": 0 },
+    { "helper": "wake.ensureSchema", "opens": 0, "closes": 0 },
+    { "helper": "configuration.ensureSchema", "opens": 0, "closes": 0 },
+    { "helper": "backup.ensureStorageSchema", "opens": 0, "closes": 0 },
+    { "helper": "flag.ensureSchema", "opens": 0, "closes": 0 },
+    { "helper": "deploy.ensureQueueSchema", "opens": 0, "closes": 0 },
+    { "helper": "service.ensureVersionSchema", "opens": 0, "closes": 0 },
+    { "helper": "helm.ensureWorkspaceSchema", "opens": 0, "closes": 0 }
+  ],
+  "bootstrapPrefix": {
+    "opens": 4,
+    "closes": 4,
+    "verificationOpens": 4,
+    "verificationCloses": 4,
+    "verificationStatements": 10948
+  },
+  "laterGuardedHelper": { "opens": 4, "closes": 4 },
+  "fixture": "fresh synthetic release-migrated databases; real helpers/native receipt checks; model backfills mocked; no production data"
+}
