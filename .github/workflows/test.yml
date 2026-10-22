@@ -404,7 +404,7 @@ jobs:
 
   browser:
     name: Browser shard (${{ matrix.shard }}/3)
-    timeout-minutes: 15
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -417,12 +417,15 @@ jobs:
           node-version: '22'
           cache: 'npm'
       - run: npm ci --no-audit
+        timeout-minutes: 15
       - run: npx playwright install --with-deps chromium
+        timeout-minutes: 15
       # Sounding partitions files; each runner retains --test-concurrency=1.
       - name: Verify command-mode journeys before the owning full shard
         if: matrix.shard == 1
         run: node_modules/.bin/sounding test --file tests/e2e/pages/projects/helm.test.js --test-name-pattern='^project Helm (command|Stop|preparing)' --test-concurrency=1 --test-timeout=600000
       - name: Run browser tests
+        timeout-minutes: 15
         run: npm run test:e2e -- --shard=${{ matrix.shard }}/3 --profile
       - name: Upload Helm command review screenshots
         uses: actions/upload-artifact@v6
