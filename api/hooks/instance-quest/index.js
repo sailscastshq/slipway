@@ -2,6 +2,16 @@ const { create } = require('../../lib/instance-quest')
 
 module.exports = function (sails) {
   return {
+    configure: function () {
+      // All hooks configure before any initialize. Quest can admit scheduled work
+      // before bootstrap, and its console children must inherit this requirement.
+      // This is provenance, not a receipt: every child still verifies the schema.
+      if (
+        sails.config.environment === 'production' ||
+        process.env.NODE_ENV === 'production'
+      )
+        process.env.SLIPWAY_RELEASE_SCHEMA_REQUIRED = '1'
+    },
     initialize: async function () {
       // Console job children must never observe or rewrite the web runtime's ledger.
       if (sails.config.environment === 'console' || process.env.QUEST_RUN_ID)
