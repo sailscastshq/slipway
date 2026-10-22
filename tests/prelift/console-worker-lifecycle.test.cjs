@@ -3,60 +3,88 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
-const { Sails } = require('sails')
+const { execFileSync } = require('node:child_process')
 const Native = require('better-sqlite3')
 const migrations = require('../../api/lib/release-migrations')
 const consoleConfig = require('../../config/env/console')
 const ensure = require('../../api/helpers/wake/ensure-schema')
 const maintenance = require('../../scripts/maintain-wake')
 
-for (const environment of ['console', 'production']) {
+// Exercise CLI -> Whelk -> getRc -> load with env config loaded by Sails.
+// Deliberately do not inject the env file as a direct load({hooks}) override.
+for (const corrected of [false, true]) {
   test(
-    `${environment} load applies session ownership without bootstrap`,
+    `real sails run retains core session hook with ${
+      corrected ? 'corrected' : 'existing'
+    } console env key`,
     { timeout: 10000 },
-    async () => {
+    () => {
       const directory = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'slipway-console-load-')
+        path.join(os.tmpdir(), 'slipway-console-cli-')
       )
-      const app = new Sails()
-      let stores = 0,
-        bootstraps = 0
       try {
-        await new Promise((resolve, reject) =>
-          app.load(
-            {
-              appPath: directory,
-              environment,
-              globals: false,
-              log: { level: 'silent' },
-              hookTimeout: 3000,
-              hooks: {
-                ...(environment === 'console' ? consoleConfig.hooks : {}),
-                orm: false,
-                grunt: false,
-                sockets: false
-              },
-              bootstrap: () => {
-                bootstraps++
-              },
-              session: {
-                secret: 'disposable-fixture-only',
-                adapter: () => {},
-                handleConstructingSessionStore: () => {
-                  stores++
-                  return new (require('express-session').Store)()
-                }
-              }
-            },
-            (error) => (error ? reject(error) : resolve())
-          )
+        fs.mkdirSync(path.join(directory, 'config/env'), { recursive: true })
+        fs.mkdirSync(path.join(directory, 'scripts'))
+        fs.symlinkSync(
+          path.resolve(__dirname, '../../node_modules'),
+          path.join(directory, 'node_modules'),
+          'dir'
         )
-        assert.equal(bootstraps, 0)
-        assert.equal(Boolean(app.hooks.session), environment === 'production')
-        assert.equal(stores, environment === 'production' ? 1 : 0)
-        assert.equal(app.wakeStorageReady, undefined)
+        fs.writeFileSync(
+          path.join(directory, 'package.json'),
+          JSON.stringify({
+            name: 'disposable-console-worker',
+            scripts: {},
+            dependencies: { sails: '*' }
+          })
+        )
+        fs.writeFileSync(
+          path.join(directory, '.sailsrc'),
+          JSON.stringify({
+            hooks: { orm: false, grunt: false, sockets: false },
+            globals: { sails: true, models: false },
+            log: { level: 'silent' }
+          })
+        )
+        const hooks = { ...consoleConfig.hooks }
+        if (corrected) {
+          delete hooks.sesssion
+          hooks.session = false
+        }
+        fs.writeFileSync(
+          path.join(directory, 'config/env/console.js'),
+          'module.exports=' + JSON.stringify({ hooks, fixtureConsole: true })
+        )
+        fs.writeFileSync(
+          path.join(directory, 'config/session.js'),
+          `module.exports.session={secret:'disposable-fixture-only',adapter:()=>{},handleConstructingSessionStore:()=>{global.fixtureStores=(global.fixtureStores||0)+1;return new (require('express-session').Store)()}}`
+        )
+        fs.writeFileSync(
+          path.join(directory, 'config/bootstrap.js'),
+          `module.exports.bootstrap=()=>{throw Error('bootstrap must not run')}`
+        )
+        fs.writeFileSync(
+          path.join(directory, 'scripts/fixture.js'),
+          `module.exports={friendlyName:'Disposable fixture',fn:async function(){console.log('FIXTURE:'+JSON.stringify({session:!!this.sails.hooks.session,stores:global.fixtureStores||0,envLoaded:this.sails.config.fixtureConsole===true,ready:this.sails.wakeStorageReady===true}))}}`
+        )
+        const output = execFileSync(
+          process.execPath,
+          [require.resolve('sails/bin/sails.js'), 'run', 'fixture'],
+          {
+            cwd: directory,
+            timeout: 8000,
+            env: { PATH: process.env.PATH, NODE_ENV: 'console' },
+            encoding: 'utf8'
+          }
+        )
+        const result = JSON.parse(output.split('FIXTURE:')[1].split('\n')[0])
+        assert.deepEqual(result, {
+          session: true,
+          stores: 1,
+          envLoaded: true,
+          ready: false
+        })
       } finally {
-        await new Promise((resolve) => app.lower(resolve))
         fs.rmSync(directory, { recursive: true, force: true })
       }
     }
