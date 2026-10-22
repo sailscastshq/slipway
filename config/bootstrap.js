@@ -10,36 +10,41 @@
  */
 
 module.exports.bootstrap = async function () {
-  // User hydration may occur in subsequent helpers on safe-migrate upgrades.
-  await sails.helpers.auth.ensureSchema()
-  await sails.helpers.team.ensureSchema()
-  await sails.helpers.git.ensureWebhookSchema()
-  await sails.helpers.source.ensureSchema()
-  await sails.helpers.backup.ensureRestoreSchema()
-  await sails.helpers.backup.ensureTestSchema()
-  // Production uses `migrate: safe`; create coordinator tables before any
-  // deployment job queries run on an existing installation.
-  await sails.helpers.cleanup.ensureSchema()
-  // Add every App column before a helper hydrates the full App model.  This
-  // ordering is part of the production-upgrade contract: Waterline selects
-  // every modeled column even when a helper only needs one of them.
-  await sails.helpers.bridge.ensureSchema()
-  await sails.helpers.bearing.ensureSchema()
-  // App columns must exist before any helper hydrates the App model.
-  await sails.helpers.wake.ensureAppSchema()
-  try {
-    await sails.helpers.wake.ensureSchema()
-  } catch {
-    sails.log.warn(
-      'Wake analytics storage is unavailable; collection is disabled.'
-    )
-  }
-  await sails.helpers.configuration.ensureSchema()
-  await sails.helpers.backup.ensureStorageSchema()
-  await sails.helpers.flag.ensureSchema()
-  await sails.helpers.deploy.ensureQueueSchema()
-  await sails.helpers.service.ensureVersionSchema()
-  await sails.helpers.helm.ensureWorkspaceSchema()
+  await require('../api/lib/release-schema-ready').withScope(
+    sails,
+    async () => {
+      // User hydration may occur in subsequent helpers on safe-migrate upgrades.
+      await sails.helpers.auth.ensureSchema()
+      await sails.helpers.team.ensureSchema()
+      await sails.helpers.git.ensureWebhookSchema()
+      await sails.helpers.source.ensureSchema()
+      await sails.helpers.backup.ensureRestoreSchema()
+      await sails.helpers.backup.ensureTestSchema()
+      // Production uses `migrate: safe`; create coordinator tables before any
+      // deployment job queries run on an existing installation.
+      await sails.helpers.cleanup.ensureSchema()
+      // Add every App column before a helper hydrates the full App model.  This
+      // ordering is part of the production-upgrade contract: Waterline selects
+      // every modeled column even when a helper only needs one of them.
+      await sails.helpers.bridge.ensureSchema()
+      await sails.helpers.bearing.ensureSchema()
+      // App columns must exist before any helper hydrates the App model.
+      await sails.helpers.wake.ensureAppSchema()
+      try {
+        await sails.helpers.wake.ensureSchema()
+      } catch {
+        sails.log.warn(
+          'Wake analytics storage is unavailable; collection is disabled.'
+        )
+      }
+      await sails.helpers.configuration.ensureSchema()
+      await sails.helpers.backup.ensureStorageSchema()
+      await sails.helpers.flag.ensureSchema()
+      await sails.helpers.deploy.ensureQueueSchema()
+      await sails.helpers.service.ensureVersionSchema()
+      await sails.helpers.helm.ensureWorkspaceSchema()
+    }
+  )
   if (
     sails.config.environment !== 'console' &&
     sails.config.environment !== 'test'

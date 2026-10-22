@@ -33,8 +33,11 @@ function schema(service) {
   return result.tables
 }
 
-function current(service) {
-  const db = new Database(service.path, { readonly: true, fileMustExist: true })
+// Borrowed connections remain caller-owned; verification is always complete.
+function current(service, { database } = {}) {
+  const db =
+    database ||
+    new Database(service.path, { readonly: true, fileMustExist: true })
   try {
     const receipt = db
       .prepare('SELECT type, sql FROM sqlite_schema WHERE name = ?')
@@ -93,7 +96,7 @@ function current(service) {
     }
     return true
   } finally {
-    db.close()
+    if (!database) db.close()
   }
 }
 
