@@ -11,6 +11,6 @@ module.exports = Object.assign({}, PRODUCTION_CONFIG, {
     sockets: false,
     pubsub: false,
     dev: false,
-    sesssion: false
+    session: false
   }
 })

@@ -4,7 +4,9 @@ module.exports = {
     'Bound raw and aggregate analytics retention and remove deleted app data.',
   quest: { interval: '5 minutes', withoutOverlapping: true },
   fn: async function () {
-    if (!sails.wakeStorageReady) return
+    // Quest loads a fresh console app without running the web bootstrap.
+    // Use the same release-schema validation before touching retained data.
+    if (!sails.wakeStorageReady) await sails.helpers.wake.ensureSchema()
     const store = require('../api/lib/wake-store')
     store.maintain()
     const apps = new Set(
