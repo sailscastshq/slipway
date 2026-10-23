@@ -1,4 +1,8 @@
-@import 'tailwindcss';
+@import 'tailwindcss' source(none);
+
+/* Only UI source belongs in discovery; runtime data may include live SQLite sidecars. */
+@source '../js';
+@source '../../views';
 
 @theme {
   --animate-nudge-right: nudge-right 2s ease-in-out infinite;
