@@ -76,7 +76,9 @@ test('Tailwind automatic discovery is disabled and only UI roots are registered'
   }
 })
 
-test('registered roots contain the tracked Vue/JS class maps, copied UI components and EJS templates', () => {
+// Inventory/containment only: this does not discover class-bearing files elsewhere
+// or prove that the compiler emits every required utility.
+test('registered roots cover the tracked frontend inventory', () => {
   const tracked = execFileSync(
     'git',
     ['ls-files', '-z', '--', 'assets/js', 'views'],
