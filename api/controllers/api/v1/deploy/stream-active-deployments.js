@@ -94,6 +94,11 @@ async function fetchActiveDeployments(teamId) {
     .map((app) => app.currentDeployment)
     .filter(Boolean)
 
+  const jobs = activeDeployments.length
+    ? await DeploymentJob.find({
+        deployment: activeDeployments.map((item) => item.id)
+      }).select(['deployment', 'stage'])
+    : []
   const enriched = []
   for (const deployment of activeDeployments) {
     const env = environments.find((e) => e.id === deployment.environment)
@@ -111,6 +116,7 @@ async function fetchActiveDeployments(teamId) {
 
       const outcome = sails.helpers.deployment.describeOutcome.with({
         deployment,
+        jobStage: jobs.find((job) => job.deployment === deployment.id)?.stage,
         currentDeploymentIds
       })
 

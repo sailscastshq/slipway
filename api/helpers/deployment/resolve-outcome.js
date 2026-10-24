@@ -40,8 +40,10 @@ module.exports = {
         (await App.findOne({ environment: environmentId }))
     }
 
+    const job = await DeploymentJob.findOne({ deployment: deployment.id })
     const state = sails.helpers.deployment.describeOutcome.with({
       deployment,
+      jobStage: job?.stage,
       currentDeploymentIds: resolvedApp?.currentDeployment
         ? [resolvedApp.currentDeployment]
         : []

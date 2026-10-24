@@ -160,6 +160,26 @@ test(
     await expect(
       page.raw.getByText('Trusted for this policy', { exact: true })
     ).toBeVisible()
+    await page.raw
+      .getByRole('button', { name: 'Enable automatic checks', exact: true })
+      .click()
+    await expect(
+      page.raw.getByRole('heading', { name: 'Enable automatic CI?' })
+    ).toBeVisible()
+    await expect(page.raw.getByRole('dialog')).toContainText('2 CPUs and 4 GiB')
+    await page.raw
+      .getByRole('button', { name: 'Enable automatic CI', exact: true })
+      .click()
+    await expect(
+      page.raw.getByText('Automatic CI enabled.', { exact: true })
+    ).toBeVisible()
+    await expect(
+      page.raw.getByText('Normal pushes need no CI command.', { exact: false })
+    ).toBeVisible()
+    expect(
+      (await sails.models.cipolicy.findOne({ id: policy.id })).configuration
+        .automatic
+    ).toBe(true)
     await page.raw.getByRole('button', { name: 'Revoke', exact: true }).click()
     await expect(
       page.raw.getByRole('heading', { name: 'Revoke local runner?' })
@@ -193,6 +213,67 @@ test(
     expect(
       (await sails.models.cipolicy.findOne({ id: policy.id })).enabled
     ).toBe(false)
+    expect(page).toHaveNoJavascriptErrors()
+  }
+)
+
+test(
+  'deployment toast streams CI waiting and active steps without pretending the image is building',
+  {
+    browser: true,
+    world: {
+      name: 'configured-slipway',
+      context: { deploymentTarget: { slug: 'ci-phase-proof' } }
+    }
+  },
+  async ({ sails, world, page, login, expect }) => {
+    const app = world.current.apps.web
+    const deployment = await world.create('deployment').with({
+      app: app.id,
+      environment: app.environment,
+      status: 'building',
+      startedAt: Date.now()
+    })
+    const job = await sails.models.deploymentjob
+      .create({
+        deployment: deployment.id,
+        targetKey: 'app:' + app.id,
+        appSlug: app.slug,
+        stage: 'ci_waiting'
+      })
+      .fetch()
+    await login.withPassword('genesisUser', page, {
+      password: world.current.auth.genesisUserPassword
+    })
+    await page.raw.waitForURL((url) => !url.pathname.startsWith('/login'))
+    await page.goto('/')
+    const toast = page.raw.locator('[data-test="deployment-toast"]')
+    await expect(
+      toast.getByText('Waiting for CI', { exact: true })
+    ).toBeVisible()
+    await expect(toast).toContainText('Waiting for a matching local result')
+    await sails.models.deploymentjob
+      .updateOne({ id: job.id })
+      .set({ stage: 'ci_test' })
+    await expect(toast.getByText('Running CI', { exact: true })).toBeVisible()
+    await expect(
+      toast.getByText('Running tests', { exact: true })
+    ).toBeVisible()
+    const output = path.resolve('.tmp/screenshots/ci-automatic')
+    fs.mkdirSync(output, { recursive: true })
+    await toast.screenshot({
+      path: path.join(output, 'running-ci-toast.png'),
+      animations: 'disabled'
+    })
+    await sails.models.deploymentjob
+      .updateOne({ id: job.id })
+      .set({ stage: 'image_build' })
+    await expect(toast.getByText('Building', { exact: true })).toBeVisible()
+    await expect(toast.getByText('Running CI', { exact: true })).toHaveCount(0)
+    await sails.models.deployment
+      .updateOne({ id: deployment.id })
+      .set({ status: 'cancelled' })
+    await expect(toast.getByText('Cancelled', { exact: true })).toBeVisible()
     expect(page).toHaveNoJavascriptErrors()
   }
 )

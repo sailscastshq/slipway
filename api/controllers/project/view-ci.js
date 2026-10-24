@@ -43,8 +43,11 @@ module.exports = {
           .limit(100)
       : []
     const receipts = app
-      ? await CiRun.find({ app: app.id, completedAt: { '!=': null } })
-          .sort('completedAt DESC')
+      ? await CiRun.find({
+          app: app.id,
+          or: [{ completedAt: { '!=': null } }, { runner: null }]
+        })
+          .sort('createdAt DESC')
           .limit(100)
       : []
     const verifications = app
@@ -53,6 +56,11 @@ module.exports = {
           .limit(100)
       : []
     const accepted = (run) => {
+      if (run.runner == null)
+        return sails.helpers.ci.isServerEvidence.with({
+          run,
+          policy: policy || {}
+        })
       const runner = runners.find((item) => item.id === run.runner)
       return !!(
         policy?.enabled &&

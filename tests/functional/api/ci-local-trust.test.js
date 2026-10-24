@@ -83,6 +83,8 @@ test(
       const challenge = issued.data.challenge,
         now = Date.now()
       const report = {
+        origin: 'server',
+        serverProof: { executorDigest: 'forged' },
         scope: 'source-checks-only',
         deployable: false,
         state: 'passed',
@@ -145,6 +147,8 @@ test(
       expect(accepted).toHaveStatus(200)
       assert.equal(accepted.data.run.state, 'passed')
       assert.equal(accepted.data.run.deployable, false)
+      assert.equal(accepted.data.run.origin, 'trusted-local')
+      assert.equal(accepted.data.run.serverProof, undefined)
       assert.equal(
         (
           await browser.request.post(base + '/receipt', {

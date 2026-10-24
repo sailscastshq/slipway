@@ -1,19 +1,45 @@
 <script setup>
 import { Head, router } from '@inertiajs/vue3'
-import { inject } from 'vue'
+import { inject, onMounted, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import CiWorkspace from '@/components/ci/CiWorkspace.vue'
 defineOptions({ layout: AppLayout })
-defineProps({
+const props = defineProps({
   project: Object,
   environment: Object,
   workspace: Object,
   app: Object,
   canManage: Boolean
 })
+let refreshTimer,
+  refreshing = false,
+  refreshedAt = 0
+onMounted(() => {
+  refreshTimer = setInterval(() => {
+    const active = props.workspace.runs?.some((run) =>
+      ['queued', 'preparing', 'running'].includes(run.state)
+    )
+    if (
+      document.visibilityState !== 'visible' ||
+      refreshing ||
+      Date.now() - refreshedAt < (active ? 3000 : 15000)
+    )
+      return
+    refreshing = true
+    refreshedAt = Date.now()
+    router.reload({
+      only: ['workspace'],
+      preserveScroll: true,
+      onFinish: () => {
+        refreshing = false
+      }
+    })
+  }, 1000)
+})
+onUnmounted(() => clearInterval(refreshTimer))
 const toggleSidebar = inject('toggleSidebar'),
   toggleMobileMenu = inject('toggleMobileMenu'),
   sidebarCollapsed = inject('sidebarCollapsed')
@@ -60,7 +86,9 @@ const toggleSidebar = inject('toggleSidebar'),
       <span class="shrink-0 text-xs text-gray-500">{{
         workspace.policy
           ? workspace.policy.enabled
-            ? 'Local-first'
+            ? workspace.policy.configuration.automatic
+              ? 'Automatic'
+              : 'Local-first'
             : 'Disabled'
           : 'Not configured'
       }}</span>

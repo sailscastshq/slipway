@@ -19,6 +19,7 @@ module.exports = {
       type: 'ref',
       required: true
     },
+    jobStage: { type: 'string' },
     currentDeploymentIds: {
       type: 'ref',
       defaultsTo: []
@@ -31,7 +32,7 @@ module.exports = {
     }
   },
 
-  fn: function ({ deployment, currentDeploymentIds }) {
+  fn: function ({ deployment, currentDeploymentIds, jobStage }) {
     const currentIds = new Set(
       (Array.isArray(currentDeploymentIds) ? currentDeploymentIds : [])
         .map(Number)
@@ -44,7 +45,28 @@ module.exports = {
       return {
         status,
         outcome: 'in-progress',
-        outcomeLabel: ACTIVE_LABELS[status],
+        outcomeLabel: jobStage?.startsWith('ci_')
+          ? ['ci_checks', 'ci_waiting', 'ci_capacity'].includes(jobStage)
+            ? 'Waiting for CI'
+            : 'Running CI'
+          : ACTIVE_LABELS[status],
+        ...(jobStage?.startsWith('ci_')
+          ? {
+              stage: jobStage,
+              stageLabel:
+                {
+                  ci_checks: 'Waiting for a matching local result',
+                  ci_waiting: 'Waiting for a matching local result',
+                  ci_capacity: 'Waiting for CI capacity',
+                  ci_running: 'Preparing isolated checks',
+                  ci_install: 'Installing dependencies',
+                  ci_lint: 'Running lint',
+                  ci_test: 'Running tests',
+                  ci_build: 'Building application assets',
+                  ci_cleanup: 'Cleaning up CI'
+                }[jobStage] || 'Checking source'
+            }
+          : {}),
         isCurrent,
         isActive: true
       }

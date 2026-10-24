@@ -42,13 +42,13 @@ const verified = computed(() =>
 const commands = computed(() => ({
   setup: `slipway ci:setup ${targetFlags.value} --commit <full-sha> --branch main --image node@sha256:<runtime-digest> --platform <linux/amd64-or-linux/arm64> --approve-policy --approve-target ${targetKey.value}`,
   register: `slipway ci:register ${targetFlags.value} --trust-device --approve-target ${targetKey.value}`,
-  run: `slipway ci ${targetFlags.value} --local`,
+  run: `slipway ci ${targetFlags.value}`,
   submit: `slipway ci:submit ${targetFlags.value} --report <report.json>`
 }))
-async function copy(value) {
+async function copy(value, noun = 'Command') {
   try {
     await navigator.clipboard.writeText(value)
-    toast({ message: 'Command copied.' })
+    toast({ message: `${noun} copied.` })
   } catch {
     toast({
       message: 'Could not copy. Select the command and copy it.',
@@ -72,7 +72,9 @@ async function confirmAction() {
           choice.runner
             ? { runnerId: choice.runner.runnerId }
             : {
-                enabled: false,
+                ...(typeof choice.automatic === 'boolean'
+                  ? { automatic: choice.automatic }
+                  : { enabled: false }),
                 approvePolicy: true,
                 policyRevision: policy.value.revision
               }
@@ -84,7 +86,13 @@ async function confirmAction() {
       throw new Error(body.message || 'CI could not save that change.')
     confirmation.value = null
     toast({
-      message: choice.runner ? 'Local runner revoked.' : 'CI policy disabled.'
+      message: choice.runner
+        ? 'Local runner revoked.'
+        : typeof choice.automatic === 'boolean'
+        ? choice.automatic
+          ? 'Automatic CI enabled.'
+          : 'CI now requires local results.'
+        : 'CI policy disabled.'
     })
     emit('refresh')
   } catch (error) {
@@ -278,6 +286,8 @@ const tabClass = (value) => [
                 >{{
                   selected.origin === 'trusted-local'
                     ? 'Trusted local runner'
+                    : selected.origin === 'server'
+                    ? 'Slipway server'
                     : 'Local pilot'
                 }}
                 · source checks only</span
@@ -289,8 +299,10 @@ const tabClass = (value) => [
                 (selected.origin === 'trusted-local' &&
                 selected.accepted === false
                   ? 'This result is retained for history. Current policy, device trust or freshness no longer permits deployment reuse.'
+                  : ['preparing', 'running', 'queued'].includes(selected.state)
+                  ? 'Required source checks are in progress. The current release stays live.'
                   : verified
-                  ? 'Source checks passed locally. The server separately verified the deployment candidate.'
+                  ? 'Source checks passed. The deployment candidate was verified separately.'
                   : selected.state === 'passed'
                   ? 'Selected source checks passed. An application image has not been verified for deployment.'
                   : 'These checks did not pass. Review the failed step before retrying.')
@@ -333,6 +345,24 @@ const tabClass = (value) => [
                 }}</span>
               </li>
             </ol>
+            <div v-if="selected.logTail" class="mt-5">
+              <div class="flex items-center justify-between gap-3">
+                <h3 class="text-sm font-medium">Failed step output</h3>
+                <Button
+                  :class="action"
+                  @click="copy(selected.logTail, 'Output')"
+                  >Copy output</Button
+                >
+              </div>
+              <pre
+                class="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md bg-gray-50 p-3 font-mono text-xs text-gray-700 dark:bg-gray-900/50 dark:text-gray-300"
+                >{{ selected.logTail }}</pre
+              >
+              <p class="mt-2 text-xs text-gray-500">
+                Bounded diagnostic tail · full temporary logs are removed during
+                cleanup.
+              </p>
+            </div>
             <div
               class="mt-6 flex items-start justify-between gap-4 border-t border-gray-200 pt-4 text-xs dark:border-gray-800"
             >
@@ -343,7 +373,7 @@ const tabClass = (value) => [
                 <p class="mt-1 text-gray-500 dark:text-gray-400">
                   {{
                     verified
-                      ? 'The server verified this candidate separately from local source checks.'
+                      ? 'The server verified this candidate separately from source checks.'
                       : 'The server must verify a candidate before deployment.'
                   }}
                 </p>
@@ -395,7 +425,9 @@ const tabClass = (value) => [
           <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
             {{
               policy.enabled
-                ? 'Trusted local results can satisfy these checks for the exact commit.'
+                ? policy.configuration.automatic
+                  ? 'Push to the configured branch to run checks automatically. A valid local result is reused; otherwise Slipway runs isolated checks on the server.'
+                  : 'This policy requires a matching local result. Enable automatic checks to use server fallback.'
                 : 'This policy is disabled. New deployments do not require its local results.'
             }}
           </p>
@@ -438,35 +470,78 @@ const tabClass = (value) => [
           target platform from your development machine.
         </p>
         <div
-          v-if="canManage"
-          class="mt-6 space-y-5 border-t border-gray-200 pt-5 dark:border-gray-800"
+          v-if="canManage && policy?.enabled"
+          class="mt-6 border-t border-gray-200 pt-5 dark:border-gray-800"
         >
-          <div
-            v-for="(title, key) in policy?.enabled
-              ? {
-                  register: 'Register your local runner',
-                  run: 'Run before pushing',
-                  submit: 'Submit the retained result after pushing'
-                }
-              : { setup: 'Review and enable CI' }"
-            :key="key"
-          >
-            <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center justify-between gap-4">
+            <div>
               <h3 class="text-sm font-medium text-gray-900 dark:text-white">
-                {{ title }}
+                Automatic checks
               </h3>
-              <Button
-                :class="action"
-                :aria-label="`Copy ${title.toLowerCase()} command`"
-                @click="copy(commands[key])"
-                >Copy</Button
-              >
+              <p class="mt-1 text-xs text-gray-500">
+                {{
+                  policy.configuration.automatic
+                    ? 'Enabled · local result reuse with server fallback'
+                    : 'Local results only · deployment waits until you submit'
+                }}
+              </p>
             </div>
-            <code
-              class="mt-2 block whitespace-pre-wrap break-all rounded-md bg-gray-50 p-3 text-xs leading-relaxed text-gray-700 dark:bg-gray-900/50 dark:text-gray-300"
-              >{{ commands[key] }}</code
+            <Button
+              :class="action"
+              @click="
+                confirmation = { automatic: !policy.configuration.automatic }
+              "
+              >{{
+                policy.configuration.automatic
+                  ? 'Use local results only'
+                  : 'Enable automatic checks'
+              }}</Button
             >
           </div>
+          <p
+            v-if="policy.configuration.automatic"
+            class="mt-3 text-xs text-gray-500"
+          >
+            Server checks use up to 2 CPUs and 4 GiB, one run at a time, with a
+            twenty-minute deadline. The current app stays live.
+          </p>
+        </div>
+        <div
+          v-if="canManage"
+          class="mt-6 border-t border-gray-200 pt-5 dark:border-gray-800"
+        >
+          <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+            {{
+              policy?.enabled ? 'Local checks (optional)' : 'Review the policy'
+            }}
+          </h3>
+          <p v-if="policy?.enabled" class="mt-2 text-xs text-gray-500">
+            {{
+              policy.configuration.automatic
+                ? 'Normal pushes need no CI command. Run locally when you want to save server work.'
+                : 'Local commands remain required until automatic checks are enabled.'
+            }}
+          </p>
+          <Button
+            :class="[action, 'mt-3']"
+            @click="copy(policy?.enabled ? commands.run : commands.setup)"
+            >{{
+              policy?.enabled ? 'Copy local run command' : 'Copy setup command'
+            }}</Button
+          >
+          <Button
+            v-if="policy?.enabled"
+            :class="[action, 'ml-2 mt-3']"
+            @click="copy(commands.register)"
+            >Copy device registration</Button
+          >
+          <a
+            href="https://docs.sailscasts.com/slipway/ci"
+            target="_blank"
+            rel="noopener"
+            class="mt-3 block text-xs text-gray-500 underline decoration-dashed underline-offset-4"
+            >Local setup and retained reports</a
+          >
         </div>
         <div class="mt-6 border-t border-gray-200 pt-5 dark:border-gray-800">
           <h3 class="text-sm font-medium text-gray-900 dark:text-white">
@@ -524,6 +599,10 @@ const tabClass = (value) => [
         {{
           confirmation?.runner
             ? 'Revoke local runner?'
+            : typeof confirmation?.automatic === 'boolean'
+            ? confirmation.automatic
+              ? 'Enable automatic CI?'
+              : 'Require local results?'
             : 'Disable CI for this app?'
         }}
       </h2>
@@ -531,6 +610,10 @@ const tabClass = (value) => [
         {{
           confirmation?.runner
             ? `Future deployments cannot reuse results from ${confirmation.runner.name}. The running app stays unchanged.`
+            : typeof confirmation?.automatic === 'boolean'
+            ? confirmation.automatic
+              ? 'Pushes that trigger deployment will reuse valid local evidence or run the required checks in an isolated server container. Server runs use up to 2 CPUs and 4 GiB, with one run at a time and a twenty-minute deadline. Local devices need approval for the updated policy.'
+              : 'Future deployments will wait for a qualifying local result. The running app stays unchanged.'
             : 'Future deployments will no longer require this CI policy. The running app stays unchanged.'
         }}
       </p>
@@ -542,6 +625,10 @@ const tabClass = (value) => [
             ? 'Saving…'
             : confirmation?.runner
             ? 'Revoke runner'
+            : typeof confirmation?.automatic === 'boolean'
+            ? confirmation.automatic
+              ? 'Enable automatic CI'
+              : 'Require local results'
             : 'Disable CI'
         }}</Button>
       </div>

@@ -22,6 +22,7 @@ module.exports = {
     platform: { type: 'string' },
     approvePolicy: { type: 'boolean' },
     enabled: { type: 'boolean' },
+    automatic: { type: 'boolean' },
     trustDevice: { type: 'boolean' },
     name: { type: 'string' },
     publicKey: { type: 'string' },

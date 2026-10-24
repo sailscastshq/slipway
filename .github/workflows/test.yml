@@ -15,6 +15,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  ci-server-executor:
+    name: Isolated server CI executor
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Verify exact-source checks and sandbox cleanup with real Docker
+        run: CI_SERVER_DOCKER=1 node --test tests/prelift/ci-server-executor.test.cjs
+
   docker-port-allocation:
     name: Docker host port allocation
     timeout-minutes: 10

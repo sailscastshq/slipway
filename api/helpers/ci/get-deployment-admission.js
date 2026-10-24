@@ -105,6 +105,20 @@ module.exports = {
         run.summary.scope !== 'source-checks-only'
       )
         continue
+      if (run.runner == null) {
+        if (!sails.helpers.ci.isServerEvidence.with({ run, policy })) continue
+        return {
+          required: true,
+          allowed: true,
+          appId: String(appId),
+          policyId: String(policy.id),
+          policyRevision: policy.revision,
+          origin: 'server',
+          runId: String(run.id),
+          commit,
+          platform: policy.configuration.execution.platform
+        }
+      }
       const runner = await CiRunner.findOne({ id: run.runner, app: appId })
       if (
         !runner ||
@@ -127,10 +141,13 @@ module.exports = {
     return {
       required: true,
       allowed: false,
+      automatic: policy.configuration.automatic === true,
       policyRevision: policy.revision,
       commit,
       reason:
-        'Waiting for a matching trusted local CI result. Run slipway ci, or submit the retained report after pushing this exact commit.'
+        policy.configuration.automatic === true
+          ? 'Checking source automatically; a valid local result is reused when available.'
+          : 'Waiting for a matching trusted local CI result. Run slipway ci, or submit the retained report after pushing this exact commit.'
     }
   }
 }

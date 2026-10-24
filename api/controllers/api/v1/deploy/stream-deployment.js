@@ -54,7 +54,8 @@ module.exports = {
     const stream = res.sse()
 
     // Send initial lifecycle state and user-facing release outcome.
-    stream.send(await deploymentState(deployment))
+    const initialState = await deploymentState(deployment)
+    stream.send(initialState)
 
     // If deployment is already complete, end immediately
     if (
@@ -64,7 +65,9 @@ module.exports = {
       return
     }
 
+    let lastState = JSON.stringify(initialState)
     let lastStatus = deployment.status
+    let lastStage = initialState.stage || ''
     let lastBuildLogLength = Math.min(
       buildOffset,
       (deployment.buildLogs || '').length
@@ -94,9 +97,18 @@ module.exports = {
         }
 
         // Send status update if changed
-        if (current.status !== lastStatus) {
+        const job = await DeploymentJob.findOne({ deployment: id }).select([
+          'stage'
+        ])
+        if (current.status !== lastStatus || job?.stage !== lastStage) {
           lastStatus = current.status
-          stream.send(await deploymentState(current))
+          lastStage = job?.stage
+          const state = await deploymentState(current)
+          const serialized = JSON.stringify(state)
+          if (serialized !== lastState) {
+            lastState = serialized
+            stream.send(state)
+          }
         }
 
         // Stream the exact persisted suffix so live output and a later reload

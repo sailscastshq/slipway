@@ -1,3 +1,4 @@
+const withDatastoreTransaction = require('../../lib/with-datastore-transaction')
 const crypto = require('node:crypto')
 module.exports = {
   friendlyName: 'Reserve CI challenge',
@@ -10,7 +11,7 @@ module.exports = {
   },
   exits: { success: { outputType: 'ref' } },
   fn: async function ({ policy, runner, source }) {
-    return CiRun.getDatastore().transaction(async (connection) => {
+    return withDatastoreTransaction(async (connection) => {
       const locked = await CiPolicy.updateOne({
         id: policy.id,
         revision: policy.revision,
