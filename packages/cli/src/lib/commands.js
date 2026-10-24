@@ -13,6 +13,58 @@ const targetOptions = {
 }
 
 export const commands = {
+  ci: {
+    description:
+      'Run the reviewed CI policy locally and submit source-check evidence',
+    options: {
+      ...targetOptions,
+      repo: { type: 'string' },
+      commit: { type: 'string' },
+      out: { type: 'string' },
+      local: { type: 'boolean' }
+    }
+  },
+  'ci:setup': {
+    description: 'Review and enable an app-scoped local-first CI policy',
+    options: {
+      ...targetOptions,
+      commit: { type: 'string' },
+      branch: { type: 'string' },
+      image: { type: 'string' },
+      platform: { type: 'string' },
+      'approve-policy': { type: 'boolean' },
+      'approve-target': { type: 'string' },
+      disable: { type: 'boolean' },
+      'policy-revision': { type: 'string' }
+    }
+  },
+  'ci:register': {
+    description: 'Explicitly trust this device for the reviewed app CI policy',
+    options: {
+      ...targetOptions,
+      name: { type: 'string' },
+      'trust-device': { type: 'boolean' },
+      'approve-target': { type: 'string' }
+    }
+  },
+  'ci:submit': {
+    description:
+      'Submit an existing exact-commit local report without rerunning checks',
+    options: { ...targetOptions, report: { type: 'string' } }
+  },
+  'ci:status': {
+    description: 'Inspect retained source-check results for an explicit app',
+    options: { ...targetOptions }
+  },
+  'ci:revoke': {
+    description: 'Revoke a trusted local runner for this app',
+    options: {
+      ...targetOptions,
+      runner: { type: 'string' },
+      'approve-target': { type: 'string' }
+    }
+  },
+
   doctor: {
     description:
       'Check server health, saved CLI authentication, and optional target readiness',

@@ -25,6 +25,7 @@ function fixture() {
       name: 'fixture',
       version: '1.0.0',
       scripts: {
+        lint: 'echo lint',
         test: 'must not execute on host',
         build: 'must not execute on host'
       }
@@ -53,6 +54,7 @@ function fixture() {
 if(a[0]==='context')out(process.env.CI_TEST_REMOTE==='yes'?'ssh://production.example.test':'unix:///local-desktop.sock');
 else if(a[0]==='info')out({OperatingSystem:'Docker Desktop',MemTotal:8*1024**3});
 else if(a[0]==='image')out({Os:'linux',Architecture:'amd64',Id:'sha256:'+'a'.repeat(64),Size:100});
+else if(a[0]==='inspect'&&a.includes('{{.Image}}'))console.log('sha256:'+'a'.repeat(64));
 else if(a[0]==='run')console.log('fixture-container');
 else if(a[0]==='exec'&&a.includes('tar'))process.stdin.resume();
 else if(a[0]==='exec'&&a.includes('--version'))console.log(a.includes('npm')?'10.9.4':'v22.23.3');
@@ -76,8 +78,10 @@ function run(f, extraEnv = {}) {
       f.commit,
       '--image',
       'node@sha256:' + 'a'.repeat(64),
+      '--platform',
+      'linux/amd64',
       '--approve',
-      'test,build',
+      'lint,test,build',
       '--approve-install',
       'yes',
       '--out',
@@ -102,7 +106,7 @@ test('local Slipway CI pilot refuses a remote Docker context before starting any
   try {
     const result = run(f, { CI_TEST_REMOTE: 'yes' })
     assert.equal(result.status, 1)
-    assert.match(result.stderr, /only Docker Desktop/)
+    assert.match(result.stderr, /requires Docker Desktop/)
     const calls = fs
       .readFileSync(f.log, 'utf8')
       .trim()

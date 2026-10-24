@@ -7,7 +7,13 @@ import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import CiWorkspace from '@/components/ci/CiWorkspace.vue'
 defineOptions({ layout: AppLayout })
-defineProps({ project: Object, environment: Object, workspace: Object })
+defineProps({
+  project: Object,
+  environment: Object,
+  workspace: Object,
+  app: Object,
+  canManage: Boolean
+})
 const toggleSidebar = inject('toggleSidebar'),
   toggleMobileMenu = inject('toggleMobileMenu'),
   sidebarCollapsed = inject('sidebarCollapsed')
@@ -51,10 +57,27 @@ const toggleSidebar = inject('toggleSidebar'),
           ]"
         />
       </div>
-      <span class="shrink-0 text-xs text-gray-500">Preview</span>
+      <span class="shrink-0 text-xs text-gray-500">{{
+        workspace.policy
+          ? workspace.policy.enabled
+            ? 'Local-first'
+            : 'Disabled'
+          : 'Not configured'
+      }}</span>
     </header>
     <CiWorkspace
       :workspace="workspace"
+      :can-manage="canManage"
+      :target="{
+        project: project.slug,
+        env: environment.slug,
+        app: app?.slug || 'web'
+      }"
+      :api-url="
+        app
+          ? `/api/v1/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/ci`
+          : ''
+      "
       @refresh="router.reload({ only: ['workspace'] })"
     />
   </div>

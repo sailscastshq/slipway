@@ -1,0 +1,44 @@
+{
+  "version": "ci-local-first-v1",
+  "datastores": {
+    "default": {
+      "ci_policies": {
+        "create": "CREATE TABLE `ci_policies` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `app` INTEGER, `revision` TEXT, `repository_id` TEXT, `branch` TEXT, `configuration` TEXT, `enabled` TEXT, `created_by` INTEGER)",
+        "accepted": [
+          "CREATE TABLE `ci_policies` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `app` INTEGER, `revision` TEXT, `repository_id` TEXT, `branch` TEXT, `configuration` TEXT, `enabled` TEXT, `created_by` INTEGER)"
+        ],
+        "indexes": [
+          "CREATE UNIQUE INDEX `ci_policies_app_unique` ON `ci_policies` (`app`)"
+        ]
+      },
+      "ci_runners": {
+        "create": "CREATE TABLE `ci_runners` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `runner_id` TEXT, `app` INTEGER, `name` TEXT, `public_key` TEXT, `policy_revision` TEXT, `approved_by` INTEGER, `revoked_at` INTEGER)",
+        "accepted": [
+          "CREATE TABLE `ci_runners` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `runner_id` TEXT, `app` INTEGER, `name` TEXT, `public_key` TEXT, `policy_revision` TEXT, `approved_by` INTEGER, `revoked_at` INTEGER)"
+        ],
+        "indexes": [
+          "CREATE UNIQUE INDEX `ci_runners_runner_id_unique` ON `ci_runners` (`runner_id`)"
+        ]
+      },
+      "ci_runs": {
+        "create": "CREATE TABLE `ci_runs` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `run_id` TEXT, `app` INTEGER, `runner` INTEGER, `policy_revision` TEXT, `commit` TEXT, `challenge` TEXT, `expires_at` INTEGER, `state` TEXT, `receipt_hash` TEXT, `summary` TEXT, `completed_at` INTEGER)",
+        "accepted": [
+          "CREATE TABLE `ci_runs` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `run_id` TEXT, `app` INTEGER, `runner` INTEGER, `policy_revision` TEXT, `commit` TEXT, `challenge` TEXT, `expires_at` INTEGER, `state` TEXT, `receipt_hash` TEXT, `summary` TEXT, `completed_at` INTEGER)"
+        ],
+        "indexes": [
+          "CREATE UNIQUE INDEX `ci_runs_run_id_unique` ON `ci_runs` (`run_id`)",
+          "CREATE INDEX `ci_runs_admission` ON `ci_runs` (`app`, `commit`, `policy_revision`, `state`)"
+        ]
+      },
+      "ci_verifications": {
+        "create": "CREATE TABLE `ci_verifications` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `deployment` INTEGER, `app` INTEGER, `run` INTEGER, `policy_revision` TEXT, `image_id` TEXT, `commit` TEXT, `runtime_revision` TEXT, `verified_at` INTEGER)",
+        "accepted": [
+          "CREATE TABLE `ci_verifications` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `deployment` INTEGER, `app` INTEGER, `run` INTEGER, `policy_revision` TEXT, `image_id` TEXT, `commit` TEXT, `runtime_revision` TEXT, `verified_at` INTEGER)"
+        ],
+        "indexes": [
+          "CREATE UNIQUE INDEX `ci_verifications_deployment_unique` ON `ci_verifications` (`deployment`)"
+        ]
+      }
+    }
+  }
+}

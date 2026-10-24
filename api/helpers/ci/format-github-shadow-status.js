@@ -9,7 +9,7 @@ module.exports = {
   exits: { success: { outputType: 'ref' } },
   fn: async function ({ run, detailsUrl }) {
     if (
-      run.prototype !== true ||
+      (run.prototype !== true && run.formatVersion !== 1) ||
       run.scope !== 'source-checks-only' ||
       run.deployable !== false
     )

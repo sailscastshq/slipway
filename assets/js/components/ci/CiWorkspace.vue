@@ -1,5 +1,8 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { usePage, Link } from '@inertiajs/vue3'
+import Dialog from '@/components/ui/dialog/Dialog.vue'
+import { useToast } from '@/composables/toast'
 import { useQueryState } from '@/components/ui/durable-ui/useQueryState'
 import BareSelect from '@/components/BareSelect.vue'
 import Tabs from '@/components/ui/tabs/Tabs.vue'
@@ -10,8 +13,87 @@ import Clock from '@/components/ui/icons/Clock.vue'
 import X from '@/components/ui/icons/X.vue'
 import Refresh from '@/components/ui/icons/Refresh.vue'
 
-const props = defineProps({ workspace: { type: Object, required: true } })
+const props = defineProps({
+  workspace: { type: Object, required: true },
+  canManage: Boolean,
+  target: { type: Object, default: () => ({}) },
+  apiUrl: { type: String, default: '' }
+})
 const emit = defineEmits(['refresh'])
+const toast = useToast(),
+  page = usePage(),
+  confirmation = ref(null),
+  busy = ref(false)
+const targetFlags = computed(
+  () =>
+    `--project ${props.target.project || '<project>'} --env ${
+      props.target.env || 'production'
+    } --app ${props.target.app || '<app>'}`
+)
+const targetKey = computed(
+  () => `${props.target.project}/${props.target.env}/${props.target.app}`
+)
+const policy = computed(() => props.workspace.policy)
+const verified = computed(() =>
+  props.workspace.verifications?.find(
+    (item) => item.runId === selected.value?.id
+  )
+)
+const commands = computed(() => ({
+  setup: `slipway ci:setup ${targetFlags.value} --commit <full-sha> --branch main --image node@sha256:<runtime-digest> --platform <linux/amd64-or-linux/arm64> --approve-policy --approve-target ${targetKey.value}`,
+  register: `slipway ci:register ${targetFlags.value} --trust-device --approve-target ${targetKey.value}`,
+  run: `slipway ci ${targetFlags.value} --local`,
+  submit: `slipway ci:submit ${targetFlags.value} --report <report.json>`
+}))
+async function copy(value) {
+  try {
+    await navigator.clipboard.writeText(value)
+    toast({ message: 'Command copied.' })
+  } catch {
+    toast({
+      message: 'Could not copy. Select the command and copy it.',
+      type: 'error'
+    })
+  }
+}
+async function confirmAction() {
+  busy.value = true
+  try {
+    const choice = confirmation.value
+    const response = await fetch(
+      props.apiUrl + (choice.runner ? '/revoke-runner' : '/policy'),
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrf-token': page.props._csrf || ''
+        },
+        body: JSON.stringify(
+          choice.runner
+            ? { runnerId: choice.runner.runnerId }
+            : {
+                enabled: false,
+                approvePolicy: true,
+                policyRevision: policy.value.revision
+              }
+        )
+      }
+    )
+    const body = await response.json()
+    if (!response.ok)
+      throw new Error(body.message || 'CI could not save that change.')
+    confirmation.value = null
+    toast({
+      message: choice.runner ? 'Local runner revoked.' : 'CI policy disabled.'
+    })
+    emit('refresh')
+  } catch (error) {
+    toast({ message: error.message, type: 'error' })
+  } finally {
+    busy.value = false
+  }
+}
+
 const tab = useQueryState('view', 'runs', {
     validate: (value) => ['runs', 'configuration'].includes(value)
   }),
@@ -192,12 +274,24 @@ const tabClass = (value) => [
             >
               <code>{{ selected.sourceRevision?.slice(0, 12) }}</code
               ><span>{{ duration(selected.durationSeconds) }}</span
-              ><span>Local pilot · source checks only</span>
+              ><span
+                >{{
+                  selected.origin === 'trusted-local'
+                    ? 'Trusted local runner'
+                    : 'Local pilot'
+                }}
+                · source checks only</span
+              >
             </div>
             <p class="my-5 text-sm text-gray-500 dark:text-gray-400">
               {{
                 selected.reason ||
-                (selected.state === 'passed'
+                (selected.origin === 'trusted-local' &&
+                selected.accepted === false
+                  ? 'This result is retained for history. Current policy, device trust or freshness no longer permits deployment reuse.'
+                  : verified
+                  ? 'Source checks passed locally. The server separately verified the deployment candidate.'
+                  : selected.state === 'passed'
                   ? 'Selected source checks passed. An application image has not been verified for deployment.'
                   : 'These checks did not pass. Review the failed step before retrying.')
               }}
@@ -221,6 +315,8 @@ const tabClass = (value) => [
                   ><span class="text-gray-900 dark:text-white">{{
                     step.name === 'install'
                       ? 'Install dependencies'
+                      : step.name === 'test'
+                      ? 'Tests'
                       : label(step.name)
                   }}</span
                   ><code
@@ -245,11 +341,31 @@ const tabClass = (value) => [
                   Deployment
                 </p>
                 <p class="mt-1 text-gray-500 dark:text-gray-400">
-                  Source-check evidence does not approve an application image.
+                  {{
+                    verified
+                      ? 'The server verified this candidate separately from local source checks.'
+                      : 'The server must verify a candidate before deployment.'
+                  }}
                 </p>
               </div>
-              <Badge class="rounded px-1.5 text-[11px] font-normal"
-                >Not approved</Badge
+              <Badge class="rounded px-1.5 text-[11px] font-normal">{{
+                verified ? 'Server verified' : 'Not approved'
+              }}</Badge>
+            </div>
+            <div
+              v-if="verified"
+              class="mt-4 border-t border-gray-200 pt-4 text-xs dark:border-gray-800"
+            >
+              <p class="font-medium text-gray-900 dark:text-white">
+                Server verified candidate
+              </p>
+              <code class="mt-2 block break-all text-gray-500">{{
+                verified.imageId
+              }}</code>
+              <Link
+                :href="verified.deploymentUrl"
+                class="mt-2 inline-block border-b border-dashed border-gray-300 text-gray-700 dark:text-gray-300"
+                >View deployment</Link
               >
             </div>
             <p class="mt-4 break-all text-xs text-gray-500 dark:text-gray-400">
@@ -264,43 +380,171 @@ const tabClass = (value) => [
         data-value="configuration"
         class="max-w-3xl pt-6"
       >
-        <h2 class="text-sm font-semibold text-gray-900 dark:text-white">
-          Required checks
-        </h2>
-        <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-          Choose the commands from package.json that must pass. Discovery never
-          executes repository code.
-        </p>
-        <div class="mt-5 divide-y divide-gray-100 dark:divide-gray-800">
-          <div
-            v-for="name in ['lint', 'test', 'build']"
-            :key="name"
-            class="flex items-center justify-between gap-3 py-3 text-sm"
+        <div class="flex items-center justify-between gap-3">
+          <h2 class="text-sm font-semibold text-gray-900 dark:text-white">
+            Source checks
+          </h2>
+          <Button
+            v-if="canManage && policy?.enabled"
+            :class="action"
+            @click="confirmation = { disable: true }"
+            >Disable CI</Button
           >
+        </div>
+        <template v-if="policy">
+          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            {{
+              policy.enabled
+                ? 'Trusted local results can satisfy these checks for the exact commit.'
+                : 'This policy is disabled. New deployments do not require its local results.'
+            }}
+          </p>
+          <dl class="mt-5 grid gap-4 text-sm sm:grid-cols-2">
             <div>
-              <p class="text-gray-900 dark:text-white">
-                {{ name === 'test' ? 'Tests' : label(name) }}
+              <dt class="text-xs text-gray-500">Branch</dt>
+              <dd class="mt-1 font-mono text-gray-900 dark:text-white">
+                {{ policy.branch }}
+              </dd>
+            </div>
+            <div>
+              <dt class="text-xs text-gray-500">Test environment</dt>
+              <dd class="mt-1 text-gray-900 dark:text-white">
+                {{ policy.configuration.execution.platform }} · disposable
+                SQLite
+              </dd>
+            </div>
+          </dl>
+          <div class="mt-4 divide-y divide-gray-100 dark:divide-gray-800">
+            <div
+              v-for="step in policy.configuration.execution.scripts"
+              :key="step.name"
+              class="py-3"
+            >
+              <p class="text-sm font-medium text-gray-900 dark:text-white">
+                {{ step.name === 'test' ? 'Tests' : label(step.name) }}
+                <span class="ml-2 text-xs font-normal text-gray-500"
+                  >Required</span
+                >
               </p>
-              <code class="mt-1 block text-xs text-gray-500 dark:text-gray-400"
-                >npm run {{ name }}</code
+              <code
+                class="mt-1 block break-all text-xs text-gray-500 dark:text-gray-400"
+                >{{ step.script }}</code
               >
             </div>
-            <span class="text-xs text-gray-500 dark:text-gray-400"
-              >Required in the local pilot</span
+          </div>
+        </template>
+        <p v-else class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+          No CI policy is configured. Review the committed commands, runtime and
+          target platform from your development machine.
+        </p>
+        <div
+          v-if="canManage"
+          class="mt-6 space-y-5 border-t border-gray-200 pt-5 dark:border-gray-800"
+        >
+          <div
+            v-for="(title, key) in policy?.enabled
+              ? {
+                  register: 'Register your local runner',
+                  run: 'Run before pushing',
+                  submit: 'Submit the retained result after pushing'
+                }
+              : { setup: 'Review and enable CI' }"
+            :key="key"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+                {{ title }}
+              </h3>
+              <Button
+                :class="action"
+                :aria-label="`Copy ${title.toLowerCase()} command`"
+                @click="copy(commands[key])"
+                >Copy</Button
+              >
+            </div>
+            <code
+              class="mt-2 block whitespace-pre-wrap break-all rounded-md bg-gray-50 p-3 text-xs leading-relaxed text-gray-700 dark:bg-gray-900/50 dark:text-gray-300"
+              >{{ commands[key] }}</code
             >
           </div>
         </div>
         <div class="mt-6 border-t border-gray-200 pt-5 dark:border-gray-800">
           <h3 class="text-sm font-medium text-gray-900 dark:text-white">
-            Runner setup
+            Local runners
           </h3>
           <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Runner registration and saved policies are not available yet. This
-            read-only workspace cannot start checks or change your deployment
-            policy.
+            Only approve devices you trust to report checks honestly. Signing
+            keys stay outside the tested app. Server image and health
+            verification still run before deployment.
           </p>
+          <p
+            v-if="!workspace.runners?.length"
+            class="mt-4 text-xs text-gray-500"
+          >
+            No local runners registered.
+          </p>
+          <div
+            v-for="runner in workspace.runners || []"
+            :key="runner.runnerId"
+            class="mt-3 flex items-center justify-between gap-3 border-t border-gray-100 pt-3 text-sm dark:border-gray-800"
+          >
+            <div>
+              <p class="text-gray-900 dark:text-white">{{ runner.name }}</p>
+              <p class="mt-1 text-xs text-gray-500">
+                {{
+                  runner.revokedAt != null
+                    ? 'Revoked'
+                    : runner.policyRevision !== policy?.revision
+                    ? 'Needs approval for the current policy'
+                    : 'Trusted for this policy'
+                }}
+              </p>
+            </div>
+            <Button
+              v-if="canManage && runner.revokedAt == null"
+              :class="action"
+              @click="confirmation = { runner }"
+              >Revoke</Button
+            >
+          </div>
         </div>
       </div>
     </Tabs>
+    <Dialog
+      :dismissible="!busy"
+      :open="!!confirmation"
+      @update:open="
+        (value) => {
+          if (!value && !busy) confirmation = null
+        }
+      "
+      aria-labelledby="ci-confirm-title"
+    >
+      <h2 id="ci-confirm-title" class="text-lg font-semibold">
+        {{
+          confirmation?.runner
+            ? 'Revoke local runner?'
+            : 'Disable CI for this app?'
+        }}
+      </h2>
+      <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+        {{
+          confirmation?.runner
+            ? `Future deployments cannot reuse results from ${confirmation.runner.name}. The running app stays unchanged.`
+            : 'Future deployments will no longer require this CI policy. The running app stays unchanged.'
+        }}
+      </p>
+      <div class="mt-6 flex justify-end gap-2">
+        <Button :class="action" :disabled="busy" @click="confirmation = null"
+          >Cancel</Button
+        ><Button :disabled="busy" @click="confirmAction">{{
+          busy
+            ? 'Saving…'
+            : confirmation?.runner
+            ? 'Revoke runner'
+            : 'Disable CI'
+        }}</Button>
+      </div>
+    </Dialog>
   </div>
 </template>

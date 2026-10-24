@@ -2,7 +2,7 @@ const { test } = require('sounding')
 const { createSessionCookie } = require('sounding/lib/create-session-cookie')
 const { withCsrfFromPage } = require('../../support/csrf-request')
 test(
-  'CI workspace is read-only and rejects projects and environments outside the current team',
+  'CI workspace starts unconfigured and rejects projects and environments outside the current team',
   {
     transport: 'http',
     world: {
@@ -21,8 +21,11 @@ test(
     expect(result.data.props.workspace).toEqual({
       version: 1,
       runner: 'not-configured',
-      readOnly: true,
-      runs: []
+      readOnly: false,
+      policy: null,
+      runners: [],
+      runs: [],
+      verifications: []
     })
     const team = await world.create('team').with({
       name: 'Another tenant',

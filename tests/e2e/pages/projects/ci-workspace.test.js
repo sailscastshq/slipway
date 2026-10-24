@@ -103,11 +103,96 @@ test(
       page.raw.getByRole('tab', { name: 'Configuration', exact: true })
     ).toHaveAttribute('aria-selected', 'true')
     await expect(
-      page.raw.getByText(
-        'Runner registration and saved policies are not available yet.',
-        { exact: false }
-      )
+      page.raw.getByText('No CI policy is configured.', { exact: false })
     ).toBeVisible()
+    expect(page).toHaveNoJavascriptErrors()
+  }
+)
+
+test(
+  'CI owner can revoke a runner and disable the policy with confirmation and toast feedback',
+  {
+    browser: true,
+    world: {
+      name: 'configured-slipway',
+      context: { deploymentTarget: { slug: 'ci-controls-review' } }
+    }
+  },
+  async ({ sails, world, page, login, expect }) => {
+    const crypto = require('node:crypto')
+    const app = world.current.apps.web
+    const policy = await sails.models.cipolicy
+      .create({
+        app: app.id,
+        revision: 'review-1',
+        repositoryId: '123',
+        branch: 'main',
+        createdBy: world.current.users.genesisUser.id,
+        enabled: true,
+        configuration: {
+          execution: {
+            platform: 'linux/amd64',
+            scripts: ['lint', 'test', 'build'].map((name) => ({
+              name,
+              script: `npm run ${name}`
+            }))
+          }
+        }
+      })
+      .fetch()
+    const runner = await sails.models.cirunner
+      .create({
+        app: app.id,
+        runnerId: crypto.randomUUID(),
+        name: 'Owner development machine',
+        publicKey: 'fixture',
+        policyRevision: policy.revision,
+        approvedBy: world.current.users.genesisUser.id
+      })
+      .fetch()
+    await login.withPassword('genesisUser', page, {
+      password: world.current.auth.genesisUserPassword
+    })
+    await page.raw.waitForURL((url) => !url.pathname.startsWith('/login'))
+    await page.goto(
+      `/projects/${world.current.projects.deploymentTarget.slug}/ci?view=configuration`
+    )
+    await expect(
+      page.raw.getByText('Trusted for this policy', { exact: true })
+    ).toBeVisible()
+    await page.raw.getByRole('button', { name: 'Revoke', exact: true }).click()
+    await expect(
+      page.raw.getByRole('heading', { name: 'Revoke local runner?' })
+    ).toBeVisible()
+    await page.raw
+      .getByRole('button', { name: 'Revoke runner', exact: true })
+      .click()
+    await expect(
+      page.raw.getByText('Local runner revoked.', { exact: true })
+    ).toBeVisible()
+    await expect(page.raw.getByText('Revoked', { exact: true })).toBeVisible()
+    expect(
+      (await sails.models.cirunner.findOne({ id: runner.id })).revokedAt
+    ).toBeTruthy()
+    await page.raw
+      .getByRole('button', { name: 'Disable CI', exact: true })
+      .click()
+    await expect(
+      page.raw.getByRole('heading', { name: 'Disable CI for this app?' })
+    ).toBeVisible()
+    await page.raw
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Disable CI', exact: true })
+      .click()
+    await expect(
+      page.raw.getByText('CI policy disabled.', { exact: true })
+    ).toBeVisible()
+    await expect(
+      page.raw.getByText('This policy is disabled.', { exact: false })
+    ).toBeVisible()
+    expect(
+      (await sails.models.cipolicy.findOne({ id: policy.id })).enabled
+    ).toBe(false)
     expect(page).toHaveNoJavascriptErrors()
   }
 )

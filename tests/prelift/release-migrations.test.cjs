@@ -833,3 +833,52 @@ test('production processes cannot enable legacy DDL through absent or test-mode 
     else process.env.NODE_ENV = previous
   }
 })
+
+test('CI migration is additive, clone-only in preflight, and idempotent without recopying observability', () =>
+  fixture(async (directory) => {
+    await migrations.run({ directory })
+    const baseReceipt = edit(directory, 'app.db', (db) =>
+      db.prepare(`SELECT * FROM ${migrations.receiptTable}`).get()
+    )
+    const ci = migrations.forCatalog(
+      require('../../api/lib/releases/ci-local-first-v1.json')
+    )
+    assert.deepEqual(ci.files, { default: 'app.db' })
+    const before = hashes(directory)
+    await ci.run({ directory, preflightOnly: true })
+    assert.deepEqual(hashes(directory), before)
+    edit(directory, 'app.db', (db) =>
+      assert.equal(
+        db
+          .prepare(
+            "SELECT count(*) AS n FROM sqlite_schema WHERE name='ci_runs'"
+          )
+          .get().n,
+        0
+      )
+    )
+    const result = await ci.run({ directory })
+    assert.equal(result.migratedDatastores, 1)
+    const after = hashes(directory)
+    assert.deepEqual(after.slice(1), before.slice(1))
+    edit(directory, 'app.db', (db) => {
+      for (const name of [
+        'ci_policies',
+        'ci_runners',
+        'ci_runs',
+        'ci_verifications'
+      ])
+        assert.ok(
+          db.prepare('SELECT name FROM sqlite_schema WHERE name=?').get(name)
+        )
+      assert.deepEqual(
+        db
+          .prepare(`SELECT * FROM ${migrations.receiptTable} WHERE checksum=?`)
+          .get(baseReceipt.checksum),
+        baseReceipt
+      )
+      assert.equal(db.pragma('integrity_check', { simple: true }), 'ok')
+    })
+    await ci.run({ directory })
+    assert.deepEqual(hashes(directory), after)
+  }))
