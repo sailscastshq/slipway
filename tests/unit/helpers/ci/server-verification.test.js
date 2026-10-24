@@ -190,6 +190,106 @@ test(
           contextPath: directory
         })
         assert.equal(blocked.allowed, false)
+        // A backend-owned server result is distinct from a local device signature.
+        policy.configuration.automatic = true
+        await sails.models.cipolicy
+          .updateOne({ id: policy.id })
+          .set({ configuration: policy.configuration })
+        const native = await sails.models.cirun
+          .create({
+            app: app.id,
+            runner: null,
+            runId: crypto.randomUUID(),
+            policyRevision: policy.revision,
+            commit,
+            challenge: { ...run.challenge, purpose: 'server-source-v1' },
+            expiresAt: Date.now() + 300000,
+            state: 'passed',
+            completedAt: Date.now(),
+            receiptHash: 'sha256:' + 'e'.repeat(64),
+            summary: {
+              state: 'passed',
+              origin: 'server',
+              sourceRevision: commit,
+              scope: 'source-checks-only',
+              deployable: false,
+              finishedAt: Date.now(),
+              cleanup: { state: 'completed' },
+              runtime: {
+                image: execution.runtime,
+                architecture: 'amd64',
+                imageId,
+                node: 'v22.23.4'
+              },
+              steps: ['install', 'lint', 'test', 'build'].map((name) => ({
+                name,
+                state: 'passed',
+                exitCode: 0
+              })),
+              serverProof: {
+                executorDigest:
+                  require('../../../../api/helpers/ci/is-server-evidence')._private.executorDigest(),
+                reportHash: 'sha256:' + 'e'.repeat(64),
+                checkNetwork: 'disconnected'
+              }
+            }
+          })
+          .fetch()
+        const serverAdmission =
+          await sails.helpers.ci.getDeploymentAdmission.with({
+            appId: app.id,
+            contextPath: directory
+          })
+        assert.equal(serverAdmission.allowed, true)
+        assert.equal(serverAdmission.origin, 'server')
+        const serverDeployment = await world.create('deployment').with({
+          app: app.id,
+          environment: app.environment,
+          status: 'deploying',
+          imageId
+        })
+        const serverApproval =
+          await sails.helpers.ci.recordServerVerification.with({
+            admission: serverAdmission,
+            deploymentId: serverDeployment.id,
+            contextPath: directory,
+            containerName: 'slipway-ci-candidate',
+            imageId,
+            runtimeRevision: 'runtime-1'
+          })
+        const nativeCheck = () =>
+          sails.models.app.getDatastore().transaction((connection) =>
+            sails.helpers.ci.assertCutover.with({
+              approval: serverApproval,
+              appId: app.id,
+              deploymentId: serverDeployment.id,
+              imageId,
+              connection
+            })
+          )
+        await nativeCheck()
+        policy.configuration.automatic = false
+        await sails.models.cipolicy
+          .updateOne({ id: policy.id })
+          .set({ configuration: policy.configuration })
+        await assert.rejects(nativeCheck(), /changed before traffic commit/)
+        assert.equal(
+          (
+            await sails.helpers.ci.getDeploymentAdmission.with({
+              appId: app.id,
+              contextPath: directory
+            })
+          ).allowed,
+          false
+        )
+        policy.configuration.automatic = true
+        await sails.models.cipolicy
+          .updateOne({ id: policy.id })
+          .set({ configuration: policy.configuration })
+        await sails.models.cirun
+          .updateOne({ id: native.id })
+          .set({ summary: { ...native.summary, cleanup: { state: 'failed' } } })
+        await assert.rejects(nativeCheck(), /changed before traffic commit/)
         await sails.models.cirunner
           .updateOne({ id: runner.id })
           .set({ revokedAt: null })

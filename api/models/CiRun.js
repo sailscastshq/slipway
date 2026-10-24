@@ -12,8 +12,7 @@ module.exports = {
       required: true
     },
     runner: {
-      model: 'cirunner',
-      required: true
+      model: 'cirunner'
     },
     policyRevision: {
       type: 'string',

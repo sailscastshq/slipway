@@ -1,6 +1,6 @@
 # Local-first Slipway CI
 
-The owner can trust a local device to run required source checks, then let Slipway independently verify the deployment candidate. This implementation is on the CI feature branch; it is not in the installed public CLI/server until that branch is reviewed and released.
+The owner can trust a local device to run required source checks, then let Slipway independently verify the deployment candidate. Server 0.0.120 and CLI 0.0.4 support trusted local results. Automatic server fallback described below requires the next server release; installing the CLI alone does not enable it.
 
 ## One-time setup
 
@@ -21,7 +21,19 @@ slipway ci:register --project sailsconf --env production --app web \
 
 Only team owners/admins can configure, approve, submit or revoke local runners in this first version. Explicit trust means the device's administrator is trusted to report checks honestly. An Ed25519 signature identifies the approved device and protects the submitted result; it does not prove an administrator cannot forge execution.
 
-## Everyday use
+## Automatic checks before deployment
+
+After installing the server release containing issue #855, open **CI → Configuration → Automatic checks** and explicitly enable automatic execution for the reviewed policy. This creates a new policy revision; approve local devices again if they should supply results for it.
+
+Push to the connected deployment branch with auto-deploy enabled. The existing deployment worker first reuses any qualifying local result for that exact source. Otherwise it runs install, lint, tests and asset build in an isolated server container. No local command is required for this path. Feature branches that do not trigger deployment do not acquire standalone CI runs in this implementation.
+
+The deployment shows **Waiting for CI**, **Running CI** and the active check, then **Building** only when image construction starts. CI runs refresh automatically while the page is visible. A failed check blocks promotion; the current release keeps serving traffic. Candidate image, runtime and health verification still run separately after source checks.
+
+Only one server CI job runs across the instance at a time. It has two CPUs, 4 GiB memory, bounded processes/logs and a twenty-minute execution deadline. At least 5 GiB available host memory is required before starting. Installation has network access; checks run with networking disconnected. No production environment, host project or Docker socket is mounted into the job. Uncertain cleanup holds capacity rather than pruning unrelated containers. Policy changes, cancellation and lost deployment ownership stop the job. Waiting for capacity is bounded too.
+
+The owner can return to local-only mode in the same configuration section. Existing policies remain local-only until explicitly enabled. CLI 0.0.4 remains compatible; this server feature does not require another npm publication.
+
+## Optional local checks
 
 Commit first. Local changes outside that commit are excluded.
 
@@ -44,7 +56,7 @@ The device key and retained evidence live in the CLI's protected configuration d
 1. A current app-scoped policy and approved, non-revoked device.
 2. The connected repository ID, exact pushed branch head/tree, package and lockfile bytes, required commands, executor digest, pinned runtime and platform.
 3. A signed, one-use server challenge; complete ordered successful checks; cleanup; a result no more than an hour old. Identical resubmission is idempotent. Altered replay is rejected.
-4. A clean checkout of that same source before building. An existing deployment worker can wait up to twenty minutes for a qualifying result; missing evidence blocks rather than silently rerunning untrusted checks on the management host.
+4. A clean checkout of that same source before building. An existing deployment worker can wait up to twenty minutes for a qualifying result; local-only mode waits for evidence; automatic mode executes bounded source checks in a disposable server container. Repository code never runs directly on the management host.
 5. The server-built immutable image, architecture, reviewed runtime base, executable Node version, current runtime/readiness configuration, and existing schema/health/route checks.
 6. Current policy, runner trust, source receipt and candidate verification again inside the traffic-commit transaction. A policy change or revocation blocks promotion. Existing rollback safety checks remain in force.
 

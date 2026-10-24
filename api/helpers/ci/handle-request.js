@@ -1,3 +1,4 @@
+const withDatastoreTransaction = require('../../lib/with-datastore-transaction')
 const crypto = require('node:crypto')
 const contract = require('../../lib/contracts/ci-contract')
 module.exports = {
@@ -24,7 +25,10 @@ module.exports = {
     if (operation === 'runs' && get)
       return {
         runs: (
-          await CiRun.find({ app: appId, completedAt: { '!=': null } })
+          await CiRun.find({
+            app: appId,
+            or: [{ completedAt: { '!=': null } }, { runner: null }]
+          })
             .sort('createdAt DESC')
             .limit(100)
         ).map((run) => run.summary)
@@ -44,6 +48,34 @@ module.exports = {
       }
     if (get) throw new Error('Use the reviewed CI action to make changes.')
     if (operation === 'policy') {
+      if (typeof data.automatic === 'boolean') {
+        if (
+          !policy?.enabled ||
+          data.approvePolicy !== true ||
+          data.policyRevision !== policy.revision
+        )
+          throw new Error(
+            'Review the current policy before changing automatic execution.'
+          )
+        const configuration = {
+          ...policy.configuration,
+          automatic: data.automatic
+        }
+        const revision = contract.digest({
+          appId: String(appId),
+          repositoryId: policy.repositoryId,
+          branch: policy.branch,
+          configuration
+        })
+        const updated = await CiPolicy.updateOne({
+          id: policy.id,
+          revision: policy.revision,
+          enabled: true
+        }).set({ revision, configuration })
+        if (!updated)
+          throw new Error('The policy changed. Reload and review it again.')
+        return { policy: updated }
+      }
       if (
         data.enabled === false &&
         policy &&
@@ -255,7 +287,7 @@ module.exports = {
           )
         return { run: run.summary, reused: true }
       }
-      return CiRun.getDatastore().transaction(async (connection) => {
+      return withDatastoreTransaction(async (connection) => {
         // Serialize trust changes and terminal admission on the same datastore.
         const locked = await CiPolicy.updateOne({
           id: policy.id,

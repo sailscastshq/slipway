@@ -21,9 +21,12 @@ module.exports = {
       fail()
     const [policy, runner, run, verification] = await Promise.all([
       CiPolicy.findOne({ app: appId }).usingConnection(connection),
-      CiRunner.findOne({ id: approval.runnerId, app: appId }).usingConnection(
-        connection
-      ),
+      approval.origin === 'server'
+        ? Promise.resolve(null)
+        : CiRunner.findOne({
+            id: approval.runnerId,
+            app: appId
+          }).usingConnection(connection),
       CiRun.findOne({
         id: approval.runId,
         app: appId,
@@ -38,12 +41,14 @@ module.exports = {
     if (
       !policy?.enabled ||
       policy.revision !== approval.policyRevision ||
-      !runner ||
-      runner.revokedAt != null ||
-      runner.policyRevision !== policy.revision ||
+      (approval.origin === 'server'
+        ? !sails.helpers.ci.isServerEvidence.with({ run, policy })
+        : !runner ||
+          runner.revokedAt != null ||
+          runner.policyRevision !== policy.revision ||
+          String(run?.runner) !== String(runner.id)) ||
       !run ||
       run.policyRevision !== policy.revision ||
-      String(run.runner) !== String(runner.id) ||
       run.commit !== approval.commit ||
       run.summary.scope !== 'source-checks-only' ||
       run.summary.deployable !== false ||

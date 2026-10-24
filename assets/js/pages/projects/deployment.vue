@@ -78,6 +78,8 @@ const {
         status: data.status,
         outcome: data.outcome,
         outcomeLabel: data.outcomeLabel,
+        stage: data.stage,
+        stageLabel: data.stageLabel,
         isCurrent: data.isCurrent,
         isCurrentDeployment: data.isCurrent,
         isActive: data.isActive,

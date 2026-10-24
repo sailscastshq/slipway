@@ -17,6 +17,8 @@ const emit = defineEmits(['status-change', 'dismiss'])
 const status = ref(props.deployment.status)
 const outcome = ref(props.deployment.outcome)
 const outcomeLabel = ref(props.deployment.outcomeLabel)
+const stage = ref(props.deployment.stage)
+const stageLabel = ref(props.deployment.stageLabel)
 const startTime = ref(props.deployment.startedAt || Date.now())
 const elapsed = ref(0)
 let timerInterval = null
@@ -56,6 +58,10 @@ let messageInterval = null
 let messageIndex = 0
 
 function rotateMessage() {
+  if (stage.value?.startsWith('ci_') && isActive.value) {
+    maritimeMessage.value = stageLabel.value || 'Checking source'
+    return
+  }
   const messages = maritimeMessages[status.value]
   if (!messages) {
     maritimeMessage.value = ''
@@ -152,6 +158,9 @@ const { close: closeStream, connect: connectToStream } = useEventSource(
         status.value = data.status
         outcome.value = data.outcome
         outcomeLabel.value = data.outcomeLabel
+        stage.value = data.stage
+        stageLabel.value = data.stageLabel
+        rotateMessage()
         emit('status-change', {
           deploymentId: props.deployment.id,
           ...data
@@ -221,6 +230,7 @@ watch(status, (newStatus) => {
 
 <template>
   <div
+    data-test="deployment-toast"
     aria-live="off"
     class="pointer-events-auto w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-none dark:border-gray-700/50 dark:bg-gray-900"
   >
