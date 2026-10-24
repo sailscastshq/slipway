@@ -115,6 +115,70 @@ test('registered roots cover the tracked frontend inventory', () => {
     )
 })
 
+test('every tracked stylesheet and Vue style block is reviewed for additional Tailwind scopes', () => {
+  const tracked = execFileSync(
+    'git',
+    ['ls-files', '-z', '--', 'assets', 'views', 'packages/hook/lib'],
+    {
+      cwd: root,
+      encoding: 'utf8'
+    }
+  )
+    .split('\0')
+    .filter(Boolean)
+  const tailwindScopes = []
+  const stylesheets = []
+  for (const file of tracked) {
+    if (!/\.(css|less|scss|sass|vue)$/.test(file)) continue
+    const text = fs.readFileSync(path.join(root, file), 'utf8')
+    if (file.endsWith('.vue'))
+      assert.doesNotMatch(
+        text,
+        /<style\b[^>]*\bsrc\s*=/i,
+        'review external Vue style sources before changing discovery'
+      )
+    const blocks = file.endsWith('.vue')
+      ? [...text.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/g)].map(
+          (match) => match[1]
+        )
+      : [text]
+    if (!file.endsWith('.vue')) stylesheets.push(file)
+    for (const block of blocks)
+      if (
+        /@(?:source|reference|config|plugin|tailwind)\b|@import\s+(?:url\(\s*)?['"]tailwindcss(?:\/[^'"]*)?['"]/.test(
+          block
+        )
+      )
+        tailwindScopes.push(file)
+  }
+  assert.deepEqual(
+    stylesheets.sort(),
+    ['assets/css/app.css', 'packages/hook/lib/bridge-support.css'],
+    'review any new stylesheet entry or imported partial for source discovery'
+  )
+  assert.deepEqual(
+    tailwindScopes,
+    ['assets/css/app.css'],
+    'review every additional Tailwind import or source-affecting directive'
+  )
+  assert.match(
+    fs.readFileSync(path.join(root, 'assets/js/app.js'), 'utf8'),
+    /import\s+['"]~\/css\/app\.css['"]/,
+    'the dashboard uses the reviewed stylesheet'
+  )
+})
+
+test('the reviewed Tailwind entry has no application CSS import graph that can add source declarations', () => {
+  const imports = [...css.matchAll(/@import\s+([^;]+);/g)].map((match) =>
+    match[1].trim()
+  )
+  assert.deepEqual(
+    imports,
+    ["'tailwindcss' source(none)"],
+    'nested CSS imports need source-scope review before changing this boundary'
+  )
+})
+
 test('current source roots contain only regular files/directories, without symlink escapes', () => {
   for (const source of sources) assert.ok(inspectTree(source).length > 0)
 })
