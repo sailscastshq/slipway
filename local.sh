@@ -263,12 +263,16 @@ check_upgrade_from_previous_release() {
 
   cleanup_upgrade_check() {
     docker rm -f \
-      "$seed_container" \
-      "$current_container" \
-      "$candidate_container" >/dev/null 2>&1 || true
-    docker volume rm -f "$db_volume" "$apps_volume" >/dev/null 2>&1 || true
+      "$1" \
+      "$2" \
+      "$3" >/dev/null 2>&1 || true
+    docker volume rm -f "$4" "$5" >/dev/null 2>&1 || true
   }
-  trap cleanup_upgrade_check EXIT INT TERM
+  # EXIT can run after this function's locals have left scope. Capture only the
+  # generated resource names as quoted arguments, preserving the original error.
+  local cleanup_arguments
+  printf -v cleanup_arguments '%q ' "$seed_container" "$current_container" "$candidate_container" "$db_volume" "$apps_volume"
+  trap "cleanup_upgrade_check $cleanup_arguments" EXIT INT TERM
 
   ensure_network
   build_local_image
@@ -345,7 +349,7 @@ check_upgrade_from_previous_release() {
   wait_for_container_health "$candidate_container"
 
   echo -e "${GREEN}Upgrade check passed: ${PREVIOUS_VERSION#v} -> current checkout${NC}"
-  cleanup_upgrade_check
+  cleanup_upgrade_check "$seed_container" "$current_container" "$candidate_container" "$db_volume" "$apps_volume"
   trap - EXIT INT TERM
 }
 

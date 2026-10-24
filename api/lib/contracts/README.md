@@ -16,3 +16,5 @@ in parity, and the Docker smoke test loads the ledger without hook source.
 Quest metadata and safe JSON projections also have independent dashboard and hook
 copies. The instance workspace unit trial checks parity and loads the adapter
 with hook source explicitly unavailable. Neither copy creates a scheduler.
+
+CI has independent dashboard and CLI protocol implementations as well. The dashboard records the reviewed executor digest rather than importing CLI files, which production images intentionally exclude. The CI packaging trial compares canonical policy/statement behavior and the executor digest, then loads all CI helpers with package imports blocked. Update the reviewed digest only together with matching CLI/server changes.

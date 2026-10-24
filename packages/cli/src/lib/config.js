@@ -1,10 +1,13 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, isAbsolute } from 'node:path'
 import { homedir } from 'node:os'
 import { credentialStore } from './credential-store.js'
 
 // Global config stored in ~/.slipway/config.json
-const CONFIG_DIR = join(homedir(), '.slipway')
+const CONFIG_DIR = process.env.SLIPWAY_CONFIG_DIR || join(homedir(), '.slipway')
+if (!isAbsolute(CONFIG_DIR))
+  throw new Error('SLIPWAY_CONFIG_DIR must be an absolute private directory.')
+export const getConfigDirectory = () => CONFIG_DIR
 const store = credentialStore(CONFIG_DIR)
 
 // Project config stored in .slipway.json in the project directory

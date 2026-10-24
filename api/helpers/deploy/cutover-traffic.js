@@ -25,6 +25,7 @@ module.exports = {
       type: 'string',
       description: 'Existing App record to replace.'
     },
+    ciApproval: { type: 'ref' },
     candidate: {
       type: 'ref',
       required: true,
@@ -44,6 +45,7 @@ module.exports = {
     leaseToken,
     environmentId,
     appId,
+    ciApproval,
     candidate
   }) {
     const previousApp = appId ? await App.findOne({ id: appId }) : null
@@ -138,6 +140,27 @@ module.exports = {
       // ownership so a newer worker can never inherit this candidate.
       await assertLease(deploymentId, leaseToken)
       await transaction(async (db) => {
+        if (appId) {
+          const ciPolicy = await CiPolicy.findOne({
+            app: appId
+          }).usingConnection(db)
+          const ciJob = await DeploymentJob.findOne({
+            deployment: deploymentId
+          }).usingConnection(db)
+          if (ciApproval || (ciPolicy?.enabled && ciJob?.kind !== 'rollback')) {
+            if (!ciApproval)
+              throw new Error(
+                'CI became required before traffic commit; this candidate has no server verification.'
+              )
+            await sails.helpers.ci.assertCutover.with({
+              approval: ciApproval,
+              appId,
+              deploymentId,
+              imageId: candidateApp.imageId,
+              connection: db
+            })
+          }
+        }
         if (leaseToken) {
           const owner = await DeploymentLease.findOne({
             deployment: deploymentId,

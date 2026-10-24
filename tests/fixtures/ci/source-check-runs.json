@@ -1,0 +1,111 @@
+[
+  {
+    "id": "ba7a017d-7241-4b78-9f49-b84e2cd0d8a4",
+    "state": "passed",
+    "sourceRevision": "3befd2819adc243be2f97ea8fa21e199e7f7d82d",
+    "durationSeconds": 168.53,
+    "steps": [
+      {
+        "name": "install",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 36.56,
+        "exitCode": 0
+      },
+      {
+        "name": "lint",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 11.62,
+        "exitCode": 0
+      },
+      {
+        "name": "test",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 114.98,
+        "exitCode": 0
+      },
+      {
+        "name": "build",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 3.66,
+        "exitCode": 0
+      }
+    ],
+    "cleanup": {
+      "state": "completed",
+      "container": "slipway-trials-local-ba7a017d-7241-4b78-9f49-b84e2cd0d8a4"
+    },
+    "scope": "source-checks-only",
+    "deployable": false,
+    "title": "Required lint, tests and build \u00b7 fixed"
+  },
+  {
+    "id": "32dd12f3-6eeb-431b-b167-e4029051607e",
+    "state": "failed",
+    "sourceRevision": "8ac88f53b68037fa7e0fb08e27c17aea402da78f",
+    "durationSeconds": 84.5,
+    "steps": [
+      {
+        "name": "install",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 71.74,
+        "exitCode": 0
+      },
+      {
+        "name": "lint",
+        "required": true,
+        "state": "failed",
+        "durationSeconds": 11.16,
+        "exitCode": 1
+      }
+    ],
+    "cleanup": {
+      "state": "completed",
+      "container": "slipway-trials-local-32dd12f3-6eeb-431b-b167-e4029051607e"
+    },
+    "scope": "source-checks-only",
+    "deployable": false,
+    "title": "Required lint, tests and build",
+    "reason": "lint failed (exit 1); local log retained."
+  },
+  {
+    "id": "1aedabb8-8ca8-4fc9-891b-c32d51b80191",
+    "state": "passed",
+    "sourceRevision": "8ac88f53b68037fa7e0fb08e27c17aea402da78f",
+    "durationSeconds": 271.93,
+    "steps": [
+      {
+        "name": "install",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 147.56,
+        "exitCode": 0
+      },
+      {
+        "name": "test",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 119.18,
+        "exitCode": 0
+      },
+      {
+        "name": "build",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 3.52,
+        "exitCode": 0
+      }
+    ],
+    "cleanup": {
+      "state": "completed",
+      "container": "slipway-trials-local-1aedabb8-8ca8-4fc9-891b-c32d51b80191"
+    },
+    "scope": "source-checks-only",
+    "deployable": false,
+    "title": "Original tests and build policy"
+  }
+]

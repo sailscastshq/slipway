@@ -208,6 +208,17 @@ module.exports = {
         throw failure
       }
 
+      await recordStage('ci_checks')
+      const ciAdmission = targetApp?.id
+        ? await sails.helpers.ci.awaitDeploymentAdmission.with({
+            appId: String(targetApp.id),
+            contextPath,
+            deploymentId,
+            leaseToken,
+            signal
+          })
+        : { required: false, allowed: true }
+
       // 4. Build the Docker image (use app's dockerfilePath, fall back to project's)
       const dockerfilePath =
         (targetApp && targetApp.dockerfilePath) ||
@@ -226,6 +237,14 @@ module.exports = {
         await sails.helpers.docker.inspectDeploymentImage.with({
           imageReference: imageName
         })
+      if (
+        ciAdmission.required &&
+        `${builtArtifact.os}/${builtArtifact.architecture}` !==
+          ciAdmission.platform
+      )
+        throw new Error(
+          'The server image platform differs from the trusted local CI profile.'
+        )
       await updateDeployment({ imageId: builtArtifact.imageId })
 
       // 4b. Detect Sails features (sails-content, sails-quest, etc.)
@@ -428,6 +447,51 @@ module.exports = {
         throw error
       }
 
+      let ciApproval = null
+      if (ciAdmission.required) {
+        const currentApp = await App.findOne({ id: targetApp.id })
+        const executionFields = (value) =>
+          Object.fromEntries(
+            ['dockerfilePath', 'routePath', 'healthPath', 'resourceLimits'].map(
+              (key) => [key, value?.[key] ?? null]
+            )
+          )
+        if (
+          !currentApp ||
+          require('../../lib/contracts/ci-contract').digest(
+            executionFields(currentApp)
+          ) !==
+            require('../../lib/contracts/ci-contract').digest(
+              executionFields(targetApp)
+            )
+        )
+          throw new Error(
+            'App execution settings changed during server verification.'
+          )
+        const currentReadiness =
+          await sails.helpers.environment.getReadiness.with({
+            environmentId: environment.id,
+            appId: targetApp.id,
+            contextPath,
+            appConfiguration: targetApp
+          })
+        if (
+          !currentReadiness.canDeploy ||
+          currentReadiness.version !== readiness.version
+        )
+          throw new Error(
+            'Deployment configuration changed after the candidate health check.'
+          )
+        ciApproval = await sails.helpers.ci.recordServerVerification.with({
+          admission: ciAdmission,
+          deploymentId,
+          contextPath,
+          containerName: deployContainerName,
+          imageId: builtArtifact.imageId,
+          runtimeRevision: readiness.version
+        })
+      }
+
       // === Health check passed — switch traffic ===
 
       // 11. Verify the candidate route before committing App state.
@@ -437,6 +501,7 @@ module.exports = {
         leaseToken,
         environmentId: environment.id,
         appId: existingApp?.id,
+        ...(ciApproval ? { ciApproval } : {}),
         candidate: {
           containerId: containerResult.containerId,
           containerName: deployContainerName,

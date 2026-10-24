@@ -7,6 +7,7 @@ const ACTIVE_JOB_STAGES = [
   'claimed',
   'initialization',
   'source_preparation',
+  'ci_checks',
   'image_build',
   'container_startup',
   'health_check',

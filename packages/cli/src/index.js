@@ -28,6 +28,14 @@ function showHelp() {
     Project: ['projects', 'project:update', 'init', 'link'],
     Environments: ['environments', 'environment:create', 'environment:update'],
     Deployment: ['push', 'slide', 'readiness', 'deployments', 'logs'],
+    CI: [
+      'ci',
+      'ci:setup',
+      'ci:register',
+      'ci:submit',
+      'ci:status',
+      'ci:revoke'
+    ],
     Database: ['db:create', 'db:url'],
     Services: ['services', 'service:review', 'service:create'],
     Backups: ['backup:create', 'backup:list', 'backup:restore'],
