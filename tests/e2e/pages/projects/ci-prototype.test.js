@@ -4,22 +4,22 @@ const path = require('node:path')
 const { pathToFileURL } = require('node:url')
 
 test(
-  'Signal prototype exposes truthful lifecycle states, check review and keyboard navigation',
+  'Slipway CI prototype exposes truthful lifecycle states, check review and keyboard navigation',
   {
     browser: true
   },
   async ({ page, expect }) => {
-    const screenshots = path.resolve('.tmp/screenshots/trials')
+    const screenshots = path.resolve('.tmp/screenshots/ci-prototype')
     fs.mkdirSync(screenshots, { recursive: true })
     await page.raw.goto(
-      pathToFileURL(path.resolve('docs/trials/prototype.html')).href
+      pathToFileURL(path.resolve('docs/ci/prototype.html')).href
     )
     await page.resize(1440, 1000)
     await expect(
       page.raw.getByText('Design preview', { exact: true })
     ).toBeVisible()
     await expect(
-      page.raw.getByRole('heading', { name: 'Signal', exact: true })
+      page.raw.getByRole('heading', { name: 'Slipway CI', exact: true })
     ).toBeVisible()
     await expect(page.raw.locator('#status')).toHaveText('Passed')
     await page.screenshot(path.join(screenshots, 'passed-light.png'), {

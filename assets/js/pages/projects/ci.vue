@@ -13,7 +13,7 @@ const toggleSidebar = inject('toggleSidebar'),
   sidebarCollapsed = inject('sidebarCollapsed')
 </script>
 <template>
-  <Head :title="`CI - ${project.name} | Slipway`" />
+  <Head :title="`Slipway CI - ${project.name}`" />
   <div class="flex h-full flex-col">
     <header
       class="flex items-center justify-between gap-3 border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pr-8"

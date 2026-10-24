@@ -1,4 +1,4 @@
-# Signal: native verification in Slipway
+# Slipway CI: native verification in Slipway
 
 Status: proposal and first implementation slice, issue [#853](https://github.com/sailscastshq/slipway/issues/853). The maintainer selected SailsConf as the first pilot. This document does not enable production execution or replace required GitHub checks.
 
@@ -6,7 +6,7 @@ Status: proposal and first implementation slice, issue [#853](https://github.com
 
 ## Name and product boundary
 
-Naming remains open. The maintainer prefers a maritime name and rejected both Trials and Signal. **Pennant** is the current recommendation: the readiness signal from a verified candidate. **Slipway CI** is the plain fallback. The actual Vue workspace uses **CI** while this is decided; no permanent product rename is implied. Use “run,” “checks,” “build,” and “deployment” for the actions. Internal `trials` helper/tool paths remain provisional.
+The product name is **Slipway CI**. Use **CI** in navigation and breadcrumbs, with **Runs** and **Configuration** inside. Use “run,” “checks,” “build,” and “deployment” for actions and results. Sails-native describes the integration; it does not restrict apps to one test framework. GitHub's local-pilot context stays `Slipway CI (local shadow)` and is not a required deployment gate.
 
 The current CI page composes the actual AppLayout, BareSelect, Tabs, Button, Badge, Breadcrumb and owned icon components. It follows Quest run density and the existing neutral palette. The earlier standalone HTML is a historical exploration, not the UI implementation. The SailsConf owner explicitly selected lint as a required check, followed by tests and build.
 
@@ -22,8 +22,8 @@ Slipway CI can replace an app's supported install/check/build/verify workflows. 
 | `api/models/DeploymentJob.js`, `api/models/DeploymentLease.js`, `api/helpers/deploy/run-queued-deployments.js` | Durable queue, target serialization, lease/heartbeat/fencing patterns                     | This coordinator executes deployment work locally. Arbitrary CI processes must run on a separate runner. Do not reuse deployment leases as runner leases.     |
 | `api/lib/instance-quest.js`, `api/hooks/instance-quest/index.js`                                               | Scheduled reconciliation and bounded history; active work becomes interrupted on restart  | Quest can wake admission/reconciliation, not become the CI execution sandbox. Its existing allowlisted maintenance jobs are not arbitrary repository scripts. |
 | `api/helpers/deploy/execute-pipeline.js`                                                                       | Existing image build, inspect-by-image-ID, readiness, health, traffic switch and rollback | The pipeline currently builds its candidate. Add explicit verified-digest intake; do not verify one image and rebuild another.                                |
-| Schema review/resume [#767](https://github.com/sailscastshq/slipway/issues/767)                                | Preserve a candidate while approval is pending                                            | Bind approval to the verified image and schema intent. A passing Trial never authorizes destructive migration.                                                |
-| Klean primitives, existing app layouts and compact status rows                                                 | App-owned visual language, keyboard behavior and reduced motion                           | A dedicated app Trials surface and setup review, not another global dashboard.                                                                                |
+| Schema review/resume [#767](https://github.com/sailscastshq/slipway/issues/767)                                | Preserve a candidate while approval is pending                                            | Bind approval to the verified image and schema intent. A passing run never authorizes destructive migration.                                                  |
+| Klean primitives, existing app layouts and compact status rows                                                 | App-owned visual language, keyboard behavior and reduced motion                           | A dedicated app Slipway CI surface and setup review, not another global dashboard.                                                                            |
 
 ### SailsConf baseline
 
@@ -50,7 +50,7 @@ Self-hosted CI is not free: CPU/RAM capacity, idle time, storage, egress, mainte
 ```mermaid
 flowchart LR
   GH[GitHub source and results] --> Intake[Signed event intake]
-  Intake --> Ledger[Trials ledger and admission]
+  Intake --> Ledger[Slipway CI ledger and admission]
   Ledger --> Runner[Dedicated Linux runner]
   Runner --> Workspace[Disposable source and test services]
   Runner --> Builder[Separate constrained image builder]
@@ -85,15 +85,15 @@ A configuration revision fingerprints canonical execution policy. Changes create
 
 ## Proposed durable data model
 
-| Table                  | Fields and constraints                                                                                                                                                                                                                                                          |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `trial_configurations` | app, revision/content hash, schemaVersion, owner/reviewedAt, immutable commands, required IDs, runtime/service pins, limits, CI-only secret reference versions; unique(app, revision)                                                                                           |
-| `trial_runs`           | UUID, app/repository, event/delivery, source SHA, PR/base/merge SHA, config revision, state, attempt/retryOf, identity fingerprint, admitted/deadline/start/finish times, cancelRequestedAt, failureClass, immutable built/verified digest, cleanup state; unique admission key |
-| `trial_steps`          | run, ordinal/key, command digest, required, state, exit code, timings, observed runtime, bounded log/artifact receipts; unique(run, ordinal)                                                                                                                                    |
-| `trial_runners`        | runner identity, reviewed profile/capabilities, heartbeat, quarantine/availability; no job-visible control-plane token                                                                                                                                                          |
-| `trial_runner_leases`  | unique runner ID, run ID, fencing generation/token hash, owner, heartbeat/expiry; one active job per runner                                                                                                                                                                     |
-| `trial_events`         | append-only run event sequence, transition/step/log receipt metadata; unique(run, sequence)                                                                                                                                                                                     |
-| `trial_outbox`         | GitHub report intent/retry state and admission/report deduplication; atomically committed with state transitions                                                                                                                                                                |
+| Table               | Fields and constraints                                                                                                                                                                                                                                                          |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci_configurations` | app, revision/content hash, schemaVersion, owner/reviewedAt, immutable commands, required IDs, runtime/service pins, limits, CI-only secret reference versions; unique(app, revision)                                                                                           |
+| `ci_runs`           | UUID, app/repository, event/delivery, source SHA, PR/base/merge SHA, config revision, state, attempt/retryOf, identity fingerprint, admitted/deadline/start/finish times, cancelRequestedAt, failureClass, immutable built/verified digest, cleanup state; unique admission key |
+| `ci_steps`          | run, ordinal/key, command digest, required, state, exit code, timings, observed runtime, bounded log/artifact receipts; unique(run, ordinal)                                                                                                                                    |
+| `ci_runners`        | runner identity, reviewed profile/capabilities, heartbeat, quarantine/availability; no job-visible control-plane token                                                                                                                                                          |
+| `ci_runner_leases`  | unique runner ID, run ID, fencing generation/token hash, owner, heartbeat/expiry; one active job per runner                                                                                                                                                                     |
+| `ci_events`         | append-only run event sequence, transition/step/log receipt metadata; unique(run, sequence)                                                                                                                                                                                     |
+| `ci_outbox`         | GitHub report intent/retry state and admission/report deduplication; atomically committed with state transitions                                                                                                                                                                |
 
 Integrate through reviewed migrations; do not let Sails auto-alter live tables. New tables are not added in the foundation PR. Logs/artifacts live in bounded storage with indexed receipts, not endlessly growing SQLite text fields. Start with 10 MiB logs/run, 100 MiB artifacts/run, seven-day log/artifact retention, thirty-day run summaries, ten queued runs/app and one active run/runner. Treat these as initial configurable limits to validate, not hidden universal constants. Cache eviction and orphan cleanup have separate quotas.
 
@@ -145,9 +145,9 @@ The foundation helper evaluates this contract but is deliberately **not wired in
 
 ## UX and DX
 
-App → Trials shows compact recent runs with commit, branch/PR, status, duration and deployment linkage. Select a run to inspect sequential steps, plain reasons, live log tail and immutable artifact identity. Show retry/cancel only when available. Use a compact status label, not an oversized success banner. Keep keyboard focus visible, tabs semantic, progress announced politely, logs selectable, and motion reduced when requested.
+App → CI shows compact recent runs with commit, branch/PR, status, duration and deployment linkage. Select a run to inspect sequential steps, plain reasons, live log tail and immutable artifact identity. Show retry/cancel only when available. Use a compact status label, not an oversized success banner. Keep keyboard focus visible, tabs semantic, progress announced politely, logs selectable, and motion reduced when requested.
 
-Settings → Trials: discover → review commands/runtime/services → confirm policy → enable shadow runs. Display both script name and actual package-script contents, plus install lifecycle-script implications. Nothing executes on “Discover.” No YAML is required. The details page says clearly whether it is source-only verification, image verification, waiting on schema review, or ready for deployment.
+Settings → CI: discover → review commands/runtime/services → confirm policy → enable shadow runs. Display both script name and actual package-script contents, plus install lifecycle-script implications. Nothing executes on “Discover.” No YAML is required. The details page says clearly whether it is source-only verification, image verification, waiting on schema review, or ready for deployment.
 
 Use existing Klean primitives in production Vue implementation. The first interactive standalone mockup follows the existing typography, restrained light/dark palette and native accessible controls; it is labeled as a design prototype and cannot run a job.
 

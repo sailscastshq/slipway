@@ -1,7 +1,7 @@
 const crypto = require('node:crypto')
 
 module.exports = {
-  friendlyName: 'Discover Trials plan',
+  friendlyName: 'Discover Slipway CI plan',
   description:
     'Suggest checks from declarative source metadata without executing repository code.',
   inputs: {
@@ -40,7 +40,7 @@ module.exports = {
         : null
     const blockers = []
     if (!found.length)
-      blockers.push('Commit a supported lockfile before enabling Trials.')
+      blockers.push('Commit a supported lockfile before enabling Slipway CI.')
     if (families.length > 1)
       blockers.push(
         'Choose one package manager and remove conflicting lockfiles.'
@@ -113,7 +113,7 @@ module.exports = {
         : []
     if (manager === 'yarn' && !declared)
       blockers.push(
-        'Pin Yarn so Trials can choose the correct immutable install command.'
+        'Pin Yarn so Slipway CI can choose the correct immutable install command.'
       )
     return {
       schemaVersion: 1,

@@ -31,7 +31,7 @@ function evidence() {
   }
 }
 
-test('Trials suggests scripts as data and never executes discovery code', async ({
+test('Slipway CI suggests scripts as data and never executes discovery code', async ({
   sails
 }) => {
   const manifest = {
@@ -55,7 +55,7 @@ test('Trials suggests scripts as data and never executes discovery code', async 
     }
   }
   const original = structuredClone(manifest)
-  const plan = await sails.helpers.trials.discoverPlan.with({
+  const plan = await sails.helpers.ci.discoverPlan.with({
     manifest,
     lockfiles: ['package-lock.json']
   })
@@ -80,7 +80,7 @@ test('Trials suggests scripts as data and never executes discovery code', async 
   assert.deepEqual(plan.serviceHints, ['postgresql', 'sqlite'])
 })
 
-test('Trials blocks ambiguous installs and distinguishes no tests from startup', async ({
+test('Slipway CI blocks ambiguous installs and distinguishes no tests from startup', async ({
   sails
 }) => {
   for (const [manifest, lockfiles] of [
@@ -93,7 +93,7 @@ test('Trials blocks ambiguous installs and distinguishes no tests from startup',
       ['package-lock.json']
     ]
   ]) {
-    const plan = await sails.helpers.trials.discoverPlan.with({
+    const plan = await sails.helpers.ci.discoverPlan.with({
       manifest,
       lockfiles
     })
@@ -101,7 +101,7 @@ test('Trials blocks ambiguous installs and distinguishes no tests from startup',
     assert.equal(plan.runnable, false)
     assert.equal(plan.testStatus, 'No tests configured')
   }
-  const placeholder = await sails.helpers.trials.discoverPlan.with({
+  const placeholder = await sails.helpers.ci.discoverPlan.with({
     manifest: {
       scripts: { test: 'echo "Error: no test specified" && exit 1' }
     },
@@ -109,7 +109,7 @@ test('Trials blocks ambiguous installs and distinguishes no tests from startup',
   })
   assert.equal(placeholder.testStatus, 'No tests configured')
   assert.equal(placeholder.steps.length, 0)
-  const plan = await sails.helpers.trials.discoverPlan.with({
+  const plan = await sails.helpers.ci.discoverPlan.with({
     manifest: { scripts: { start: 'node app.js' } },
     lockfiles: ['package-lock.json']
   })
@@ -117,28 +117,28 @@ test('Trials blocks ambiguous installs and distinguishes no tests from startup',
   assert.equal(plan.steps.length, 0)
 })
 
-test('Trials distinguishes Yarn install contracts and npm shrinkwrap precedence', async ({
+test('Slipway CI distinguishes Yarn install contracts and npm shrinkwrap precedence', async ({
   sails
 }) => {
   for (const [version, expected] of [
     ['1.22.22', '--frozen-lockfile'],
     ['4.9.0', '--immutable']
   ]) {
-    const plan = await sails.helpers.trials.discoverPlan.with({
+    const plan = await sails.helpers.ci.discoverPlan.with({
       manifest: { packageManager: `yarn@${version}` },
       lockfiles: ['yarn.lock']
     })
     assert.deepEqual(plan.install.args, ['install', expected])
     assert.deepEqual(plan.blockers, [])
   }
-  const npm = await sails.helpers.trials.discoverPlan.with({
+  const npm = await sails.helpers.ci.discoverPlan.with({
     manifest: {},
     lockfiles: ['package-lock.json', 'npm-shrinkwrap.json']
   })
   assert.equal(npm.packageManager.lockfile, 'npm-shrinkwrap.json')
 })
 
-test('Trials never passes lost leases, cancelled runs or unchecked work', async ({
+test('Slipway CI never passes lost leases, cancelled runs or unchecked work', async ({
   sails
 }) => {
   for (const run of [
@@ -151,7 +151,7 @@ test('Trials never passes lost leases, cancelled runs or unchecked work', async 
     { ...evidence(), steps: [{ required: true, state: 'running' }] }
   ]) {
     await assert.rejects(() =>
-      sails.helpers.trials.transitionRun.with({
+      sails.helpers.ci.transitionRun.with({
         run,
         nextState: 'passed',
         now: 1000
@@ -159,7 +159,7 @@ test('Trials never passes lost leases, cancelled runs or unchecked work', async 
     )
   }
   const original = evidence()
-  const passed = await sails.helpers.trials.transitionRun.with({
+  const passed = await sails.helpers.ci.transitionRun.with({
     run: original,
     nextState: 'passed',
     now: 1000
@@ -168,19 +168,19 @@ test('Trials never passes lost leases, cancelled runs or unchecked work', async 
   assert.equal(passed.state, 'passed')
   assert.equal(passed.finishedAt, 1000)
   await assert.rejects(() =>
-    sails.helpers.trials.transitionRun.with({
+    sails.helpers.ci.transitionRun.with({
       run: passed,
       nextState: 'running',
       now: 1001
     })
   )
-  const interrupted = await sails.helpers.trials.transitionRun.with({
+  const interrupted = await sails.helpers.ci.transitionRun.with({
     run: original,
     nextState: 'interrupted',
     now: 1000
   })
   await assert.rejects(() =>
-    sails.helpers.trials.transitionRun.with({
+    sails.helpers.ci.transitionRun.with({
       run: interrupted,
       nextState: 'passed',
       now: 1001
@@ -188,18 +188,18 @@ test('Trials never passes lost leases, cancelled runs or unchecked work', async 
   )
 })
 
-test('Trials gates the exact repository, app, merge revision, configuration, services and image', async ({
+test('Slipway CI gates the exact repository, app, merge revision, configuration, services and image', async ({
   sails
 }) => {
   const run = { ...evidence(), state: 'passed', finishedAt: 1000 }
   const candidate = { ...run.identity, intendedVersion: '0.0.119' }
   assert.equal(
-    (await sails.helpers.trials.evaluateDeploymentGate.with({ run, candidate }))
+    (await sails.helpers.ci.evaluateDeploymentGate.with({ run, candidate }))
       .allowed,
     true
   )
   for (const key of Object.keys(run.identity)) {
-    const result = await sails.helpers.trials.evaluateDeploymentGate.with({
+    const result = await sails.helpers.ci.evaluateDeploymentGate.with({
       run,
       candidate: {
         ...candidate,
@@ -218,7 +218,7 @@ test('Trials gates the exact repository, app, merge revision, configuration, ser
   ])
     assert.equal(
       (
-        await sails.helpers.trials.evaluateDeploymentGate.with({
+        await sails.helpers.ci.evaluateDeploymentGate.with({
           run: invalid,
           candidate
         })
@@ -227,7 +227,7 @@ test('Trials gates the exact repository, app, merge revision, configuration, ser
     )
   assert.equal(
     (
-      await sails.helpers.trials.evaluateDeploymentGate.with({
+      await sails.helpers.ci.evaluateDeploymentGate.with({
         run,
         candidate: { ...candidate, schemaReviewRequired: true }
       })
@@ -236,7 +236,7 @@ test('Trials gates the exact repository, app, merge revision, configuration, ser
   )
   assert.equal(
     (
-      await sails.helpers.trials.evaluateDeploymentGate.with({
+      await sails.helpers.ci.evaluateDeploymentGate.with({
         run,
         candidate: {
           ...candidate,
@@ -249,7 +249,7 @@ test('Trials gates the exact repository, app, merge revision, configuration, ser
   )
 })
 
-test('Trials reports external shadow checks against the exact SHA and never turns infrastructure loss green', async ({
+test('Slipway CI reports external shadow checks against the exact SHA and never turns infrastructure loss green', async ({
   sails
 }) => {
   const run = {
@@ -265,7 +265,7 @@ test('Trials reports external shadow checks against the exact SHA and never turn
     ]
   }
   const format = (values) =>
-    sails.helpers.trials.formatGithubShadowStatus.with({
+    sails.helpers.ci.formatGithubShadowStatus.with({
       run: values,
       detailsUrl: 'https://github.com/sailscastshq/slipway/issues/853'
     })

@@ -84,7 +84,7 @@ const tabClass = (value) => [
         <h1
           class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white"
         >
-          CI
+          Slipway CI
         </h1>
         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
           Checks and builds before deployment.

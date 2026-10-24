@@ -7,7 +7,7 @@ const path = require('node:path')
 const { spawnSync, execFileSync } = require('node:child_process')
 
 function fixture() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'trials-pilot-test-'))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ci-pilot-test-'))
   const repo = path.join(root, 'repo'),
     bin = path.join(root, 'bin')
   fs.mkdirSync(repo)
@@ -49,8 +49,8 @@ function fixture() {
   const docker = path.join(bin, 'docker')
   fs.writeFileSync(
     docker,
-    `#!${process.execPath}\nconst fs=require('fs');const a=process.argv.slice(2);fs.appendFileSync(process.env.TRIALS_TEST_LOG,JSON.stringify(a)+'\\n');const out=x=>console.log(JSON.stringify(x));
-if(a[0]==='context')out(process.env.TRIALS_TEST_REMOTE==='yes'?'ssh://production.example.test':'unix:///local-desktop.sock');
+    `#!${process.execPath}\nconst fs=require('fs');const a=process.argv.slice(2);fs.appendFileSync(process.env.CI_TEST_LOG,JSON.stringify(a)+'\\n');const out=x=>console.log(JSON.stringify(x));
+if(a[0]==='context')out(process.env.CI_TEST_REMOTE==='yes'?'ssh://production.example.test':'unix:///local-desktop.sock');
 else if(a[0]==='info')out({OperatingSystem:'Docker Desktop',MemTotal:8*1024**3});
 else if(a[0]==='image')out({Os:'linux',Architecture:'amd64',Id:'sha256:'+'a'.repeat(64),Size:100});
 else if(a[0]==='run')console.log('fixture-container');
@@ -69,7 +69,7 @@ function run(f, extraEnv = {}) {
   return spawnSync(
     process.execPath,
     [
-      path.resolve('tools/trials-shadow-pilot.cjs'),
+      path.resolve('tools/ci-local-pilot.cjs'),
       '--repo',
       f.repo,
       '--commit',
@@ -88,7 +88,7 @@ function run(f, extraEnv = {}) {
         ...process.env,
         DOCKER_HOST: '',
         PATH: f.bin + path.delimiter + process.env.PATH,
-        TRIALS_TEST_LOG: f.log,
+        CI_TEST_LOG: f.log,
         ...extraEnv
       },
       encoding: 'utf8',
@@ -97,10 +97,10 @@ function run(f, extraEnv = {}) {
   )
 }
 
-test('local Trials pilot refuses a remote Docker context before starting any job', async () => {
+test('local Slipway CI pilot refuses a remote Docker context before starting any job', async () => {
   const f = fixture()
   try {
-    const result = run(f, { TRIALS_TEST_REMOTE: 'yes' })
+    const result = run(f, { CI_TEST_REMOTE: 'yes' })
     assert.equal(result.status, 1)
     assert.match(result.stderr, /only Docker Desktop/)
     const calls = fs
@@ -117,7 +117,7 @@ test('local Trials pilot refuses a remote Docker context before starting any job
   }
 })
 
-test('local Trials pilot rejects tracked databases before contacting Docker', async () => {
+test('local Slipway CI pilot rejects tracked databases before contacting Docker', async () => {
   const f = fixture()
   try {
     fs.writeFileSync(path.join(f.repo, 'production.db'), 'not a real database')
@@ -141,7 +141,7 @@ test('local Trials pilot rejects tracked databases before contacting Docker', as
   }
 })
 
-test('local Trials pilot records setup failure, prevents deployment and cleans only its own container', async () => {
+test('local Slipway CI pilot records setup failure, prevents deployment and cleans only its own container', async () => {
   const f = fixture()
   try {
     const result = run(f)
@@ -184,7 +184,7 @@ test('local Trials pilot records setup failure, prevents deployment and cleans o
     )
     const removed = calls.find((args) => args[0] === 'rm')
     assert.equal(removed[2], report.cleanup.container)
-    assert.match(removed[2], /^slipway-trials-local-/)
+    assert.match(removed[2], /^slipway-ci-local-/)
   } finally {
     fs.rmSync(f.root, { recursive: true, force: true })
   }

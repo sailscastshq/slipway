@@ -234,7 +234,7 @@ async function main() {
   if (image.Os !== 'linux')
     throw new Error('The reviewed runtime must be Linux.')
   const id = crypto.randomUUID()
-  container = `slipway-trials-local-${id}`
+  container = `slipway-ci-local-${id}`
   const started = performance.now()
   deadline = Date.now() + 600000
   const configuration = {
@@ -288,7 +288,7 @@ async function main() {
       '--name',
       container,
       '--label',
-      `slipway.trials.local=${id}`,
+      `slipway.ci.local=${id}`,
       '--cpus',
       '2',
       '--memory',

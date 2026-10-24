@@ -13,7 +13,7 @@ async function main() {
     !/^[a-f0-9]{40}$/.test(flags[3])
   )
     throw new Error(
-      'Usage: node tools/trials-plan.cjs --repo PATH --commit FULL_SHA'
+      'Usage: node tools/ci-plan.cjs --repo PATH --commit FULL_SHA'
     )
   const repo = fs.realpathSync(flags[1])
   const commit = flags[3]
@@ -35,7 +35,7 @@ async function main() {
   ].filter((name) => names.includes(name))
   const manifestText = git('show', `${commit}:package.json`)
   const manifest = JSON.parse(manifestText)
-  const plan = await require('../api/helpers/trials/discover-plan').fn({
+  const plan = await require('../api/helpers/ci/discover-plan').fn({
     manifest,
     lockfiles
   })

@@ -5,7 +5,7 @@ const transitions = {
 }
 
 module.exports = {
-  friendlyName: 'Transition Trials run',
+  friendlyName: 'Transition Slipway CI run',
   description:
     'Validate an immutable state transition; persistence must fence this with a runner lease.',
   inputs: {
@@ -19,7 +19,7 @@ module.exports = {
       throw new Error('A valid transition time is required.')
     if (!(transitions[run.state] || []).includes(nextState))
       throw new Error(
-        `Trials cannot transition from ${run.state} to ${nextState}.`
+        `Slipway CI cannot transition from ${run.state} to ${nextState}.`
       )
     if (nextState === 'passed') {
       if (!Array.isArray(run.steps) || !run.steps.some((step) => step.required))

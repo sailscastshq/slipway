@@ -1,7 +1,7 @@
 const hash = /^[a-f0-9]{40}$/
 const digest = /^sha256:[a-f0-9]{64}$/
 module.exports = {
-  friendlyName: 'Evaluate Trials deployment gate',
+  friendlyName: 'Evaluate Slipway CI deployment gate',
   description:
     'Fail closed unless a completed run verifies this exact deployment candidate.',
   inputs: {
