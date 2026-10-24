@@ -362,7 +362,7 @@ async function main() {
       Number(nodeVersion[2]) < 12
     )
       throw new Error(
-        'The reviewed SailsConf pilot profile requires Node 22.12 or newer on the 22.x line.'
+        'The reviewed Sailsconf pilot profile requires Node 22.12 or newer on the 22.x line.'
       )
     report.state = 'running'
     save()
