@@ -30,6 +30,7 @@ import Code from '@/components/ui/icons/Code.vue'
 import Clock from '@/components/ui/icons/Clock.vue'
 import ChevronDown from '@/components/ui/icons/ChevronDown.vue'
 import Check from '@/components/ui/icons/Check.vue'
+import CheckCircle from '@/components/ui/icons/CheckCircle.vue'
 import ChartBar from '@/components/ui/icons/ChartBar.vue'
 import Copy from '@/components/ui/icons/Copy.vue'
 import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
@@ -1082,6 +1083,16 @@ onBeforeUnmount(() => {
                     class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >Wake</Link
                   >
+                  <Link
+                    :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/ci`"
+                    class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
+                    <CheckCircle
+                      class="h-4 w-4 text-gray-400"
+                      stroke-width="2"
+                    />
+                    CI
+                  </Link>
                   <!-- Platform tools -->
                   <div
                     v-if="app.status === 'running'"

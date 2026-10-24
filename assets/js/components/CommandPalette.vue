@@ -7,6 +7,7 @@ import Command from '@/components/ui/command/Command.vue'
 import Bell from '@/components/ui/icons/Bell.vue'
 import BookOpen from '@/components/ui/icons/BookOpen.vue'
 import ChartBar from '@/components/ui/icons/ChartBar.vue'
+import CheckCircle from '@/components/ui/icons/CheckCircle.vue'
 import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
 import CloudUpload from '@/components/ui/icons/CloudUpload.vue'
 import Code from '@/components/ui/icons/Code.vue'
@@ -97,6 +98,27 @@ register({
       group: 'Projects',
       icon: 'chart',
       action: () => router.visit(`/projects/${project.slug}/lookout`)
+    }))
+})
+
+register({
+  id: 'nav.ci',
+  title: 'Go to CI',
+  keywords: ['checks', 'tests'],
+  group: 'Navigation',
+  icon: 'check-circle',
+  children: () =>
+    navApps.value.map((app) => ({
+      id: `nav.ci.${app.projectSlug}.${app.envSlug}.${app.slug}`,
+      title: app.name,
+      subtitle: `${app.projectName} / ${app.envName}`,
+      keywords: [app.slug, app.projectName, app.envName],
+      group: `${app.projectName} / ${app.envName}`,
+      icon: 'check-circle',
+      action: () =>
+        router.visit(
+          `/projects/${app.projectSlug}/environments/${app.envSlug}/apps/${app.slug}/ci`
+        )
     }))
 })
 
@@ -682,6 +704,7 @@ const iconComponents = computed(() => ({
   bell: Bell,
   book: BookOpen,
   chart: ChartBar,
+  'check-circle': CheckCircle,
   clipboard: Copy,
   cloud: CloudUpload,
   code: Code,
