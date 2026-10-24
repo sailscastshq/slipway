@@ -74,12 +74,12 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      - name: Smoke-test packaged Helm and Wake modules
+      - name: Smoke-test packaged runtime and CI modules
         env:
           RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
         run: |
           docker run --rm --entrypoint node "${REGISTRY}/${IMAGE_NAME}:${RELEASE_TAG#v}" -e \
-            "require('./api/lib/helm-completions'); require('./api/lib/helm-runtime'); require('./api/lib/wake-report'); require('./api/lib/wake-store')"
+            "require('./api/lib/helm-completions'); require('./api/lib/helm-runtime'); require('./api/lib/wake-report'); require('./api/lib/wake-store'); require('./api/lib/contracts/ci-contract'); for (const file of require('node:fs').readdirSync('./api/helpers/ci').filter(file => file.endsWith('.js'))) require('./api/helpers/ci/' + file)"
 
       - name: Push verified Docker image
         env:
