@@ -1,5 +1,5 @@
 module.exports = {
-  friendlyName: 'Format GitHub Trials shadow status',
+  friendlyName: 'Format GitHub CI shadow status',
   description:
     'Describe a local source-check proof honestly without approving deployment or claiming GitHub Actions executed it.',
   inputs: {
@@ -58,7 +58,7 @@ module.exports = {
       sha: run.sourceRevision,
       body: {
         state,
-        context: 'Slipway / Trials (local shadow)',
+        context: 'Slipway CI (local shadow)',
         target_url: url.href,
         description
       }

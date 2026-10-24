@@ -408,6 +408,10 @@ module.exports.routes = {
   'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/quest/events/:eventId':
     'api/v1/quest/get-event',
 
+  // CI foundation is read-only; no runner or check policy is enabled here.
+  'GET /projects/:slug/ci': 'project/view-ci',
+  'GET /projects/:slug/environments/:envSlug/ci': 'project/view-ci',
+
   'GET /projects/:slug/quest': 'project/view-quest',
   'GET /projects/:slug/environments/:envSlug/quest': 'project/view-quest',
 

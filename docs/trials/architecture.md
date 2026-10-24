@@ -6,11 +6,11 @@ Status: proposal and first implementation slice, issue [#853](https://github.com
 
 ## Name and product boundary
 
-**Signal** is the proposed product name after the maintainer rejected “Trials.” It answers whether a commit is ready for deployment and fits alongside Helm, Dock and Lookout. Sounding remains the test framework and Quest the scheduler. Use “run,” “checks,” “build,” and “deployment” in the interface, rather than inventing a noun for every action. This is a naming proposal, not a trademark-clearance claim. Internal `trials` source paths remain provisional until the name is settled.
+Naming remains open. The maintainer prefers a maritime name and rejected both Trials and Signal. **Pennant** is the current recommendation: the readiness signal from a verified candidate. **Slipway CI** is the plain fallback. The actual Vue workspace uses **CI** while this is decided; no permanent product rename is implied. Use “run,” “checks,” “build,” and “deployment” for the actions. Internal `trials` helper/tool paths remain provisional.
 
-The preview follows the existing AppLayout team selector and neutral palette, QuestRuns density, QuestStatus badges, owned Klean icon geometry and compact action styling. Production integration must compose the actual Vue primitives and AppLayout; this standalone interactive preview does not replace them. The SailsConf owner explicitly selected lint as a required check, followed by tests and build.
+The current CI page composes the actual AppLayout, BareSelect, Tabs, Button, Badge, Breadcrumb and owned icon components. It follows Quest run density and the existing neutral palette. The earlier standalone HTML is a historical exploration, not the UI implementation. The SailsConf owner explicitly selected lint as a required check, followed by tests and build.
 
-Signal can replace an app's supported install/check/build/verify workflows. It does not replace source hosting, code review, branch protection, Dependabot, arbitrary marketplace actions, OS matrices, or every release-publishing workflow. Normal setup needs no YAML. Advanced repository configuration is deferred until it can have one explicit source of truth.
+Slipway CI can replace an app's supported install/check/build/verify workflows. It does not replace source hosting, code review, branch protection, Dependabot, arbitrary marketplace actions, OS matrices, or every release-publishing workflow. Normal setup needs no YAML. Advanced repository configuration is deferred until it can have one explicit source of truth.
 
 ## Existing-system audit
 
@@ -176,3 +176,17 @@ These are isolated local Linux ARM64 source checks, not a deployed runner or a d
 - Owner-required policy `lint → test → build` on that same repair: install passed in 71.74 seconds; lint failed in 11.16 seconds with 32 formatting violations. Tests and build did not run in this attempt. Total time was 84.5 seconds; cleanup was confirmed. This policy is **failed**, regardless of the earlier green baseline. No checks were weakened and no production deployment was started.
 
 The app repair is separately reviewable in private SailsConf PR #314. Broad formatting cleanup must remain distinguishable from the three explicit column mappings. The preview uses illustrative data, explicitly labeled; it does not display these results as a verified application image. No GitHub speed comparison is available because the baseline job did not execute.
+
+## Actual Slipway workspace
+
+`assets/js/pages/projects/ci.vue` now composes the real AppLayout, Breadcrumb and CiWorkspace. The workspace imports the existing BareSelect (dashed trigger), Tabs, Button, Badge and owned icons. URL state retains the selected run, state filter and tab. It has no fake save, cancel or retry mutation. Source-only receipts are explicitly not application-image approvals, including when all selected source checks passed.
+
+The tenant-scoped `project/view-ci` action and project/environment routes expose an empty read-only foundation; no runner is registered and no records are loaded from a host evidence path. A signed-in user's team bounds project access, and environment access is checked within that project. Functional trials exercise both denials. Sanitized pilot receipts are test fixtures only, not production data inserted into the dashboard.
+
+For local UI review, `node tests/fixtures/ci/build.cjs` and `node tests/fixtures/ci/serve.cjs` build and serve those same Vue components at loopback port 56654. The fixture serves sanitized local run summaries and refuses writes. It is not a hosted runner or a production server. The previous standalone HTML remains a historical design exploration; it is not the production component source.
+
+### Formatting repair and full policy rerun
+
+On `3befd2819adc243be2f97ea8fa21e199e7f7d82d`, all 32 reported formatting failures were repaired using the app's locked Prettier and Tailwind plugin. The nine changed JavaScript/CJS ASTs and four changed JSON values were independently compared with the prior commit and matched. Vue, HTML and Markdown were formatter output; the unchanged functional suite and asset build were rerun rather than assuming formatting was harmless.
+
+The clean `npm ci → npm run lint → npm test → npm run build` policy passed in **168.53 seconds** on the same bounded local Linux ARM64 runtime. Tests: **312 passed, one skipped, zero failed**. Cleanup completed. The result is still source-only evidence, not an application-image attestation or authorization to deploy a different/newer commit. Cold-install timing variance prevents attributing this difference to a CI optimization.
