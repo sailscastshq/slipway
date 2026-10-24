@@ -79,6 +79,14 @@ test(
         'none',
         '--env',
         'CI_PARENT_SECRET=must-not-reach-job',
+        // Linux runners own this bind mount as UID 1001; the parent is root.
+        // Trust only this test-created repository, without changing production Git config.
+        '--env',
+        'GIT_CONFIG_COUNT=1',
+        '--env',
+        'GIT_CONFIG_KEY_0=safe.directory',
+        '--env',
+        'GIT_CONFIG_VALUE_0=/fixture',
         '-v',
         '/var/run/docker.sock:/var/run/docker.sock',
         '-v',
@@ -110,7 +118,15 @@ test(
       const exit = docker('wait', parent)
       const logs = docker('logs', parent)
       if (exit !== '0') {
-        docker('cp', parent + ':/tmp/ci-proof', path.join(directory, 'failure'))
+        try {
+          docker(
+            'cp',
+            parent + ':/tmp/ci-proof',
+            path.join(directory, 'failure')
+          )
+        } catch {
+          assert.fail(logs || 'Executor stopped before creating its report.')
+        }
         const details = fs
           .readdirSync(path.join(directory, 'failure'))
           .filter((name) => name.endsWith('.log') || name === 'report.json')
