@@ -1,4 +1,4 @@
-# Trials: native verification in Slipway
+# Signal: native verification in Slipway
 
 Status: proposal and first implementation slice, issue [#853](https://github.com/sailscastshq/slipway/issues/853). The maintainer selected SailsConf as the first pilot. This document does not enable production execution or replace required GitHub checks.
 
@@ -6,9 +6,11 @@ Status: proposal and first implementation slice, issue [#853](https://github.com
 
 ## Name and product boundary
 
-**Trials** refers to sea trials before launch. It names the complete verification of a release candidate. Sounding remains the test framework, Quest the job scheduler, Lookout observability, and Helm/Bosun/Dock/Bridge/Wake/Bearing keep their existing roles. The repository audit found no existing Trials feature. “Keel” suggests structure rather than evidence; “Yard” suggests builds but not verification; “Proof” is clear but less connected to Slipway's vocabulary. Trials is a working product name, not a trademark-clearance claim.
+**Signal** is the proposed product name after the maintainer rejected “Trials.” It answers whether a commit is ready for deployment and fits alongside Helm, Dock and Lookout. Sounding remains the test framework and Quest the scheduler. Use “run,” “checks,” “build,” and “deployment” in the interface, rather than inventing a noun for every action. This is a naming proposal, not a trademark-clearance claim. Internal `trials` source paths remain provisional until the name is settled.
 
-Trials can replace an app's supported install/check/build/verify workflows. It does not replace source hosting, code review, branch protection, Dependabot, arbitrary marketplace actions, OS matrices, or every release-publishing workflow. Normal setup needs no YAML. Advanced repository configuration is deferred until it can have one explicit source of truth.
+The preview follows the existing AppLayout team selector and neutral palette, QuestRuns density, QuestStatus badges, owned Klean icon geometry and compact action styling. Production integration must compose the actual Vue primitives and AppLayout; this standalone interactive preview does not replace them. The SailsConf owner explicitly selected lint as a required check, followed by tests and build.
+
+Signal can replace an app's supported install/check/build/verify workflows. It does not replace source hosting, code review, branch protection, Dependabot, arbitrary marketplace actions, OS matrices, or every release-publishing workflow. Normal setup needs no YAML. Advanced repository configuration is deferred until it can have one explicit source of truth.
 
 ## Existing-system audit
 
@@ -164,3 +166,13 @@ A local source-check proof cannot satisfy phase 5. SailsConf is the chosen produ
 Record queue, prepare, dependency install, source checks, image build, candidate health/schema, cleanup and reporting durations separately. Record CPU seconds, peak memory, workspace/cache/artifact bytes, bandwidth where available, runner uptime/idle time and retry/interruption rates. Cache keys and hardware profiles must accompany timing comparisons. Compare the same commit/checks on equivalent resources; do not call an incomplete run faster.
 
 Monthly cost = reserved runner time × actual hourly rate + storage + egress + operations effort. Cost/run must include idle capacity divided across successful **and failed** attempts. Local Docker measurements do not establish production-host cost or a GitHub speedup. Include at least one intentionally failing check, lock mismatch, cancellation and runner-loss recovery in pilot evidence. Only then decide whether warm capacity is worth its idle bill.
+
+## Local pilot evidence, 24 October 2026
+
+These are isolated local Linux ARM64 source checks, not a deployed runner or a deployment approval. Production configuration and existing GitHub checks were unchanged.
+
+- Original SailsConf source `31648c0de84a011196364d50cadc97dd3d24e660`: install passed; tests found an explicit-column mapping failure. Build did not run.
+- Minimal repair `8ac88f53b68037fa7e0fb08e27c17aea402da78f`: install, tests and assets build passed in 271.93 seconds, cold. The test result was 312 passed, one skipped. Peak container memory was 1,362,702,336 bytes, CPU consumption 162.007412 seconds. This policy did not include lint.
+- Owner-required policy `lint → test → build` on that same repair: install passed in 71.74 seconds; lint failed in 11.16 seconds with 32 formatting violations. Tests and build did not run in this attempt. Total time was 84.5 seconds; cleanup was confirmed. This policy is **failed**, regardless of the earlier green baseline. No checks were weakened and no production deployment was started.
+
+The app repair is separately reviewable in private SailsConf PR #314. Broad formatting cleanup must remain distinguishable from the three explicit column mappings. The preview uses illustrative data, explicitly labeled; it does not display these results as a verified application image. No GitHub speed comparison is available because the baseline job did not execute.

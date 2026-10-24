@@ -4,7 +4,7 @@ const path = require('node:path')
 const { pathToFileURL } = require('node:url')
 
 test(
-  'Trials prototype exposes truthful lifecycle states, check review and keyboard navigation',
+  'Signal prototype exposes truthful lifecycle states, check review and keyboard navigation',
   {
     browser: true
   },
@@ -16,7 +16,10 @@ test(
     )
     await page.resize(1440, 1000)
     await expect(
-      page.raw.getByText('INTERACTIVE DESIGN PROTOTYPE')
+      page.raw.getByText('Design preview', { exact: true })
+    ).toBeVisible()
+    await expect(
+      page.raw.getByRole('heading', { name: 'Signal', exact: true })
     ).toBeVisible()
     await expect(page.raw.locator('#status')).toHaveText('Passed')
     await page.screenshot(path.join(screenshots, 'passed-light.png'), {
@@ -35,6 +38,9 @@ test(
     ]) {
       await page.raw.getByLabel('Preview state').selectOption(state)
       await expect(page.raw.locator('#status')).toHaveText(label)
+      await expect(
+        page.raw.locator('.run-row[aria-pressed="true"] .pill')
+      ).toHaveText(label)
       await expect(page.raw.locator('#deploy')).toHaveText('Blocked')
     }
     await page.raw.getByLabel('Preview state').selectOption('interrupted')
@@ -53,7 +59,8 @@ test(
     await expect(
       page.raw.getByRole('tab', { name: 'Configuration' })
     ).toHaveAttribute('aria-selected', 'true')
-    await expect(page.raw.getByLabel('Lint · suggested')).toBeFocused()
+    await expect(page.raw.getByLabel('Lint · required')).toBeFocused()
+    await expect(page.raw.getByLabel('Lint · required')).toBeChecked()
     await page.raw
       .getByRole('button', { name: 'Save prototype choices' })
       .click()
