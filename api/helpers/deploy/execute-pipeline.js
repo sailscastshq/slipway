@@ -458,10 +458,10 @@ module.exports = {
           )
         if (
           !currentApp ||
-          require('../../../packages/cli/src/lib/ci-contract.cjs').digest(
+          require('../../lib/contracts/ci-contract').digest(
             executionFields(currentApp)
           ) !==
-            require('../../../packages/cli/src/lib/ci-contract.cjs').digest(
+            require('../../lib/contracts/ci-contract').digest(
               executionFields(targetApp)
             )
         )

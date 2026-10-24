@@ -2,7 +2,7 @@ const { execFile } = require('node:child_process')
 const command = require('node:util').promisify(execFile)
 const fs = require('node:fs/promises')
 const path = require('node:path')
-const contract = require('../../../packages/cli/src/lib/ci-contract.cjs')
+const contract = require('../../lib/contracts/ci-contract')
 module.exports = {
   friendlyName: 'Get deployment CI admission',
   description:

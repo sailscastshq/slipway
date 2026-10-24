@@ -1,5 +1,5 @@
 const crypto = require('node:crypto')
-const contract = require('../../../packages/cli/src/lib/ci-contract.cjs')
+const contract = require('../../lib/contracts/ci-contract')
 module.exports = {
   friendlyName: 'Handle local-first CI request',
   inputs: {

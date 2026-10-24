@@ -1,4 +1,4 @@
-const contract = require('../../../packages/cli/src/lib/ci-contract.cjs')
+const contract = require('../../lib/contracts/ci-contract')
 module.exports = {
   friendlyName: 'Resolve canonical CI source',
   description:
