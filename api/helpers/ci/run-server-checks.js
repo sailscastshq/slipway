@@ -170,16 +170,19 @@ module.exports = {
     const update = async (data) => {
       const steps = (data.steps || [])
         .slice(0, 4)
-        .map(({ name, state, durationSeconds, exitCode }) => ({
+        .map(({ name, state, durationSeconds, exitCode, resources }) => ({
           name,
           state,
           durationSeconds,
-          exitCode
+          exitCode,
+          resources
         }))
       const next = {
         ...summary,
         state: data.state,
         durationSeconds: data.durationSeconds,
+        resources: data.resources,
+        cache: data.cache,
         steps,
         runtime: data.runtime
           ? {
@@ -216,6 +219,20 @@ module.exports = {
           process.execPath,
           [
             path.resolve(__dirname, '../../../bin/ci-server-executor.cjs'),
+            '--cache-dir',
+            path.join(sails.config.appPath, '.tmp/ci-package-cache'),
+            '--cache-scope',
+            crypto
+              .createHash('sha256')
+              .update(
+                JSON.stringify([
+                  appId,
+                  policy.repositoryId,
+                  policy.branch,
+                  policy.revision
+                ])
+              )
+              .digest('hex'),
             '--repo',
             contextPath,
             '--commit',

@@ -97,10 +97,11 @@ async function stats() {
       container,
       'node',
       '-e',
-      `const f=require('fs');const r=p=>{try{return f.readFileSync(p,'utf8')}catch{return null}};console.log(JSON.stringify({cpu:r('/sys/fs/cgroup/cpu.stat'),memoryPeak:r('/sys/fs/cgroup/memory.peak')}))`
+      `const f=require('fs');const r=p=>{try{return f.readFileSync(p,'utf8')}catch{return null}};const mounts={};for(const p of ['/workspace','/tmp']){try{const s=f.statfsSync(p);mounts[p]={totalBytes:s.blocks*s.bsize,availableBytes:s.bavail*s.bsize,totalInodes:s.files,availableInodes:s.ffree}}catch{mounts[p]=null}};console.log(JSON.stringify({cpu:r('/sys/fs/cgroup/cpu.stat'),memoryPeak:r('/sys/fs/cgroup/memory.peak'),mounts}))`
     ])
     const data = JSON.parse(text)
     return {
+      mounts: data.mounts,
       cpuSeconds:
         Number(data.cpu?.match(/^usage_usec (\d+)/m)?.[1]) / 1e6 || null,
       peakMemoryBytes:
@@ -191,7 +192,7 @@ async function main() {
       .split('\n')
       .some(
         (file) =>
-          /(^|\/)(\.env(?:\.[^/]+)?|\.tmp|node_modules|db)(\/|$)|\.(?:sqlite|db|db-wal|db-shm)$/.test(
+          /(^|\/)(\.env(?:\.[^/]+)?|\.tmp|\.npm-cache|node_modules|db)(\/|$)|\.(?:sqlite|db|db-wal|db-shm)$/.test(
             file
           ) && !/\.env\.(?:example|sample)$/.test(file)
       )
@@ -283,7 +284,7 @@ async function main() {
         '--platform',
         platform,
         '--pull',
-        'always',
+        'missing',
         '-d',
         '--name',
         container,
@@ -318,9 +319,15 @@ async function main() {
         '--env',
         'HOME=/tmp/home',
         '--env',
-        'npm_config_cache=/tmp/npm-cache',
+        'npm_config_cache=/workspace/.npm-cache',
         '--env',
         'npm_config_update_notifier=false',
+        '--env',
+        'npm_config_audit=false',
+        '--env',
+        'npm_config_fund=false',
+        '--env',
+        'npm_config_jobs=2',
         '--env',
         'DATABASE_PATH=.tmp/db/test.sqlite',
         flags['--image'],
@@ -397,6 +404,7 @@ async function main() {
       ['install', ['ci']],
       ...approved.map((name) => [name, ['run', name]])
     ]
+    let before = await stats()
     for (const [name, args] of commands) {
       const stepStarted = performance.now()
       const step = { name, required: true, state: 'running' }
@@ -412,6 +420,11 @@ async function main() {
       step.exitCode = result.code
       step.state = result.code === 0 ? 'passed' : 'failed'
       step.resources = await stats()
+      step.resources.stepCpuSeconds =
+        before.cpuSeconds != null && step.resources.cpuSeconds != null
+          ? Math.max(0, step.resources.cpuSeconds - before.cpuSeconds)
+          : null
+      before = step.resources
       save()
       if (result.code !== 0) {
         const error = new Error(

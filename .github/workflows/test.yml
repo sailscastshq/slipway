@@ -423,6 +423,10 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit
 
+      - name: Reject unsafe package cache archives
+        if: matrix.lane == 'unit'
+        run: node --test tests/prelift/ci-package-cache.test.cjs
+
       - name: Run ${{ matrix.lane }} tests
         run: npm run test:${{ matrix.lane }} -- --profile
 
