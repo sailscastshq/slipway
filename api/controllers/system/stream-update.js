@@ -5,14 +5,16 @@ module.exports = {
   fn: async function () {
     const stream = this.res.sse()
     let last,
-      reading = false
+      reading = false,
+      closed = false,
+      timer
     const send = async () => {
-      if (reading) return
+      if (reading || closed) return
       reading = true
       try {
         const status = await sails.helpers.system.getUpdateStatus()
         const value = JSON.stringify(status)
-        if (value !== last) {
+        if (!closed && value !== last) {
           stream.send(status)
           last = value
         }
@@ -22,9 +24,12 @@ module.exports = {
         reading = false
       }
     }
+    stream.onClose(() => {
+      closed = true
+      clearInterval(timer)
+    })
     await send()
-    const timer = setInterval(send, 2000)
-    stream.onClose(() => clearInterval(timer))
+    if (!closed) timer = setInterval(send, 2000)
     return stream.wait()
   }
 }

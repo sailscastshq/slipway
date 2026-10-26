@@ -96,6 +96,7 @@ function formatDate(dateString) {
     >
       <div class="flex items-center space-x-3">
         <button
+          aria-label="Open navigation"
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
@@ -289,7 +290,7 @@ function formatDate(dateString) {
           <div class="border-t border-gray-200 p-6 dark:border-gray-800">
             <!-- Updating State -->
             <div
-              v-if="updating"
+              v-if="updating || updatePhase === 'success'"
               class="flex flex-col items-center py-6 text-center"
             >
               <Spinner

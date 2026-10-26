@@ -6,7 +6,10 @@ const { randomUUID } = require('node:crypto')
 const { setTimeout: delay } = require('node:timers/promises')
 const { formatDockerError } =
   require('../api/helpers/docker/format-error')._private
-const buildArgs = require('../api/helpers/system/build-update-docker-args').fn
+const {
+  fn: buildArgs,
+  networkAliases
+} = require('../api/helpers/system/build-update-docker-args')
 const execute = promisify(execFile)
 const PREFIX = 'SLIPWAY_UPDATE '
 const TERMINAL = new Set(['success', 'failed', 'rolled-back', 'interrupted'])
@@ -106,7 +109,12 @@ function createUpdater({
       canRetry: false,
       ...event
     }
-    if (job.State?.Running || job.State?.Status === 'created') return base
+    if (
+      job.State?.Running ||
+      (job.State?.Status === 'created' &&
+        now() - Number(labels['slipway.updater.created']) < 30000)
+    )
+      return base
     if (TERMINAL.has(base.phase)) return base
     // A dead runner is not proof of rollback. Reconcile only from exact container identity and normal health.
     const live = await inspect(containerName)
@@ -130,10 +138,14 @@ function createUpdater({
         base.preflightName ||
           `${containerName}-next-${base.operationId.slice(0, 8)}`
       )
+      const helper = await inspect(
+        `${containerName}-snapshot-${base.operationId.slice(0, 8)}`
+      )
       if (
         live.Id === labels['slipway.updater.source'] &&
         normal(ready) &&
-        !leftover
+        !leftover &&
+        !helper
       )
         return {
           ...base,
@@ -176,7 +188,10 @@ function createUpdater({
     const oldJob = await inspect(name)
     if (oldJob) {
       const state = await status({ containerName })
-      if (oldJob.State?.Running || oldJob.State?.Status === 'created')
+      if (
+        oldJob.State?.Running ||
+        (oldJob.State?.Status === 'created' && state.phase === 'starting')
+      )
         return { ...state, adopted: true }
       if (
         state.phase === 'interrupted' ||
@@ -201,6 +216,7 @@ function createUpdater({
       '--name',
       name,
       '--init',
+      '--no-healthcheck',
       '--label',
       'slipway.updater.protocol=1',
       '--label',
@@ -315,10 +331,17 @@ function createUpdater({
           'Update ownership changed; no further container mutations are permitted.'
         )
     }
-    const waitReady = async (name, accepts, label) => {
+    const waitReady = async (name, accepts, label, expectedId) => {
       const deadline = now() + 360000
       while (now() < deadline) {
         await assertOwner()
+        const current = await inspect(name)
+        if (current?.Id !== expectedId)
+          throw new Error(
+            label + ' container identity changed during verification.'
+          )
+        if (!current.State?.Running && !current.State?.Restarting)
+          throw new Error(label + ' exited before completing normal readiness.')
         try {
           const data = await health(name, state.port)
           if (accepts(data)) return data
@@ -365,6 +388,18 @@ function createUpdater({
         await docker(['image', 'inspect', targetImage])
       )[0]
       const imageId = image.Id
+      const sourceImage = JSON.parse(
+        await docker(['image', 'inspect', source.Image])
+      )[0]
+      for (const key of ['Cmd', 'Entrypoint', 'Healthcheck']) {
+        if (
+          JSON.stringify(source.Config[key] ?? null) !==
+          JSON.stringify(sourceImage.Config?.[key] ?? null)
+        )
+          throw new Error(
+            `Custom ${key} overrides require operator review before updating; the current container is unchanged.`
+          )
+      }
       const metadata = JSON.parse(
         await docker(
           [
@@ -412,7 +447,7 @@ function createUpdater({
             'node',
             imageId,
             '-e',
-            "const f=require('fs'),p='/app/db';const bytes=['app.db','observability.db','analytics.db','stash.db'].reduce((n,k)=>n+f.statSync(p+'/'+k).size,0);const d=f.statfsSync(p);if(bytes>50*1024**3||Number(d.bavail)*Number(d.bsize)<bytes*3+512*1024**2)throw Error('Insufficient capacity for a verified update backup');console.log(JSON.stringify({capacityVerified:true}))"
+            "const f=require('fs'),p='/app/db';const bytes=['app.db','observability.db','analytics.db','stash.db'].reduce((n,k)=>n+f.statSync(p+'/'+k).size,0);const d=f.statfsSync(p);if(bytes>50*1024**3||Number(d.bavail)*Number(d.bsize)<bytes*3+512*1024**2)throw Error('Insufficient capacity for a verified update backup');f.mkdirSync(p+'/system-backups',{recursive:true,mode:0o700});console.log(JSON.stringify({capacityVerified:true}))"
           ],
           { timeout: 30000 }
         )
@@ -454,6 +489,25 @@ function createUpdater({
         throw new Error(
           'Verified database snapshots are required before replacing Slipway.'
         )
+      // The resident app's Quest worker archives this verified bundle using the
+      // existing private-storage adapters. A restart cannot lose the pending marker.
+      await docker([
+        'run',
+        '--rm',
+        '--name',
+        helperName,
+        '--label',
+        `slipway.updater.operation=${operationId}`,
+        '-v',
+        mount,
+        '--entrypoint',
+        'node',
+        imageId,
+        '-e',
+        "const f=require('fs'),p=process.argv[1]+'/remote-pending.json';f.writeFileSync(p,JSON.stringify({version:1}),{mode:0o600,flag:'wx'})",
+        backupDirectory
+      ])
+      state.remoteArchive = 'pending'
       progress(
         'inspecting',
         'Preserving the existing container configuration',
@@ -580,7 +634,8 @@ function createUpdater({
           h.mode === 'preflight' &&
           h.normalStartupReady === false &&
           h.version === '0.0.88',
-        'Migration preflight'
+        'Migration preflight',
+        validationId
       )
       await docker(['rm', '-f', validationId])
       validationId = null
@@ -610,7 +665,16 @@ function createUpdater({
       for (const otherNetwork of Object.keys(
         source.NetworkSettings?.Networks || {}
       ).slice(1))
-        await docker(['network', 'connect', otherNetwork, candidateId])
+        await docker([
+          'network',
+          'connect',
+          ...networkAliases(source, otherNetwork).flatMap((alias) => [
+            '--alias',
+            alias
+          ]),
+          otherNetwork,
+          candidateId
+        ])
       progress(
         'waiting',
         'Waiting for the exact target version and normal startup receipts'
@@ -618,7 +682,8 @@ function createUpdater({
       await waitReady(
         containerName,
         (h) => normal(h, targetVersion, metadata.checksum),
-        'Target Slipway'
+        'Target Slipway',
+        candidateId
       )
       // Do not remove a rollback target that another operator has restarted or renamed.
       const previous = await inspect(sourceId)
@@ -689,7 +754,8 @@ function createUpdater({
                 originalHealth?.version,
                 originalHealth?.releaseMigrations?.checksum
               ),
-            'Previous Slipway'
+            'Previous Slipway',
+            sourceId
           )
           return progress(
             'rolled-back',
@@ -760,7 +826,7 @@ async function main(args) {
     if (result.phase !== 'success') process.exitCode = 1
   } else
     throw new Error(
-      'Usage: slipway-updater start|status|run --container NAME --image IMAGE --version VERSION'
+      'Usage: slipway-updater start|status|watch|run --container NAME --image IMAGE --version VERSION'
     )
 }
 module.exports = { createUpdater, PREFIX, TERMINAL, main }

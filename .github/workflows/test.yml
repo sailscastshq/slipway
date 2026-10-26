@@ -15,6 +15,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  shared-updater:
+    name: Shared terminal and web updater
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Verify disposable installation with native SQLite preflight and rollback safety
+        run: SLIPWAY_UPDATER_DOCKER=1 node --test tests/contracts/shared-updater.cjs
+
   ci-server-executor:
     name: Isolated server CI executor
     timeout-minutes: 15

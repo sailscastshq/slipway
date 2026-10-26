@@ -118,7 +118,10 @@ function formatDate(dateString) {
     <!-- Body -->
     <div class="border-t border-gray-200 p-5 dark:border-gray-800">
       <!-- Updating State -->
-      <div v-if="updating" class="flex flex-col items-center py-4 text-center">
+      <div
+        v-if="updating || updatePhase === 'success'"
+        class="flex flex-col items-center py-4 text-center"
+      >
         <Spinner
           v-if="updatePhase !== 'success'"
           class="text-brand-600 dark:text-brand-400 mb-3 h-7 w-7"

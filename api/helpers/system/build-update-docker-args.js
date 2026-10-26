@@ -37,6 +37,8 @@ module.exports = {
     )
     for (const [key, flag] of Object.entries({
       Memory: '--memory',
+      MemoryReservation: '--memory-reservation',
+      CpuShares: '--cpu-shares',
       MemorySwap: '--memory-swap',
       NanoCpus: '--cpus',
       CpuQuota: '--cpu-quota',
@@ -51,11 +53,48 @@ module.exports = {
           String(key === 'NanoCpus' ? host[key] / 1e9 : host[key])
         )
     }
+    if (
+      host.NetworkMode === 'host' ||
+      host.NetworkMode?.startsWith('container:') ||
+      host.IpcMode === 'host' ||
+      host.IpcMode?.startsWith('container:') ||
+      host.PidMode === 'host' ||
+      host.PidMode?.startsWith('container:') ||
+      host.UTSMode === 'host' ||
+      host.Devices?.length ||
+      host.DeviceRequests?.length ||
+      Object.values(containerInfo.NetworkSettings?.Networks || {}).some(
+        (network) => network.IPAMConfig
+      )
+    )
+      throw new Error(
+        'Custom host namespaces, devices or static network addressing require operator review before updating.'
+      )
+    if (containerInfo.Config?.WorkingDir)
+      runArgs.push('--workdir', containerInfo.Config.WorkingDir)
+    if (containerInfo.Config?.StopSignal)
+      runArgs.push('--stop-signal', containerInfo.Config.StopSignal)
+    if (host.LogConfig?.Type) {
+      runArgs.push('--log-driver', host.LogConfig.Type)
+      for (const [key, value] of Object.entries(host.LogConfig.Config || {}))
+        runArgs.push('--log-opt', `${key}=${value}`)
+    }
+    if (host.Init) runArgs.push('--init')
+    if (host.OomKillDisable) runArgs.push('--oom-kill-disable')
+    if (containerInfo.Config?.StopTimeout != null)
+      runArgs.push('--stop-timeout', String(containerInfo.Config.StopTimeout))
+    for (const limit of host.Ulimits || [])
+      runArgs.push('--ulimit', `${limit.Name}=${limit.Soft}:${limit.Hard}`)
+    for (const [key, value] of Object.entries(host.Sysctls || {}))
+      runArgs.push('--sysctl', `${key}=${value}`)
     if (host.ReadonlyRootfs) runArgs.push('--read-only')
     if (containerInfo.Config?.User)
       runArgs.push('--user', containerInfo.Config.User)
     for (const [key, flag] of Object.entries({
       Dns: '--dns',
+      DnsSearch: '--dns-search',
+      DnsOptions: '--dns-option',
+      GroupAdd: '--group-add',
       ExtraHosts: '--add-host',
       SecurityOpt: '--security-opt',
       CapAdd: '--cap-add',
@@ -76,6 +115,8 @@ module.exports = {
     const networks = Object.keys(containerInfo.NetworkSettings?.Networks || {})
     if (networks.length > 0) {
       runArgs.push('--network', networks[0])
+      for (const alias of networkAliases(containerInfo, networks[0]))
+        runArgs.push('--network-alias', alias)
     }
 
     runArgs.push(...mountArgs)
@@ -199,3 +240,15 @@ function appendMountArgs(args, mounts = [], extraMounts = []) {
     }
   }
 }
+
+function networkAliases(containerInfo, network) {
+  return (
+    containerInfo.NetworkSettings?.Networks?.[network]?.Aliases || []
+  ).filter(
+    (alias) =>
+      alias !== containerInfo.Id &&
+      alias !== containerInfo.Id?.slice(0, 12) &&
+      alias !== containerInfo.Name?.replace(/^\//, '')
+  )
+}
+module.exports.networkAliases = networkAliases

@@ -5,7 +5,8 @@ function fixture({
   failSnapshot = false,
   preflightNormal = false,
   badTarget = false,
-  partialStart = false
+  partialStart = false,
+  wrongChecksum = false
 } = {}) {
   let now = 0,
     counter = 0
@@ -161,7 +162,17 @@ function fixture({
       return JSON.stringify(
         badTarget
           ? { ...healthy('0.0.122'), mode: 'preflight' }
-          : healthy('0.0.122')
+          : {
+              ...healthy('0.0.122'),
+              ...(wrongChecksum
+                ? {
+                    releaseMigrations: {
+                      ready: true,
+                      checksum: 'wrong-checksum'
+                    }
+                  }
+                : {})
+            }
       )
     }
     throw Error('Unexpected fixture command: ' + args[0])
@@ -189,13 +200,24 @@ function fixture({
     find('slipway-updater').State = { Running: false, Status: 'exited' }
     return result
   }
-  return { engine, options, run, calls, logs, items, find, source, healthy }
+  return {
+    engine,
+    secondEngine: createUpdater({ docker, now: () => now }),
+    options,
+    run,
+    calls,
+    logs,
+    items,
+    find,
+    source,
+    healthy
+  }
 }
 test('terminal and UI concurrent admission share one detached operation', async () => {
   const f = fixture()
   const results = await Promise.all([
     f.engine.start(f.options),
-    f.engine.start(f.options)
+    f.secondEngine.start(f.options)
   ])
   assert.equal(results[0].operationId, results[1].operationId)
   assert.equal(f.calls.filter((x) => x[0] === 'create').length, 2)
@@ -239,13 +261,20 @@ test('the engine verifies backups and copy preflight before stopping the old wri
   assert.equal(f.logs.join('\n').includes('fixture-secret-never-log'), false)
   assert.equal((await f.engine.status()).phase, 'success')
 })
-for (const scenario of ['snapshot', 'preflight', 'readiness', 'partial-start'])
+for (const scenario of [
+  'snapshot',
+  'preflight',
+  'readiness',
+  'partial-start',
+  'checksum'
+])
   test(`shared updater handles ${scenario} without false success or unsafe retry`, async () => {
     const f = fixture({
       failSnapshot: scenario === 'snapshot',
       preflightNormal: scenario === 'preflight',
       badTarget: scenario === 'readiness',
-      partialStart: scenario === 'partial-start'
+      partialStart: scenario === 'partial-start',
+      wrongChecksum: scenario === 'checksum'
     })
     const result = await f.run()
     assert.equal(
@@ -304,4 +333,43 @@ test('a dead updater reconciles only exact ready target identity or an unchanged
     State: { Running: true }
   })
   assert.equal((await f.engine.status()).phase, 'interrupted')
+})
+
+test('custom host networking fails before replacing any container', async () => {
+  const f = fixture()
+  f.source.HostConfig.NetworkMode = 'host'
+  const result = await f.run()
+  assert.equal(result.phase, 'failed')
+  assert.equal(
+    f.calls.some((x) => x[0] === 'stop'),
+    false
+  )
+})
+
+test('a dead updater with a retained snapshot helper cannot admit a second writer', async () => {
+  const f = fixture()
+  const op = await f.engine.start(f.options)
+  f.find('slipway-updater').State = { Running: false, Status: 'exited' }
+  f.items.set('helper', {
+    Id: 'helper',
+    Name: '/slipway-snapshot-' + op.operationId.slice(0, 8),
+    State: { Running: true }
+  })
+  const result = await f.engine.status()
+  assert.equal(result.phase, 'interrupted')
+  assert.equal(result.canRetry, false)
+})
+
+test('an abandoned creation reconciles the original before admitting a retry', async () => {
+  const f = fixture()
+  const op = await f.engine.start(f.options)
+  const job = f.find('slipway-updater')
+  job.State = { Running: false, Status: 'created' }
+  job.Config.Labels['slipway.updater.created'] = '-60000'
+  const status = await f.engine.status()
+  assert.equal(status.phase, 'failed')
+  assert.equal(status.canRetry, true)
+  const replacement = await f.engine.start(f.options)
+  assert.notEqual(replacement.operationId, op.operationId)
+  assert.equal(f.source.State.Running, true)
 })

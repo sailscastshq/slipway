@@ -78,7 +78,7 @@ async function request(url, options = {}) {
 }
 function accept(data) {
   if (!data || typeof data.phase !== 'string') return
-  if (data.phase === 'idle') {
+  if (data.phase === 'idle' || (data.phase === 'success' && !observedActive)) {
     if (
       !posting &&
       phase.value === 'reconnecting' &&
@@ -153,6 +153,7 @@ async function applyUpdate(version) {
   operationId.value = null
   idleReads = 0
   sequence = -1
+  observedActive = false
   generation++
   stream?.close()
   streamStarted = false
@@ -190,7 +191,15 @@ export function useUpdateOperation() {
   const source = useEventSource('/api/v1/system/stream-update', {
     immediate: false,
     autoReconnect: true,
-    onMessage: accept,
+    onMessage: (data) => {
+      if (
+        operationId.value &&
+        data?.operationId &&
+        data.operationId !== operationId.value
+      )
+        refresh()
+      else accept(data)
+    },
     onError: () => {
       streamStarted = false
       refresh()
