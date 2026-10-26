@@ -3,7 +3,7 @@ const { expect } = require('@playwright/test')
 
 for (const outcome of ['updated', 'old-version', 'missing-version']) {
   test(
-    `update page waits for the exact target after a stream drop: ${outcome}`,
+    `update page follows verified engine outcome after a stream drop: ${outcome}`,
     { browser: true, world: { name: 'configured-slipway' } },
     async ({ sails, world, login, page }) => {
       const original = sails.helpers.system.checkForUpdates
@@ -34,33 +34,36 @@ for (const outcome of ['updated', 'old-version', 'missing-version']) {
           window.fetch = async (url, options) => {
             if (String(url) === '/api/v1/system/apply-update')
               return new Response(
-                JSON.stringify({ status: 'started', targetVersion: '0.0.90' }),
+                JSON.stringify({
+                  phase: 'starting',
+                  operationId: 'verified-fixture',
+                  targetVersion: '0.0.90'
+                }),
                 { status: 202 }
               )
-            if (String(url) === '/health') {
-              if (outcome !== 'updated')
-                return new Response(
-                  JSON.stringify({
-                    status: 'ok',
-                    ...(outcome === 'old-version' ? { version: '0.0.89' } : {})
-                  }),
-                  { status: 200 }
-                )
-              const elapsed = Date.now() - window.__updateStarted
-              const ready = elapsed >= 80000
+            if (String(url) === '/api/v1/system/update-status') {
+              const elapsed = window.__updateStarted
+                ? Date.now() - window.__updateStarted
+                : -1
+              const phase =
+                elapsed < 0
+                  ? 'idle'
+                  : elapsed >= 80000 && outcome === 'updated'
+                  ? 'success'
+                  : elapsed >= 360000
+                  ? 'rolled-back'
+                  : 'waiting'
               return new Response(
-                JSON.stringify(
-                  elapsed < 20000
-                    ? { status: 'ok', version: '0.0.89' }
-                    : ready
-                    ? { status: 'ok', version: '0.0.90' }
-                    : {
-                        status: 'ok',
-                        version: '0.0.90',
-                        mode: 'preflight',
-                        normalStartupReady: false
-                      }
-                ),
+                JSON.stringify({
+                  phase,
+                  operationId: elapsed < 0 ? undefined : 'verified-fixture',
+                  targetVersion: '0.0.90',
+                  canRetry: phase === 'rolled-back',
+                  detail:
+                    phase === 'rolled-back'
+                      ? 'The engine verified the previous container is restored and healthy.'
+                      : ''
+                }),
                 { status: 200 }
               )
             }
@@ -83,7 +86,7 @@ for (const outcome of ['updated', 'old-version', 'missing-version']) {
         await page.raw.evaluate(() => window.__updateStream.onerror({}))
         await page.raw.clock.runFor(70000)
         await expect(
-          page.raw.getByText('Waiting for Slipway to come back up...', {
+          page.raw.getByText('Waiting for normal startup…', {
             exact: true
           })
         ).toBeVisible()

@@ -882,3 +882,44 @@ test('CI migration is additive, clone-only in preflight, and idempotent without 
     await ci.run({ directory })
     assert.deepEqual(hashes(directory), after)
   }))
+test('operation-labelled validation containers stay in copy-only preflight with unique names', () => {
+  const self = {
+    Id: 'own',
+    Name: '/isolated-next-123',
+    Config: {
+      Hostname: 'own',
+      Labels: {
+        'slipway.update.role': 'preflight',
+        'slipway.updater.operation': '11111111-1111-4111-8111-111111111111'
+      }
+    },
+    Mounts: [
+      {
+        Type: 'volume',
+        Source: '/isolated/db',
+        Destination: '/app/db',
+        RW: true
+      }
+    ]
+  }
+  assert.equal(
+    startup.dockerRole({
+      containers: [self],
+      hostname: 'own',
+      directory: '/app/db'
+    }),
+    'preflight'
+  )
+  const invalid = {
+    ...self,
+    Config: { ...self.Config, Labels: { 'slipway.update.role': 'preflight' } }
+  }
+  assert.equal(
+    startup.dockerRole({
+      containers: [invalid],
+      hostname: 'own',
+      directory: '/app/db'
+    }),
+    'startup'
+  )
+})

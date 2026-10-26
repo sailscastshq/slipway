@@ -1,0 +1,52 @@
+{
+  "issue": 859,
+  "date": "2026-10-26",
+  "base": "d28e391c07aa09830f276479752a7fc49287fc60",
+  "baseline": {
+    "source": "untouched origin/main archive at the base commit",
+    "reproduced": "reachable modal incorrectly reported likely rollback after stream drop while the old version was healthy",
+    "otherSourceFindings": [
+      "initial stream failure had no independent durable-status reconciliation",
+      "old web updater reset cache progress to idle before its detached swap completed"
+    ]
+  },
+  "checks": [
+    {
+      "command": "sounding test --file tests/unit/helpers/system/updater-engine.test.js --file tests/unit/helpers/system/apply-update.test.js --file tests/unit/helpers/system/update-archive.test.js --file tests/unit/helpers/system/check-for-updates.test.js --test-concurrency=1",
+      "passed": 29
+    },
+    {
+      "command": "sounding test --file tests/e2e/pages/settings/update-engine.test.js --file tests/e2e/pages/settings/update.test.js --test-concurrency=1",
+      "passed": 10
+    },
+    {
+      "command": "sounding test --file tests/functional/api/system-updater.test.js --test-concurrency=1",
+      "passed": 1
+    },
+    {
+      "command": "node --test tests/prelift/release-migrations.test.cjs tests/prelift/release-swap.test.cjs tests/unit/scripts/cleanup-installer.test.js",
+      "passed": 30
+    },
+    {
+      "command": "SLIPWAY_UPDATER_DOCKER=1 node --test tests/contracts/shared-updater.cjs",
+      "passed": 1,
+      "assertions": [
+        "actual host installer delegates to shared engine",
+        "four native datastore snapshots verified",
+        "actual startup writer guard and migration preflight",
+        "normal version and checksum readiness",
+        "environment, mounts, resource and restart settings preserved",
+        "normal startup failure restores exact previous container",
+        "preflight cleanup verified",
+        "unrelated witness remains running",
+        "installer does not create environment file"
+      ]
+    }
+  ],
+  "limits": [
+    "Docker proof uses a minimal readiness server with the real startup guard and migrations, not a full production Sails boot",
+    "Browser transport failures and future target versions are controlled fixtures",
+    "Remote archive retries use stubbed private storage in unit tests; no live storage provider was accessed",
+    "No production update, release, publishing or merge was performed"
+  ]
+}

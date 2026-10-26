@@ -158,6 +158,7 @@ module.exports.routes = {
   'GET /settings/update': 'system/view-update',
   'GET /api/v1/system/check-update': 'system/check-update',
   'POST /api/v1/system/apply-update': 'system/apply-update',
+  'GET /api/v1/system/update-status': 'system/update-status',
   'GET /api/v1/system/stream-update': 'system/stream-update',
 
   // Bosun (self-administration dashboard)

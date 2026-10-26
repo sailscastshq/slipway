@@ -12,8 +12,11 @@ import Check from '@/components/ui/icons/Check.vue'
 import BookOpen from '@/components/ui/icons/BookOpen.vue'
 import ArrowRight from '@/components/ui/icons/ArrowRight.vue'
 import { Head, Link } from '@inertiajs/vue3'
-import { inject, ref, watch, onUnmounted } from 'vue'
-import { useEventSource } from '@/composables/sse'
+import { inject, ref } from 'vue'
+import {
+  useUpdateOperation,
+  requestUpdateJson
+} from '@/composables/useUpdateOperation'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 
@@ -32,145 +35,32 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const checking = ref(false)
-const updating = ref(false)
-const updateError = ref(null)
-const updatePhase = ref('')
-const updateDetail = ref('')
 const localUpdateInfo = ref(props.updateInfo)
 const lastChecked = ref(new Date())
-const updateTargetVersion = ref(props.updateInfo.latestVersion || null)
-
 const {
-  connected: sseConnected,
-  close: disconnectSSE,
-  connect: connectSSE
-} = useEventSource('/api/v1/system/stream-update', {
-  immediate: false,
-  autoReconnect: false,
-  onMessage(data) {
-    updatePhase.value = data.phase
-    updateDetail.value = data.detail || ''
-
-    if (data.phase === 'failed') {
-      disconnectSSE()
-      updateError.value = data.detail || 'Update failed'
-      updating.value = false
-      updatePhase.value = ''
-    }
-  }
-})
-
-// When SSE drops during an update (server restarting), poll for health
-watch(sseConnected, (isConnected, wasConnected) => {
-  if (
-    wasConnected &&
-    !isConnected &&
-    updating.value &&
-    updatePhase.value !== 'failed'
-  ) {
-    updatePhase.value = 'waiting'
-    updateDetail.value = ''
-    waitForHealthy(updateTargetVersion.value)
-      .then(() => {
-        updatePhase.value = 'success'
-        updateDetail.value = ''
-        setTimeout(() => window.location.reload(), 1500)
-      })
-      .catch((err) => {
-        updateError.value =
-          err.message || 'Slipway did not come back up. Check your server.'
-        updating.value = false
-        updatePhase.value = ''
-      })
-  }
-})
+  updating,
+  updateError,
+  updatePhase,
+  updateDetail,
+  connectionNotice,
+  canRetry,
+  applyUpdate: beginUpdate,
+  phaseLabels
+} = useUpdateOperation()
+const applyUpdate = () => beginUpdate(localUpdateInfo.value.latestVersion)
 
 async function checkAgain() {
   checking.value = true
   try {
-    const response = await fetch('/api/v1/system/check-update')
-    if (response.ok) {
-      localUpdateInfo.value = await response.json()
-      lastChecked.value = new Date()
-    }
+    localUpdateInfo.value = await requestUpdateJson(
+      '/api/v1/system/check-update'
+    )
+    lastChecked.value = new Date()
   } catch (err) {
     console.error('Failed to check for updates:', err)
   } finally {
     checking.value = false
   }
-}
-
-async function applyUpdate() {
-  updating.value = true
-  updateError.value = null
-  updatePhase.value = 'starting'
-  updateDetail.value = 'Initiating update...'
-
-  try {
-    const response = await fetch('/api/v1/system/apply-update', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    })
-
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      throw new Error(data.message || 'Failed to initiate update')
-    }
-
-    const data = await response.json().catch(() => ({}))
-    updateTargetVersion.value =
-      data.targetVersion || localUpdateInfo.value.latestVersion || null
-    connectSSE()
-  } catch (err) {
-    updateError.value = err.message
-    updating.value = false
-    updatePhase.value = ''
-  }
-}
-
-async function waitForHealthy(expectedVersion) {
-  const deadline = Date.now() + 360000
-  let lastHealthyVersion
-  while (Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-    if (Date.now() >= deadline) break
-    let res
-    try {
-      res = await fetch('/health', { signal: AbortSignal.timeout(5000) })
-    } catch {
-      // Still down — keep polling.
-      continue
-    }
-
-    if (!res.ok) continue
-
-    const health = await res.json().catch(() => ({}))
-    if (health.status !== 'ok' || health.mode === 'preflight') continue
-    if (!expectedVersion || health.version === expectedVersion) return
-    // A stream can disconnect before the old server stops. Its healthy
-    // response does not prove rollback; keep waiting for the exact target.
-    lastHealthyVersion = health.version || null
-  }
-  if (lastHealthyVersion) {
-    throw new Error(
-      `Slipway is still serving v${lastHealthyVersion} after six minutes; v${expectedVersion} could not be confirmed. Check the server logs before retrying.`
-    )
-  }
-  throw new Error(
-    'Slipway did not become ready within six minutes. Check the server logs before retrying.'
-  )
-}
-
-const phaseLabels = {
-  starting: 'Initiating update...',
-  checking: 'Checking for updates...',
-  pulling: 'Pulling image...',
-  'backing-up': 'Backing up database...',
-  inspecting: 'Reading container configuration...',
-  validating: 'Validating new version...',
-  swapping: 'Swapping containers...',
-  waiting: 'Waiting for Slipway to come back up...',
-  success: 'Update complete! Reloading...'
 }
 
 function formatTime(date) {
@@ -206,6 +96,7 @@ function formatDate(dateString) {
     >
       <div class="flex items-center space-x-3">
         <button
+          aria-label="Open navigation"
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
@@ -399,7 +290,7 @@ function formatDate(dateString) {
           <div class="border-t border-gray-200 p-6 dark:border-gray-800">
             <!-- Updating State -->
             <div
-              v-if="updating"
+              v-if="updating || updatePhase === 'success'"
               class="flex flex-col items-center py-6 text-center"
             >
               <Spinner
@@ -419,13 +310,20 @@ function formatDate(dateString) {
                 {{ phaseLabels[updatePhase] || 'Updating...' }}
               </p>
               <p
+                v-if="connectionNotice"
+                role="status"
+                class="mt-2 text-xs text-gray-500"
+              >
+                {{ connectionNotice }}
+              </p>
+              <p
                 v-if="updateDetail"
                 class="mt-0.5 text-xs text-gray-500 dark:text-gray-400"
               >
                 {{ updateDetail }}
               </p>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Your data is preserved. This may take up to a minute.
+                The update continues on your server if you leave this page.
               </p>
             </div>
 
@@ -455,6 +353,7 @@ function formatDate(dateString) {
               <div class="flex items-center space-x-3">
                 <button
                   @click="applyUpdate"
+                  :disabled="!canRetry"
                   class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                 >
                   Try Again

@@ -1,51 +1,35 @@
 module.exports = {
   friendlyName: 'Stream update progress',
-
-  description:
-    'SSE endpoint that streams self-update progress phases to the UI.',
-
   inputs: {},
-
-  exits: {
-    success: {
-      description: 'SSE stream established.'
-    }
-  },
-
+  exits: { success: {} },
   fn: async function () {
-    const req = this.req
-    const res = this.res
-    const CACHE_KEY = 'slipway_update_progress'
-
-    const stream = res.sse()
-
-    // Send initial state immediately
-    const initial = await sails.cache.get(CACHE_KEY)
-    stream.send(initial || { phase: 'idle', detail: null })
-
-    let lastPhase = initial?.phase || 'idle'
-    let lastUpdatedAt = initial?.updatedAt || 0
-
-    const interval = setInterval(async () => {
+    const stream = this.res.sse()
+    let last,
+      reading = false,
+      closed = false,
+      timer
+    const send = async () => {
+      if (reading || closed) return
+      reading = true
       try {
-        const progress = await sails.cache.get(CACHE_KEY)
-        if (!progress) return
-
-        // Only send when something changes
-        if (progress.updatedAt !== lastUpdatedAt) {
-          lastPhase = progress.phase
-          lastUpdatedAt = progress.updatedAt
-          stream.send(progress)
+        const status = await sails.helpers.system.getUpdateStatus()
+        const value = JSON.stringify(status)
+        if (!closed && value !== last) {
+          stream.send(status)
+          last = value
         }
       } catch {
-        // Cache read failed — ignore
+        /* HTTP polling can reconcile without inventing a terminal outcome. */
+      } finally {
+        reading = false
       }
-    }, 1000)
-
+    }
     stream.onClose(() => {
-      clearInterval(interval)
+      closed = true
+      clearInterval(timer)
     })
-
+    await send()
+    if (!closed) timer = setInterval(send, 2000)
     return stream.wait()
   }
 }

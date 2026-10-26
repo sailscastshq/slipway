@@ -227,152 +227,58 @@ test('self-update swap keeps the previous container available for rollback', asy
   expect(syntaxError).toBe(undefined)
 })
 
-test('self-update validates without allocating or publishing a host port and cleans up failed starts', async ({
-  sails,
+test('web update admission delegates to the shared engine and adopts an active operation', async ({
   expect
 }) => {
   const fs = require('node:fs')
+  const path = require('node:path')
   const source = fs.readFileSync(
-    require.resolve('../../../../api/helpers/system/apply-update'),
+    path.resolve(__dirname, '../../../../api/helpers/system/apply-update.js'),
     'utf8'
   )
-  const token = 'fixture-only-encryption-secret'
-  for (const failureAt of ['none', 'validation', 'bosun']) {
-    const calls = []
-    const progress = []
-    const logs = []
-    let swapArgs
-    const context = {
-      config: { custom: {} },
-      cache: {
-        set: async (key, value, ttl) => {
-          expect(ttl).toBe(key === 'slipway_update_progress' ? 900 : 1)
-          progress.push(value)
+  let active = true,
+    starts = 0,
+    checks = 0
+  const operation = {
+    operationId: 'same-operation',
+    phase: 'validating',
+    targetVersion: '0.0.122'
+  }
+  const loaded = { exports: {} }
+  vm.runInNewContext(source, {
+    module: loaded,
+    require: () => ({
+      createUpdater: () => ({
+        status: async () => (active ? operation : { phase: 'idle' }),
+        start: async (options) => {
+          starts++
+          expect(options.targetImage).toBe('fixture:0.0.122')
+          return operation
         }
-      },
-      log: {
-        info: (value) => logs.push(value),
-        error: (value) => logs.push(value)
-      },
+      })
+    }),
+    sails: {
+      config: { docker: {}, custom: {}, slipway: {} },
       helpers: {
-        docker: {
-          formatError: sails.helpers.docker.formatError,
-          allocatePort: {
-            with: () => {
-              throw new Error('Host allocation must not run')
+        system: {
+          checkForUpdates: {
+            with: async () => {
+              checks++
+              return { updateAvailable: true, latestVersion: '0.0.122' }
             }
           },
-          healthCheckContainer: { with: async () => {} }
-        },
-        system: {
-          checkForUpdates: async () => ({
-            updateAvailable: true,
-            currentVersion: '0.0.89',
-            latestVersion: '0.0.90'
-          }),
-          getUpdateImageRef: { with: async () => 'fixture:candidate' },
-          backupDatabase: async () => ({ localVerified: true }),
-          buildUpdateDockerArgs: sails.helpers.system.buildUpdateDockerArgs,
-          buildUpdateSwapScript: {
-            with: async ({ runArgs }) => {
-              swapArgs = runArgs
-              return 'fixture-swap'
-            }
-          }
+          getUpdateImageRef: { with: async () => 'fixture:0.0.122' }
         }
       }
     }
-    const execFile = (binary, args, options, callback) => {
-      if (typeof options === 'function') callback = options
-      calls.push(args)
-      let stdout = ''
-      if (args[0] === 'inspect')
-        stdout = JSON.stringify([
-          {
-            Mounts: [
-              {
-                Type: 'bind',
-                Source: '/var/slipway/apps',
-                Destination: '/var/slipway/apps'
-              }
-            ],
-            NetworkSettings: { Networks: { slipway: {} } },
-            HostConfig: {
-              PortBindings: {
-                '1337/tcp': [{ HostIp: '127.0.0.1', HostPort: '1337' }]
-              }
-            },
-            Config: {
-              Env: [
-                `DATA_ENCRYPTION_KEY=${token}`,
-                'SLIPWAY_APP_PORT_HOST=127.0.0.1',
-                'SHORT=2'
-              ],
-              Labels: {}
-            }
-          }
-        ])
-      if (args[0] === 'exec') stdout = JSON.stringify({ status: 'ok' })
-      const failed =
-        args[0] === 'run' &&
-        ((failureAt === 'validation' && args.includes('slipway-next')) ||
-          (failureAt === 'bosun' && args.includes('slipway-bosun')))
-      const error = failed
-        ? Object.assign(new Error(`Command failed: ${args.join(' ')}`), {
-            code: 1,
-            stderr: `Bind for 127.0.0.1:1342 failed; DATA_ENCRYPTION_KEY=${token}`
-          })
-        : null
-      queueMicrotask(() => callback(error, stdout, error?.stderr || ''))
-    }
-    // Match Node's promisified execFile stdout/stderr contract.
-    execFile[require('node:util').promisify.custom] = (...args) =>
-      new Promise((resolve, reject) =>
-        execFile(...args, (error, stdout, stderr) =>
-          error ? reject(error) : resolve({ stdout, stderr })
-        )
-      )
-    const loaded = { exports: {} }
-    vm.runInNewContext(source, {
-      module: loaded,
-      sails: context,
-      require: (name) =>
-        name === 'child_process' ? { execFile } : require(name)
-    })
-    let failure
-    try {
-      await loaded.exports.fn()
-    } catch (error) {
-      failure = error
-    }
-    const validationArgs = calls.find(
-      (args) => args[0] === 'run' && args.includes('slipway-next')
-    )
-    expect(validationArgs.includes('-p')).toBe(false)
-    expect(validationArgs.includes('--network')).toBe(true)
-    expect(validationArgs.includes(`DATA_ENCRYPTION_KEY=${token}`)).toBe(true)
-    expect(
-      calls.filter((args) => args.join(' ') === 'rm -f slipway-next').length
-    ).toBe(2)
-    expect(JSON.stringify(progress).includes(token)).toBe(false)
-    if (failureAt === 'validation') {
-      expect(failure).toBe('validationFailed')
-      expect(swapArgs).toBe(undefined)
-      expect(logs.join('\n').includes(token)).toBe(false)
-      expect(logs.join('\n').includes('127.0.0.1:1342')).toBe(true)
-      expect(
-        progress.some((value) => value?.detail === 'New image failed to start')
-      ).toBe(true)
-    } else if (failureAt === 'bosun') {
-      expect(failure).toBe('pullFailed')
-      expect(
-        progress.some((value) => value?.detail?.includes('127.0.0.1:1342'))
-      ).toBe(true)
-    } else {
-      expect(failure).toBe(undefined)
-      expect(swapArgs.includes('127.0.0.1:1337:1337')).toBe(true)
-    }
-  }
+  })
+  expect((await loaded.exports.fn()).operationId).toBe('same-operation')
+  expect(starts).toBe(0)
+  expect(checks).toBe(0)
+  active = false
+  expect((await loaded.exports.fn()).operationId).toBe('same-operation')
+  expect(starts).toBe(1)
+  expect(checks).toBe(1)
 })
 
 test('Bosun protects Docker failure diagnostics and restores the previous container', async ({

@@ -30,6 +30,7 @@ test('the real scripts directory registers every scheduled job without executing
     'Quest discovery must not import utilities'
   )
   assert.deepEqual([...jobs.keys()].sort(), [
+    'archive-update-backups',
     'check-for-updates',
     'check-system-databases',
     'expire-bridge-support',
@@ -51,6 +52,8 @@ test('the real scripts directory registers every scheduled job without executing
   assert.deepEqual(jobs.get('retain-build-cache').scriptInputs, {
     preview: false
   })
+  assert.equal(jobs.get('archive-update-backups').interval, '5 minutes')
+  assert.equal(jobs.get('archive-update-backups').withoutOverlapping, true)
   assert.equal(jobs.get('run-scheduled-backups').interval, '1 minute')
   assert.equal(jobs.get('run-scheduled-backups').withoutOverlapping, true)
 })

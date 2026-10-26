@@ -41,7 +41,7 @@ module.exports = {
     const cacheKey = 'slipway_update_check:v2'
     if (!skipCache) {
       const cached = await sailsApp.cache.get(cacheKey)
-      if (cached) {
+      if (cached?.currentVersion === currentVersion) {
         return cached
       }
     }
@@ -51,6 +51,7 @@ module.exports = {
       const response = await fetch(
         `https://api.github.com/repos/${githubRepo}/releases/latest`,
         {
+          signal: AbortSignal.timeout(10000),
           headers: {
             Accept: 'application/vnd.github.v3+json',
             'User-Agent': `Slipway/${currentVersion}`
@@ -154,7 +155,10 @@ async function checkGhcrImage(repo, version) {
   try {
     const tokenRes = await fetch(
       `https://ghcr.io/token?service=ghcr.io&scope=repository:${repo}:pull`,
-      { headers: { 'User-Agent': 'Slipway' } }
+      {
+        signal: AbortSignal.timeout(10000),
+        headers: { 'User-Agent': 'Slipway' }
+      }
     )
     if (!tokenRes.ok) return false
     const { token } = await tokenRes.json()
@@ -163,6 +167,7 @@ async function checkGhcrImage(repo, version) {
     const manifestRes = await fetch(
       `https://ghcr.io/v2/${repo}/manifests/${tag}`,
       {
+        signal: AbortSignal.timeout(10000),
         method: 'HEAD',
         headers: {
           'User-Agent': 'Slipway',
