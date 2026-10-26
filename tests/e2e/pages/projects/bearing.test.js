@@ -1284,9 +1284,11 @@ test(
     await expect(widgetPanel).toHaveAttribute('data-opened-from', 'host')
     await expect(widgetTrigger).toBeHidden()
     const widgetFrame = widget.locator('iframe')
-    await expect(widgetFrame).toHaveAttribute(
-      'src',
-      '/bearing/feedback?embedded=1'
+    await expectWidgetFramePath(
+      page,
+      widgetFrame,
+      '/bearing/feedback?embedded=1',
+      expect
     )
     expect(
       await page.raw.evaluate(() => ({
@@ -1377,9 +1379,11 @@ test(
     )
     await expect(widgetPanel).toBeVisible()
     await expect(widget.locator('[data-close]')).toBeFocused()
-    await expect(widgetFrame).toHaveAttribute(
-      'src',
-      '/bearing/roadmap?embedded=1'
+    await expectWidgetFramePath(
+      page,
+      widgetFrame,
+      '/bearing/roadmap?embedded=1',
+      expect
     )
     await expect(widget.locator('[data-surface="roadmap"]')).toHaveAttribute(
       'aria-current',
@@ -1389,9 +1393,11 @@ test(
     await expect(hostRoadmapButton).toBeFocused()
 
     await hostUpdatesButton.click()
-    await expect(widgetFrame).toHaveAttribute(
-      'src',
-      '/bearing/updates?embedded=1'
+    await expectWidgetFramePath(
+      page,
+      widgetFrame,
+      '/bearing/updates?embedded=1',
+      expect
     )
     await widget.locator('[data-close]').click()
     await expect(hostUpdatesButton).toBeFocused()
@@ -1405,9 +1411,11 @@ test(
       )
     })
     await expect(widgetPanel).toBeVisible()
-    await expect(widgetFrame).toHaveAttribute(
-      'src',
-      '/bearing/feedback?embedded=1'
+    await expectWidgetFramePath(
+      page,
+      widgetFrame,
+      '/bearing/feedback?embedded=1',
+      expect
     )
     await widget.locator('[data-close]').click()
 
@@ -1647,4 +1655,11 @@ async function injectBearingWidget(page, source) {
   await page.raw
     .locator('[data-slipway-bearing-widget]')
     .waitFor({ state: 'attached' })
+}
+
+async function expectWidgetFramePath(page, locator, pathname, expect) {
+  const frame = await (await locator.elementHandle()).contentFrame()
+  const expected = new URL(pathname, page.raw.url()).href
+  await frame.waitForURL(expected)
+  expect(frame.url()).toBe(expected)
 }

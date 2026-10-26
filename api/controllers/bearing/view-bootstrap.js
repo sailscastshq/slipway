@@ -403,6 +403,7 @@ function bearingBootstrap() {
       const panel = root.querySelector('[data-panel]')
       const closeButton = root.querySelector('[data-close]')
       const frame = root.querySelector('[data-frame]')
+      let framePath = null
       const surfaceButtons = root.querySelectorAll('[data-surface]')
 
       function paintTrigger() {
@@ -448,8 +449,14 @@ function bearingBootstrap() {
       function setSurface(surface) {
         if (!surfaces[surface]) return false
         currentSurface = surface
-        if (frame.getAttribute('src') !== surfaces[surface].path) {
-          frame.src = surfaces[surface].path
+        if (framePath !== surfaces[surface].path) {
+          // Surface switches belong to this overlay, not the host Back stack.
+          // Resolve against the host like iframe.src, but replace the frame's
+          // current entry instead of adding joint session-history entries.
+          frame.contentWindow.location.replace(
+            new URL(surfaces[surface].path, document.baseURI).href
+          )
+          framePath = surfaces[surface].path
         }
         frame.title = `${config.appName} ${surfaces[surface].label}`
         if (surface === 'updates') markLatestSeen()
