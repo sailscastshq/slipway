@@ -27,6 +27,51 @@ module.exports = {
     appendMountArgs(mountArgs, containerInfo.Mounts, extraMounts)
 
     const runArgs = []
+    const host = containerInfo.HostConfig || {}
+    const restart = host.RestartPolicy?.Name || 'unless-stopped'
+    runArgs.push(
+      '--restart',
+      restart === 'on-failure' && host.RestartPolicy.MaximumRetryCount
+        ? `on-failure:${host.RestartPolicy.MaximumRetryCount}`
+        : restart
+    )
+    for (const [key, flag] of Object.entries({
+      Memory: '--memory',
+      MemorySwap: '--memory-swap',
+      NanoCpus: '--cpus',
+      CpuQuota: '--cpu-quota',
+      CpuPeriod: '--cpu-period',
+      CpusetCpus: '--cpuset-cpus',
+      PidsLimit: '--pids-limit',
+      ShmSize: '--shm-size'
+    })) {
+      if (host[key])
+        runArgs.push(
+          flag,
+          String(key === 'NanoCpus' ? host[key] / 1e9 : host[key])
+        )
+    }
+    if (host.ReadonlyRootfs) runArgs.push('--read-only')
+    if (containerInfo.Config?.User)
+      runArgs.push('--user', containerInfo.Config.User)
+    for (const [key, flag] of Object.entries({
+      Dns: '--dns',
+      ExtraHosts: '--add-host',
+      SecurityOpt: '--security-opt',
+      CapAdd: '--cap-add',
+      CapDrop: '--cap-drop'
+    }))
+      for (const value of host[key] || []) runArgs.push(flag, value)
+    for (const [key, value] of Object.entries(host.Tmpfs || {}))
+      runArgs.push('--tmpfs', `${key}:${value}`)
+    if (
+      host.Privileged ||
+      host.Devices?.length ||
+      host.Binds?.some((value) => !containerInfo.Mounts?.length)
+    )
+      throw new Error(
+        'This container has unsupported privileged or device settings. Review its configuration before updating.'
+      )
 
     const networks = Object.keys(containerInfo.NetworkSettings?.Networks || {})
     if (networks.length > 0) {
@@ -61,7 +106,8 @@ module.exports = {
     )) {
       if (
         key.startsWith('org.opencontainers.') ||
-        key.startsWith('com.docker.')
+        key.startsWith('com.docker.') ||
+        key === 'slipway.updater.operation'
       ) {
         continue
       }
@@ -131,7 +177,12 @@ function appendMountArgs(args, mounts = [], extraMounts = []) {
     if (type === 'volume') {
       const source = mount.Name || mount.name || mount.Source || mount.source
       if (source) {
-        args.push('-v', `${source}:${destination}`)
+        args.push(
+          '-v',
+          `${source}:${destination}${
+            mount.RW === false || mount.readOnly === true ? ':ro' : ''
+          }`
+        )
       }
       continue
     }

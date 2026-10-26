@@ -301,6 +301,49 @@ configure_host_firewall() {
     echo -e "${GREEN}No active UFW or firewalld host firewall detected${NC}"
 }
 
+# Resolve a release without changing the installation. Existing installs use only
+# the shared detached engine; dependency/proxy/env/firewall setup below is fresh-install only.
+resolve_slipway_image() {
+if [ -z "$SLIPWAY_VERSION" ]; then
+    echo "Resolving latest Slipway release..."
+    RELEASE_JSON=$(curl -fsSL --max-time 15 https://api.github.com/repos/sailscastshq/slipway/releases/latest 2>/dev/null || true)
+    SLIPWAY_VERSION=$(printf '%s' "$RELEASE_JSON" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
+
+    if [ -z "$SLIPWAY_VERSION" ]; then
+        echo -e "${RED}Could not resolve the latest Slipway release.${NC}"
+        echo "Pass an explicit version, for example: bash install.sh 0.0.49"
+        echo "To intentionally use the moving tag, pass: bash install.sh latest"
+        exit 1
+    fi
+fi
+
+if [ "$SLIPWAY_VERSION" != "latest" ]; then
+    SLIPWAY_VERSION="${SLIPWAY_VERSION#v}"
+fi
+
+SLIPWAY_IMAGE="$SLIPWAY_IMAGE_REPOSITORY:$SLIPWAY_VERSION"
+}
+
+if command -v docker >/dev/null 2>&1 && container_exists "$SLIPWAY_CONTAINER"; then
+    resolve_slipway_image
+    if [ "$SLIPWAY_SKIP_PULL" != true ]; then
+        docker pull "$SLIPWAY_IMAGE"
+    fi
+    echo "Starting Slipway's shared update engine..."
+    docker run --rm \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        --entrypoint node "$SLIPWAY_IMAGE" \
+        /app/bin/slipway-updater.cjs start \
+        --container "$SLIPWAY_CONTAINER" --image "$SLIPWAY_IMAGE" \
+        --version "$SLIPWAY_VERSION" --runner-image "$SLIPWAY_IMAGE" \
+        --apps-dir "$SLIPWAY_APPS_DIR" --skip-pull "$SLIPWAY_SKIP_PULL"
+    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+        --entrypoint node "$SLIPWAY_IMAGE" /app/bin/slipway-updater.cjs watch \
+        --container "$SLIPWAY_CONTAINER"
+    echo "Slipway update complete. Existing environment, proxy and firewall were preserved."
+    exit 0
+fi
+
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
     echo -e "${YELLOW}Warning: Not running as root. You may need sudo for Docker commands.${NC}"
@@ -455,24 +498,7 @@ docker run -d \
 echo -e "${GREEN}Caddy proxy running${NC}"
 
 # 7. Resolve and pull the target Slipway image
-if [ -z "$SLIPWAY_VERSION" ]; then
-    echo "Resolving latest Slipway release..."
-    RELEASE_JSON=$(curl -fsSL https://api.github.com/repos/sailscastshq/slipway/releases/latest 2>/dev/null || true)
-    SLIPWAY_VERSION=$(printf '%s' "$RELEASE_JSON" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
-
-    if [ -z "$SLIPWAY_VERSION" ]; then
-        echo -e "${RED}Could not resolve the latest Slipway release.${NC}"
-        echo "Pass an explicit version, for example: bash install.sh 0.0.49"
-        echo "To intentionally use the moving tag, pass: bash install.sh latest"
-        exit 1
-    fi
-fi
-
-if [ "$SLIPWAY_VERSION" != "latest" ]; then
-    SLIPWAY_VERSION="${SLIPWAY_VERSION#v}"
-fi
-
-SLIPWAY_IMAGE="$SLIPWAY_IMAGE_REPOSITORY:$SLIPWAY_VERSION"
+resolve_slipway_image
 if [ "$SLIPWAY_SKIP_PULL" = true ]; then
     echo "Using local Slipway image $SLIPWAY_IMAGE"
 else

@@ -42,7 +42,14 @@ function dockerRole({ containers, hostname, directory }) {
     throw new Error(
       'Slipway database storage must be writable and persistent before applying release migrations.'
     )
-  if (self.Name === '/slipway-next') return 'preflight'
+  if (
+    self.Name === '/slipway-next' ||
+    (self.Config?.Labels?.['slipway.update.role'] === 'preflight' &&
+      /^[a-f0-9-]{36}$/.test(
+        self.Config?.Labels?.['slipway.updater.operation'] || ''
+      ))
+  )
+    return 'preflight'
   for (const container of containers) {
     if (container.Id === self.Id || !container.State?.Running) continue
     if (

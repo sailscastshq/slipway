@@ -51,6 +51,7 @@ module.exports = {
       const response = await fetch(
         `https://api.github.com/repos/${githubRepo}/releases/latest`,
         {
+          signal: AbortSignal.timeout(10000),
           headers: {
             Accept: 'application/vnd.github.v3+json',
             'User-Agent': `Slipway/${currentVersion}`
