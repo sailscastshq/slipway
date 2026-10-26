@@ -7,11 +7,13 @@ const crypto = require('node:crypto')
 const v8 = require('node:v8')
 const { execFileSync } = require('node:child_process')
 const { pipeline } = require('node:stream/promises')
+const { Transform } = require('node:stream')
 const zlib = require('node:zlib')
 const tar = require('tar-stream')
 const Database = require('better-sqlite3')
 const migrations = require('../api/lib/release-migrations')
 const files = Object.values(migrations.files)
+const BACKUP_PROGRESS_PREFIX = 'SLIPWAY_BACKUP_PROGRESS '
 const quote = (name) => '"' + name.replaceAll('"', '""') + '"'
 
 function verify(db) {
@@ -21,11 +23,29 @@ function verify(db) {
     throw new Error('SQLite foreign-key check failed')
 }
 
-async function snapshot(source, destination) {
+async function snapshot(source, destination, { onProgress = () => {} } = {}) {
+  onProgress({ database: path.basename(source), stage: 'copying' })
+  let lastReport = 0
   const db = new Database(source, { readonly: true, fileMustExist: true })
   try {
+    // Pin a WAL read view before incremental backup. Otherwise another
+    // connection's commits can restart the copy on every backup step.
+    // Do not hold a long read lock on rollback-journal databases.
+    if (db.pragma('journal_mode', { simple: true }) === 'wal') {
+      db.exec('BEGIN')
+      db.prepare('SELECT name FROM sqlite_schema LIMIT 1').get()
+    }
     await db.backup(destination, {
-      progress({ totalPages }) {
+      progress({ totalPages, remainingPages }) {
+        if (Date.now() - lastReport >= 1000) {
+          lastReport = Date.now()
+          onProgress({
+            database: path.basename(source),
+            stage: 'copying',
+            copiedPages: totalPages - remainingPages,
+            totalPages
+          })
+        }
         const stats = fs.statfsSync(path.dirname(destination))
         if (Number(stats.bavail) * Number(stats.bsize) < 512 * 1024 * 1024)
           throw new Error(
@@ -42,6 +62,7 @@ async function snapshot(source, destination) {
   } finally {
     db.close()
   }
+  onProgress({ database: path.basename(source), stage: 'verifying' })
   const copy = new Database(destination, {
     readonly: true,
     fileMustExist: true
@@ -132,8 +153,18 @@ function parity(source, recovered) {
   }
 }
 
-async function bundle(directory, output) {
+async function bundle(directory, output, { onProgress = () => {} } = {}) {
   fs.mkdirSync(output, { mode: 0o700 })
+  let lastProgress = 0
+  let lastStage = ''
+  const report = (event) => {
+    const key = `${event.stage}:${event.database || ''}`
+    if (key !== lastStage || Date.now() - lastProgress >= 1000) {
+      lastStage = key
+      lastProgress = Date.now()
+      onProgress(event)
+    }
+  }
   const manifest = {
     version: 1,
     consistency:
@@ -143,9 +174,21 @@ async function bundle(directory, output) {
   for (const file of files) {
     const startedAt = new Date().toISOString()
     const target = path.join(output, file)
-    await snapshot(path.join(directory, file), target)
+    await snapshot(path.join(directory, file), target, { onProgress: report })
+    const totalBytes = fs.statSync(target).size
+    let hashedBytes = 0
+    report({ database: file, stage: 'hashing', bytes: 0, totalBytes })
     const hash = crypto.createHash('sha256')
-    for await (const bytes of fs.createReadStream(target)) hash.update(bytes)
+    for await (const bytes of fs.createReadStream(target)) {
+      hash.update(bytes)
+      hashedBytes += bytes.length
+      report({
+        database: file,
+        stage: 'hashing',
+        bytes: hashedBytes,
+        totalBytes
+      })
+    }
     manifest.databases.push({
       file,
       startedAt,
@@ -161,6 +204,13 @@ async function bundle(directory, output) {
     JSON.stringify(manifest, null, 2) + '\n',
     { mode: 0o600 }
   )
+  const archiveFiles = [...files, 'manifest.json']
+  const totalBytes = archiveFiles.reduce(
+    (sum, file) => sum + fs.statSync(path.join(output, file)).size,
+    0
+  )
+  let archivedBytes = 0
+  report({ stage: 'archiving', bytes: 0, totalBytes })
   const pack = tar.pack()
   const archive = path.join(output, 'system.tar.gz')
   const pending = pipeline(
@@ -171,13 +221,20 @@ async function bundle(directory, output) {
   // Observe rejection immediately; a disk failure must not become unhandled.
   pending.catch(() => {})
   try {
-    for (const file of [...files, 'manifest.json']) {
+    for (const file of archiveFiles) {
       const entry = pack.entry({
         name: file,
         size: fs.statSync(path.join(output, file)).size,
         mode: 0o600
       })
-      await pipeline(fs.createReadStream(path.join(output, file)), entry)
+      const meter = new Transform({
+        transform(chunk, encoding, callback) {
+          archivedBytes += chunk.length
+          report({ stage: 'archiving', bytes: archivedBytes, totalBytes })
+          callback(null, chunk)
+        }
+      })
+      await pipeline(fs.createReadStream(path.join(output, file)), meter, entry)
     }
     pack.finalize()
     await pending
@@ -402,7 +459,8 @@ async function main(args) {
   const options = {}
   while (args.length) {
     const key = args.shift()
-    if (key === '--reset-observability') options.resetObservability = true
+    if (key === '--progress') options.progress = true
+    else if (key === '--reset-observability') options.resetObservability = true
     else if (key === '--logical-app') options.logicalApp = true
     else if (
       ['--directory', '--source', '--output', '--sqlite', '--scratch'].includes(
@@ -414,7 +472,12 @@ async function main(args) {
     else throw new Error('Unknown or incomplete option: ' + key)
   }
   if (command === 'snapshot' && options.directory && options.output)
-    return bundle(options.directory, options.output)
+    return bundle(options.directory, options.output, {
+      onProgress: options.progress
+        ? (event) =>
+            console.error(BACKUP_PROGRESS_PREFIX + JSON.stringify(event))
+        : undefined
+    })
   if (command === 'check' && options.directory)
     return check(options.directory, options.scratch)
   if (
@@ -445,6 +508,7 @@ async function main(args) {
 }
 
 module.exports = {
+  BACKUP_PROGRESS_PREFIX,
   snapshot,
   bundle,
   parity,

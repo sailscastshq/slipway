@@ -396,3 +396,164 @@ test(
       )
     })
 )
+
+for (const original of [true, false])
+  test(
+    `WAL concurrent commits ${
+      original
+        ? 'reproduce the released snapshot restart loop'
+        : 'do not restart a pinned native read view'
+    }`,
+    { timeout: 20000 },
+    async () => {
+      const { Worker } = require('node:worker_threads')
+      const implementation = original
+        ? require('../fixtures/updater-snapshot/v0.0.122-snapshot.cjs')
+        : doctor
+      const root = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'snapshot-wal-writer-')
+      )
+      const source = path.join(root, 'source.db'),
+        output = path.join(root, 'copy.db')
+      const db = new Database(source)
+      db.pragma('journal_mode=WAL')
+      db.exec(
+        'CREATE TABLE sample(id INTEGER PRIMARY KEY,revision INTEGER,payload BLOB)'
+      )
+      db.transaction(() => {
+        const q = db.prepare('INSERT INTO sample VALUES(?,0,zeroblob(4096))')
+        for (let i = 1; i <= 8000; i++) q.run(i)
+      })()
+      db.close()
+      const shared = new SharedArrayBuffer(4),
+        counter = new Int32Array(shared)
+      const worker = new Worker(
+        `const {workerData,parentPort}=require('node:worker_threads');const D=require(workerData.module),db=new D(workerData.source),counter=new Int32Array(workerData.shared);const q=db.prepare('UPDATE sample SET revision=revision+1 WHERE id IN (1,2)');parentPort.on('message',()=>{try{q.run();Atomics.add(counter,0,1)}catch{Atomics.store(counter,0,-1)}Atomics.notify(counter,0)});parentPort.postMessage('ready')`,
+        {
+          eval: true,
+          workerData: {
+            module: require.resolve('better-sqlite3'),
+            source,
+            shared
+          }
+        }
+      )
+      await new Promise((resolve, reject) => {
+        worker.once('message', resolve)
+        worker.once('error', reject)
+      })
+      const method = Database.prototype.backup
+      let calls = 0,
+        atLimit
+      Database.prototype.backup = function (file, options) {
+        return method.call(this, file, {
+          ...options,
+          progress(info) {
+            calls++
+            const result = options.progress(info)
+            if (calls <= 100) {
+              const prior = Atomics.load(counter, 0)
+              worker.postMessage('commit')
+              assert.notEqual(
+                Atomics.wait(counter, 0, prior, 5000),
+                'timed-out',
+                'WAL writer must remain able to commit during backup'
+              )
+              assert.equal(Atomics.load(counter, 0), prior + 1)
+            }
+            if (calls === 100)
+              atLimit = {
+                remaining: info.remainingPages,
+                total: info.totalPages
+              }
+            return result
+          }
+        })
+      }
+      try {
+        await implementation.snapshot(source, output)
+        const copy = new Database(output, { readonly: true })
+        try {
+          assert.equal(copy.pragma('integrity_check', { simple: true }), 'ok')
+          const revisions = copy
+            .prepare('SELECT revision FROM sample WHERE id IN (1,2)')
+            .all()
+          assert.equal(
+            revisions[0].revision,
+            revisions[1].revision,
+            'snapshot preserves the atomic two-row commit'
+          )
+          if (!original)
+            assert.equal(
+              revisions[0].revision,
+              0,
+              'copy remains bound to its initial read view'
+            )
+        } finally {
+          copy.close()
+        }
+        if (original) {
+          assert.equal(Atomics.load(counter, 0), 100)
+          assert.ok(
+            atLimit.remaining > atLimit.total * 0.9,
+            '100 forced external commits prevent useful progress'
+          )
+          assert.ok(
+            calls > 100,
+            'backup finishes only after fixture stops writing'
+          )
+        } else {
+          assert.ok(
+            calls < 100,
+            'backup completes while the writer is still committing every step'
+          )
+          assert.equal(Atomics.load(counter, 0), calls)
+          assert.ok(calls > 2)
+        }
+      } finally {
+        Database.prototype.backup = method
+        await worker.terminate()
+        fs.rmSync(root, { recursive: true, force: true })
+      }
+    }
+  )
+
+test('snapshot CLI progress stays on stderr while stdout remains the verified JSON result', () =>
+  fixture(async (root, source) => {
+    const events = []
+    const result = await doctor.bundle(
+      source,
+      path.join(root, 'progress-copy'),
+      { onProgress: (event) => events.push(event) }
+    )
+    for (const file of Object.values(migrations.files))
+      for (const stage of ['copying', 'verifying', 'hashing'])
+        assert.ok(
+          events.some(
+            (event) => event.database === file && event.stage === stage
+          )
+        )
+    assert.ok(events.some((event) => event.stage === 'archiving'))
+    assert.equal(result.manifest.databases.length, 4)
+    const child = require('node:child_process').spawnSync(
+      process.execPath,
+      [
+        path.resolve(__dirname, '../../bin/slipway-database.cjs'),
+        'snapshot',
+        '--progress',
+        '--directory',
+        source,
+        '--output',
+        path.join(root, 'cli-progress-copy')
+      ],
+      { encoding: 'utf8', timeout: 10000 }
+    )
+    assert.equal(child.status, 0, child.stderr)
+    assert.equal(JSON.parse(child.stdout).manifest.databases.length, 4)
+    assert.ok(
+      child.stderr
+        .split('\n')
+        .filter(Boolean)
+        .every((line) => line.startsWith(doctor.BACKUP_PROGRESS_PREFIX))
+    )
+  }))

@@ -40,7 +40,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.rebuild_current_version && 'main' || inputs.tag || github.event.release.tag_name }}
+          ref: ${{ inputs.rebuild_current_version && github.sha || inputs.tag || github.event.release.tag_name }}
+
+      - name: Verify image-only rebuild source
+        if: ${{ inputs.rebuild_current_version }}
+        env:
+          VERIFIED_SHA: ${{ github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$VERIFIED_SHA"
 
       - name: Validate release tag
         env:
