@@ -163,7 +163,7 @@ test(
     ).toBeVisible()
     await page.goto(base + '?tab=settings')
     await expect(
-      page.raw.getByText('Waiting for redeploy.', { exact: false })
+      page.raw.getByText('Waiting for redeploy', { exact: false })
     ).toBeVisible()
     await page.goto(base + '?from=2020-01-01')
     await expect(page.raw.getByRole('alert')).toContainText(
@@ -173,7 +173,7 @@ test(
     try {
       await page.goto(base)
       await expect(
-        page.raw.getByText('Collection is unavailable.', { exact: false })
+        page.raw.getByText('Collection is unavailable', { exact: false })
       ).toBeVisible()
       await page.screenshot(path.join(output, 'unavailable-390.png'), {
         animations: 'disabled'

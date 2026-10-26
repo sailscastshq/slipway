@@ -91,6 +91,14 @@ Dates, selected currency, tabs, and visitor selection belong to the URL. Dates u
 
 Cookieless mode reports event and revenue totals, with persistent visitors/conversion/journeys unavailable. Journeys use anonymous IDs, list the latest fifty matching visitors, and bound selected timelines to two hundred raw events and two hundred receipts. Raw timelines stop after thirty days. Historical event counts, exact retained membership, and receipts remain available within the reporting window. Currency totals beyond JavaScript's safe integer range are refused rather than rounded silently.
 
+## Read the dashboard
+
+Overview starts with runtime readiness and the saved collection/privacy policy. A connected runtime is ready to receive permitted activity; it does not prove that anyone has visited or granted consent. When collection is off, waiting for redeploy, unsupported, or unavailable, retained activity remains readable with a completeness notice. An empty retained range shows setup guidance instead of a row of performance zeroes. A storage failure shows unavailable reporting, never zero traffic.
+
+Once connected, an empty range provides the next step: visit the app, complete its consent flow if required, and refresh. Recorded activity shows pageviews, distinct visitors, sessions, signup conversion, daily pageviews, event-touch sources, first landing pages, goals and revenue in the selected currency. A dash means a metric cannot be measured; cookieless mode never presents persistent visitor or journey counts. Metric definitions and daily counts expand on demand. Trends cover the selected UTC range; no comparison period or growth estimate is implied.
+
+Dates, currency, section and selected visitor belong to the URL. Section navigation keeps the applied range and currency; unsubmitted filter edits apply only with **Apply**. Interrupted report requests preserve those edits and offer a retry. Disabling collection preserves history; saving settings while enabled still rotates credentials and requires redeploying the app.
+
 ## Storage, maintenance, and deletion
 
 Wake uses `db/analytics.db` in Slipway's persistent database volume. It does not use Lookout's database, token, or failure budget. Ingest atomically commits raw events, daily totals, visitor membership, sessions, and first/last touches. Retries cannot double-count. Late accepted events update their original UTC partition. Existing foundation rows backfill in batches of 1,000; the UI flags incomplete backfill.

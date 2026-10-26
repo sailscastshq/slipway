@@ -9,7 +9,6 @@ import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import Tabs from '@/components/ui/tabs/Tabs.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import Button from '@/components/ui/button/Button.vue'
-import Input from '@/components/ui/input/Input.vue'
 import BareSelect from '@/components/BareSelect.vue'
 import Textarea from '@/components/ui/textarea/Textarea.vue'
 import LineChart from '@/components/ui/line-chart/LineChart.vue'
@@ -61,31 +60,108 @@ const field =
   'w-full rounded-none border-0 border-b border-dashed border-gray-300 bg-transparent px-0 py-2 focus:outline-none focus:border-brand dark:border-gray-700 dark:bg-transparent'
 const alert =
   'rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200'
-const stateText = computed(
+const collection = computed(
   () =>
     ({
-      disabled: 'Wake is off. Enable it in Settings, then redeploy the app.',
-      waiting_for_runtime:
-        'Waiting for redeploy. Install sails-hook-slipway 0.0.10 or later and redeploy this app.',
-      foundation_only:
-        'Update required. Install the supported hook and redeploy.',
-      unavailable:
-        'Collection is unavailable. Retained totals may be incomplete; check the app connection and analytics storage.'
-    }[props.state?.state])
+      disabled: {
+        title: 'Wake is off',
+        detail:
+          'New activity is not being collected. Retained history is still available.',
+        action: 'Review collection settings',
+        tab: 'settings'
+      },
+      waiting_for_runtime: {
+        title: 'Waiting for redeploy',
+        detail:
+          'Install sails-hook-slipway 0.0.10 or later, then redeploy this app to connect Wake.',
+        action: 'Open app',
+        app: true
+      },
+      foundation_only: {
+        title: 'Hook update required',
+        detail:
+          'This runtime does not support collection. Install the supported hook and redeploy this app.',
+        action: 'Open app',
+        app: true
+      },
+      unavailable: {
+        title: 'Collection is unavailable',
+        detail:
+          'Check the app connection and analytics storage. Retained reporting may be incomplete.',
+        action: 'Try again',
+        retry: true
+      },
+      collecting: {
+        title: 'Runtime connected',
+        detail: 'Wake is ready to receive permitted activity from this app.',
+        action: 'Collection settings',
+        tab: 'settings'
+      }
+    }[props.state?.state] || {
+      title: 'Collection status unknown',
+      detail: 'Refresh to check the app connection.',
+      action: 'Try again',
+      retry: true
+    })
+)
+const pageviews = computed(
+  () => props.report?.trend.reduce((n, day) => n + day.pageviews, 0) || 0
+)
+const goalEvents = computed(
+  () => props.report?.trend.reduce((n, day) => n + day.goals, 0) || 0
+)
+const hasActivity = computed(
+  () =>
+    !!(
+      pageviews.value ||
+      goalEvents.value ||
+      props.report?.visitors ||
+      props.report?.sessions ||
+      props.report?.revenue.gross ||
+      props.report?.revenue.refunds
+    )
+)
+const showReport = computed(
+  () =>
+    props.report && (props.state?.state === 'collecting' || hasActivity.value)
 )
 const query = (tab = props.tab, visitor = '') => ({
   tab,
-  from: from.value,
-  to: to.value,
-  currency: currency.value,
+  from: props.filters.fromText,
+  to: props.filters.toText,
+  currency: props.filters.currency,
   ...(visitor ? { visitor } : {})
 })
 function navigate(tab = props.tab) {
+  if (busy.value) return
   busy.value = true
-  router.get(base + '/wake', query(tab), {
-    preserveScroll: true,
-    onFinish: () => (busy.value = false)
-  })
+  error.value = ''
+  router.get(
+    base + '/wake',
+    { ...query(tab), from: from.value, to: to.value, currency: currency.value },
+    {
+      preserveScroll: true,
+      preserveState: true,
+      onError: () => {
+        error.value =
+          'The report could not be loaded. Review the filters and try again.'
+      },
+      onCancel: () => {
+        error.value =
+          'Report loading was cancelled. Your filters are still here.'
+      },
+      onHttpException: () => {
+        error.value = 'The report could not be loaded. Try again.'
+        return false
+      },
+      onNetworkError: () => {
+        error.value =
+          'Connection interrupted. Your filters are still here; try again.'
+        return false
+      },
+      onFinish: () => (busy.value = false)
+    }
+  )
 }
 const date = (value) =>
   value
@@ -108,17 +184,33 @@ const money = (value) =>
 const metrics = computed(() =>
   props.report
     ? [
-        ['Visitors', props.report.visitors ?? 'Unavailable'],
-        ['Sessions', props.report.sessions ?? 'Unavailable'],
+        ['Pageviews', pageviews.value, 'Recorded page loads'],
         [
-          'Signup visitors',
-          props.report.measurable ? props.report.signups : 'Unavailable'
+          'Visitors',
+          props.report.visitors ?? '—',
+          props.report.measurable
+            ? 'Distinct in this range'
+            : 'Unavailable in cookieless mode'
+        ],
+        [
+          'Sessions',
+          props.report.sessions ?? '—',
+          props.report.measurable
+            ? 'Started in this range'
+            : 'Unavailable in cookieless mode'
         ],
         [
           'Signup conversion',
           props.report.conversion == null
-            ? 'Unavailable'
-            : (100 * props.report.conversion).toFixed(1) + '%'
+            ? '—'
+            : (100 * props.report.conversion).toFixed(1) + '%',
+          props.report.measurable
+            ? props.report.visitors
+              ? `${props.report.signups} ${
+                  props.report.signups === 1 ? 'visitor' : 'visitors'
+                } signed up`
+              : 'No visitors to measure'
+            : 'Unavailable in cookieless mode'
         ]
       ]
     : []
@@ -214,11 +306,11 @@ async function removeVisitor() {
     <main
       class="min-w-0 flex-1 overflow-y-auto px-4 py-8 text-gray-950 dark:text-white sm:px-8"
     >
-      <div class="mx-auto max-w-5xl space-y-6">
+      <div class="mx-auto max-w-6xl space-y-7">
         <div>
-          <h1 class="text-xl font-semibold">Wake</h1>
+          <h1 class="text-2xl font-semibold tracking-tight">Wake</h1>
           <p class="mt-1 text-sm text-gray-500">
-            Acquisition, activity, and revenue for {{ app.name }} ·
+            {{ app.name }} ·
             {{ environment.name }}
           </p>
         </div>
@@ -235,7 +327,7 @@ async function removeVisitor() {
             :class="[
               'border-b-2 pb-3 text-sm capitalize',
               tab === section
-                ? 'border-gray-950 font-medium dark:border-white'
+                ? 'border-brand text-brand dark:text-brand-400 font-medium'
                 : 'border-transparent text-gray-500'
             ]"
             >{{ section }}</Link
@@ -255,7 +347,62 @@ async function removeVisitor() {
         <Alert v-if="filterError" role="alert" :class="alert">{{
           filterError
         }}</Alert>
-        <Alert v-if="stateText" :class="alert">{{ stateText }}</Alert>
+        <section
+          aria-label="Collection readiness"
+          class="border-b border-gray-200 pb-6 dark:border-gray-800"
+        >
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="min-w-0 max-w-2xl">
+              <h2 class="flex items-center gap-2 text-sm font-semibold">
+                <span
+                  aria-hidden="true"
+                  :class="[
+                    'h-2 w-2 shrink-0 rounded-full',
+                    state.state === 'collecting' ? 'bg-brand' : 'bg-gray-400'
+                  ]"
+                />
+                {{ collection.title }}
+              </h2>
+              <p class="mt-2 text-sm leading-6 text-gray-500">
+                {{ collection.detail }}
+              </p>
+            </div>
+            <Button
+              v-if="collection.retry"
+              :disabled="busy"
+              class="border border-gray-200 bg-transparent text-gray-900 dark:border-gray-700 dark:bg-transparent dark:text-white"
+              @click="navigate()"
+              >{{ busy ? 'Loading…' : collection.action }}</Button
+            >
+            <Button
+              v-else
+              :as="Link"
+              :href="collection.app ? base : base + '/wake'"
+              :data="collection.app ? undefined : query(collection.tab)"
+              class="border border-gray-200 bg-transparent text-gray-900 dark:border-gray-700 dark:bg-transparent dark:text-white"
+              >{{ collection.action }}</Button
+            >
+          </div>
+          <p class="mt-3 text-xs leading-5 text-gray-500">
+            {{
+              app.wakeSettings?.mode === 'cookieless'
+                ? 'Cookieless events · no persistent visitors or journeys'
+                : 'First-party visitors'
+            }}
+            ·
+            {{
+              app.wakeSettings?.requireConsent !== false
+                ? 'Consent required before collection'
+                : 'Consent gate off'
+            }}
+            ·
+            {{
+              app.wakeSettings?.respectPrivacySignals !== false
+                ? 'GPC / Do Not Track respected'
+                : 'Privacy signal filtering off'
+            }}
+          </p>
+        </section>
         <Alert
           v-if="state.state === 'collecting' && state.valueReady === false"
           :class="alert"
@@ -269,12 +416,14 @@ async function removeVisitor() {
         >
         <form
           v-if="tab !== 'settings'"
-          class="grid grid-cols-2 items-end gap-4 sm:flex"
+          aria-label="Report filters"
+          class="grid grid-cols-2 items-end gap-4 sm:flex sm:flex-wrap"
           @submit.prevent="navigate()"
         >
           <label class="min-w-0 text-sm"
             >From (UTC)<DateInput
               v-model="from"
+              :disabled="busy"
               aria-label="From (UTC)"
               type="date"
               required
@@ -283,6 +432,7 @@ async function removeVisitor() {
           <label class="min-w-0 text-sm"
             >Through (UTC)<DateInput
               v-model="to"
+              :disabled="busy"
               aria-label="Through (UTC)"
               type="date"
               required
@@ -291,6 +441,7 @@ async function removeVisitor() {
           <label class="min-w-0 text-sm"
             >Currency<BareSelect
               v-model="currency"
+              :disabled="busy"
               aria-label="Currency"
               :class="field"
               :options="
@@ -310,148 +461,346 @@ async function removeVisitor() {
             busy ? 'Loading…' : 'Apply'
           }}</Button>
         </form>
-        <template v-if="tab === 'overview' && report">
-          <Alert v-if="!report.measurable" :class="alert"
-            >Cookieless mode reports events and revenue. Persistent visitors,
-            conversion, and journeys are unavailable.</Alert
-          >
+        <section
+          v-if="tab === 'overview' && !showReport"
+          class="py-8 sm:py-14"
+          aria-label="Reporting not ready"
+        >
           <p
-            v-if="
-              !report.trend.some((day) => day.pageviews || day.goals) &&
-              !report.revenue.gross
-            "
-            class="py-8 text-center text-sm text-gray-500"
+            class="text-brand dark:text-brand-400 text-xs font-medium uppercase tracking-wider"
           >
-            No activity recorded in this date range. Goals and payments require
-            explicit app helpers.
+            Collection & reporting
           </p>
-          <dl
-            class="grid grid-cols-2 gap-6 border-y border-gray-200 py-6 dark:border-gray-800 sm:grid-cols-4"
+          <h2 class="mt-3 text-2xl font-semibold tracking-tight">
+            {{
+              report
+                ? 'No retained activity in this range'
+                : 'Reporting is unavailable'
+            }}
+          </h2>
+          <p class="mt-3 max-w-xl text-sm leading-6 text-gray-500">
+            {{
+              report
+                ? 'Resolve collection readiness above to start receiving activity, or choose another date range to explore retained history.'
+                : 'Wake could not read this report. Check analytics storage and the app connection, then try again. Missing data is not zero activity.'
+            }}
+          </p>
+          <Button
+            :as="Link"
+            :href="base + '/wake'"
+            :data="query('settings')"
+            class="mt-5"
+            >Review Wake settings</Button
           >
-            <div v-for="[label, value] in metrics" :key="label">
+        </section>
+        <template v-if="tab === 'overview' && showReport">
+          <p v-if="state.state !== 'collecting'" class="text-sm text-gray-500">
+            Retained history · collection is not currently ready. These totals
+            may not include recent activity.
+          </p>
+          <p v-if="!report.measurable" class="text-sm text-gray-500">
+            Cookieless mode reports events and revenue. Persistent visitors,
+            conversion, and journeys are unavailable.
+          </p>
+          <section
+            v-if="!hasActivity"
+            aria-label="No recorded activity"
+            class="border-brand border-l-2 py-1 pl-5"
+          >
+            <h2 class="font-semibold">Ready for your first activity</h2>
+            <p class="mt-2 max-w-2xl text-sm leading-6 text-gray-500">
+              No activity is recorded in this date range. Visit your app and
+              complete its consent flow if required, then refresh this report.
+              Goals and payments need explicit server helpers.
+            </p>
+            <div class="mt-4 flex flex-wrap gap-3">
+              <Button :as="Link" :href="base">Open app</Button>
+              <Button
+                :disabled="busy"
+                class="bg-transparent text-gray-700 dark:bg-transparent dark:text-gray-300"
+                @click="navigate()"
+                >Refresh report</Button
+              >
+            </div>
+          </section>
+          <dl
+            class="grid grid-cols-2 gap-x-6 gap-y-7 border-b border-gray-200 pb-7 dark:border-gray-800 sm:grid-cols-4"
+          >
+            <div
+              v-for="[label, value, detail] in metrics"
+              :key="label"
+              class="min-w-0"
+            >
               <dt class="text-sm text-gray-500">{{ label }}</dt>
-              <dd class="mt-2 text-2xl font-semibold">{{ value }}</dd>
+              <dd
+                class="mt-2 text-3xl font-semibold tabular-nums tracking-tight"
+              >
+                {{ typeof value === 'number' ? value.toLocaleString() : value }}
+              </dd>
+              <dd class="mt-2 text-xs leading-5 text-gray-500">{{ detail }}</dd>
             </div>
           </dl>
-          <p class="text-xs text-gray-500">
-            Conversion: visitors with a server signup in this range ÷ distinct
-            visitors active in this range. Daily unique counts are never added
-            together.
-          </p>
-          <section class="space-y-4">
-            <h2 class="font-semibold">Revenue · {{ filters.currency }}</h2>
-            <dl class="grid grid-cols-2 gap-5 sm:grid-cols-3">
-              <div
-                v-for="[label, value] in [
-                  ['Gross', money(report.revenue.gross)],
-                  ['Refunds', money(report.revenue.refunds)],
-                  ['Net', money(report.revenue.net)],
-                  ['Unattributed net', money(report.revenue.unattributed)],
-                  ['Paying visitors', report.revenue.paying ?? 'Unavailable'],
-                  ['Revenue per visitor', money(report.revenue.perVisitor)]
-                ]"
-                :key="label"
-              >
-                <dt class="text-sm text-gray-500">{{ label }}</dt>
-                <dd class="mt-1 text-lg font-medium">{{ value }}</dd>
-              </div>
-            </dl>
-            <p class="text-xs text-gray-500">
-              Committed receipts in this range. Revenue per visitor uses net
-              revenue attributed to this range’s visitor cohort. Currencies
-              remain separate. Unattributed payments are included in totals;
-              paying visitors excludes them.
-            </p>
-          </section>
-          <section class="space-y-3">
-            <h2 class="font-semibold">Activity by day</h2>
+          <section
+            v-if="hasActivity"
+            class="space-y-5"
+            aria-labelledby="activity-heading"
+          >
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 id="activity-heading" class="font-semibold">Activity</h2>
+              <p class="text-xs text-gray-500">
+                {{ filters.fromText }} — {{ filters.toText }} · UTC
+              </p>
+            </div>
             <LineChart
-              v-if="report.trend.length"
               :data="
                 report.trend.map((day) => ({
                   label: new Date(day.day).toISOString().slice(0, 10),
-                  value: day.pageviews
+                  value: day.pageviews,
+                  detail: `${new Date(day.day).toISOString().slice(0, 10)}: ${
+                    day.pageviews
+                  } pageviews · ${day.goals} goals`
                 }))
               "
               caption="Daily recorded pageviews · UTC"
-              class="text-brand"
+              class="text-brand h-64"
             />
-            <div class="max-h-72 overflow-auto">
-              <table class="w-full text-left text-sm">
-                <thead class="text-gray-500">
-                  <tr>
-                    <th class="py-2 font-normal">UTC day</th>
-                    <th class="font-normal">Pageviews</th>
-                    <th class="font-normal">Goals</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="day in report.trend"
-                    :key="day.day"
-                    class="border-t border-gray-100 dark:border-gray-800"
-                  >
-                    <td class="py-2">
-                      {{ new Date(day.day).toISOString().slice(0, 10) }}
-                    </td>
-                    <td>{{ day.pageviews }}</td>
-                    <td>{{ day.goals }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <details class="text-sm">
+              <summary class="w-fit cursor-pointer text-gray-500">
+                View daily counts
+              </summary>
+              <div class="mt-3 max-h-72 overflow-auto">
+                <table class="w-full text-left text-sm tabular-nums">
+                  <caption class="sr-only">
+                    Daily pageviews and goals in UTC
+                  </caption>
+                  <thead class="text-gray-500">
+                    <tr>
+                      <th class="py-2 font-normal">UTC day</th>
+                      <th class="font-normal">Pageviews</th>
+                      <th class="font-normal">Goals</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="day in report.trend"
+                      :key="day.day"
+                      class="border-t border-gray-100 dark:border-gray-800"
+                    >
+                      <th scope="row" class="py-2 font-normal">
+                        {{ new Date(day.day).toISOString().slice(0, 10) }}
+                      </th>
+                      <td>{{ day.pageviews }}</td>
+                      <td>{{ day.goals }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
           </section>
-          <section class="space-y-3">
-            <h2 class="font-semibold">Goals</h2>
-            <p v-if="!report.goals.length" class="text-sm text-gray-500">
-              No goals yet. Emit signup once from your server after successful
-              signup.
-            </p>
-            <div
-              v-for="goal in report.goals"
-              :key="goal.name + goal.provenance"
-              class="flex flex-wrap justify-between gap-2 border-b border-gray-100 py-2 text-sm dark:border-gray-800"
+          <div
+            v-if="hasActivity"
+            class="grid gap-8 border-t border-gray-200 pt-7 dark:border-gray-800 md:grid-cols-2"
+          >
+            <section
+              class="min-w-0 space-y-4"
+              aria-labelledby="sources-heading"
             >
-              <span class="min-w-0 break-all"
-                >{{ goal.name }}
-                <span class="text-gray-500">· {{ goal.provenance }}</span></span
-              ><span
-                >{{ goal.count }} events ·
-                {{ goal.visitors ?? 'Unavailable' }} visitors</span
+              <div>
+                <h2 id="sources-heading" class="font-semibold">
+                  Sources & campaigns
+                </h2>
+                <p class="mt-1 text-xs text-gray-500">
+                  Event touch · up to 20 sources
+                </p>
+              </div>
+              <p v-if="!report.sources.length" class="text-sm text-gray-500">
+                No source activity recorded in this range.
+              </p>
+              <div
+                v-for="source in report.sources"
+                :key="source.source + source.campaign"
+                class="relative isolate overflow-hidden py-3 text-sm"
               >
-            </div>
-          </section>
-          <section class="space-y-3">
-            <h2 class="font-semibold">Sources and campaigns</h2>
-            <p class="text-xs text-gray-500">
-              Event-touch dimensions; first and last touch are preserved in
-              Journeys.
-            </p>
-            <div
-              v-for="source in report.sources"
-              :key="source.source + source.campaign"
-              class="flex justify-between gap-4 border-b border-gray-100 py-2 text-sm dark:border-gray-800"
+                <span
+                  aria-hidden="true"
+                  class="bg-brand/5 dark:bg-brand/10 absolute inset-y-0 left-0 -z-10 rounded-r"
+                  :style="{
+                    width: `${
+                      (100 * source.events) /
+                      Math.max(...report.sources.map((item) => item.events), 1)
+                    }%`
+                  }"
+                />
+                <div class="flex items-baseline justify-between gap-4 px-3">
+                  <span class="min-w-0 break-words"
+                    >{{ source.source || 'Direct / unknown'
+                    }}<span
+                      v-if="source.campaign"
+                      class="block text-xs text-gray-500"
+                      >{{ source.campaign }}</span
+                    ></span
+                  ><span class="shrink-0 tabular-nums"
+                    >{{ source.events }}
+                    <span class="text-xs text-gray-500">{{
+                      source.events === 1 ? 'event' : 'events'
+                    }}</span></span
+                  >
+                </div>
+              </div>
+            </section>
+            <section
+              v-if="report.measurable"
+              class="min-w-0 space-y-4"
+              aria-labelledby="landing-heading"
             >
-              <span class="min-w-0 break-all"
-                >{{ source.source
-                }}<span v-if="source.campaign" class="text-gray-500">
-                  · {{ source.campaign }}</span
-                ></span
-              ><span class="shrink-0">{{ source.events }} events</span>
-            </div>
-          </section>
-          <section v-if="report.measurable" class="space-y-3">
-            <h2 class="font-semibold">First landing pages</h2>
-            <div
-              v-for="landing in report.landing"
-              :key="landing.path"
-              class="flex justify-between gap-4 text-sm"
+              <div>
+                <h2 id="landing-heading" class="font-semibold">
+                  First landing pages
+                </h2>
+                <p class="mt-1 text-xs text-gray-500">
+                  Visitors first seen in this range
+                </p>
+              </div>
+              <p v-if="!report.landing.length" class="text-sm text-gray-500">
+                No new visitor landings in this range. Returning visitors may
+                still be active.
+              </p>
+              <div
+                v-for="landing in report.landing"
+                :key="landing.path"
+                class="flex justify-between gap-4 border-b border-gray-100 py-3 text-sm dark:border-gray-800"
+              >
+                <span class="min-w-0 break-all">{{ landing.path }}</span
+                ><span class="shrink-0 tabular-nums"
+                  >{{ landing.visitors }}
+                  <span class="text-xs text-gray-500">visitors</span></span
+                >
+              </div>
+            </section>
+          </div>
+          <div
+            class="grid gap-8 border-t border-gray-200 pt-7 dark:border-gray-800 md:grid-cols-[1fr_1.2fr]"
+          >
+            <section class="min-w-0 space-y-4" aria-labelledby="goals-heading">
+              <div class="flex items-baseline justify-between gap-3">
+                <h2 id="goals-heading" class="font-semibold">Goals</h2>
+                <span class="text-sm tabular-nums text-gray-500"
+                  >{{ goalEvents }}
+                  {{ goalEvents === 1 ? 'event' : 'events' }}</span
+                >
+              </div>
+              <p
+                v-if="!report.goals.length"
+                class="text-sm leading-6 text-gray-500"
+              >
+                No goals in this range. Record a server signup after successful
+                registration to measure conversion.
+              </p>
+              <div
+                v-for="goal in report.goals"
+                :key="goal.name + goal.provenance"
+                class="flex flex-wrap justify-between gap-2 border-b border-gray-100 py-3 text-sm dark:border-gray-800"
+              >
+                <span class="min-w-0 break-all"
+                  >{{ goal.name }}
+                  <span class="text-xs text-gray-500"
+                    >· {{ goal.provenance }}</span
+                  ></span
+                ><span class="tabular-nums"
+                  >{{ goal.count }} {{ goal.count === 1 ? 'event' : 'events'
+                  }}<span v-if="report.measurable" class="text-gray-500">
+                    · {{ goal.visitors }}
+                    {{ goal.visitors === 1 ? 'visitor' : 'visitors' }}</span
+                  ></span
+                >
+              </div>
+            </section>
+            <section
+              class="min-w-0 space-y-4"
+              aria-labelledby="revenue-heading"
             >
-              <span class="min-w-0 break-all">{{ landing.path }}</span
-              ><span class="shrink-0">{{ landing.visitors }} visitors</span>
+              <div class="flex items-baseline justify-between gap-3">
+                <h2 id="revenue-heading" class="font-semibold">Revenue</h2>
+                <span class="text-xs text-gray-500"
+                  >{{ filters.currency }} only</span
+                >
+              </div>
+              <div>
+                <p class="text-sm text-gray-500">Net revenue</p>
+                <p
+                  class="mt-1 text-3xl font-semibold tabular-nums tracking-tight"
+                >
+                  {{ money(report.revenue.net) }}
+                </p>
+              </div>
+              <p
+                v-if="!report.revenue.gross && !report.revenue.refunds"
+                class="text-sm leading-6 text-gray-500"
+              >
+                No payments or refunds recorded in {{ filters.currency }} for
+                this range. Record committed payments with Wake’s server
+                helpers.
+              </p>
+              <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div
+                  v-for="[label, value] in [
+                    ['Gross', money(report.revenue.gross)],
+                    ['Refunds', money(report.revenue.refunds)],
+                    ['Unattributed net', money(report.revenue.unattributed)],
+                    ['Paying visitors', report.revenue.paying ?? '—'],
+                    [
+                      'Revenue per visitor',
+                      report.revenue.perVisitor == null
+                        ? '—'
+                        : money(report.revenue.perVisitor)
+                    ]
+                  ]"
+                  :key="label"
+                >
+                  <dt class="text-xs text-gray-500">{{ label }}</dt>
+                  <dd class="mt-1 font-medium tabular-nums">{{ value }}</dd>
+                </div>
+              </dl>
+            </section>
+          </div>
+          <details
+            class="border-t border-gray-200 pt-5 text-xs leading-6 text-gray-500 dark:border-gray-800"
+          >
+            <summary class="w-fit cursor-pointer">
+              How these metrics are measured
+            </summary>
+            <div class="mt-3 max-w-3xl space-y-2">
+              <p>
+                Conversion: visitors with a server signup in this range ÷
+                distinct visitors active in this range. Daily unique counts are
+                never added together. A dash means the metric cannot be
+                measured, not zero.
+              </p>
+              <p>
+                Revenue includes committed receipts in this range, in one
+                currency. Revenue per visitor uses net revenue attributed to
+                this range’s active visitor cohort. Unattributed payments are
+                included in totals; paying visitors excludes them.
+              </p>
+              <p>
+                Sources show event-touch dimensions, not an attribution model.
+                First and last touch are preserved in Journeys. Raw activity
+                lasts 30 days; reporting records and receipts last thirteen
+                months.
+              </p>
             </div>
-          </section>
+          </details>
         </template>
+        <section v-if="tab === 'journeys' && !journeys" class="py-8">
+          <h2 class="font-semibold">Journeys are unavailable</h2>
+          <p class="mt-2 text-sm text-gray-500">
+            Wake could not read visitor history. Check analytics storage and try
+            again.
+          </p>
+          <Button :disabled="busy" class="mt-4" @click="navigate()"
+            >Try again</Button
+          >
+        </section>
         <template v-if="tab === 'journeys' && journeys">
           <p class="text-sm text-gray-500">
             Anonymous visitor IDs. Latest 50 visitors; timelines show up to 200
@@ -461,7 +810,10 @@ async function removeVisitor() {
           <Alert v-if="app.wakeSettings?.mode === 'cookieless'" :class="alert"
             >Journeys are unavailable in cookieless mode.</Alert
           >
-          <div class="grid gap-8 md:grid-cols-[240px_1fr]">
+          <div
+            v-if="app.wakeSettings?.mode !== 'cookieless'"
+            class="grid gap-8 md:grid-cols-[240px_1fr]"
+          >
             <nav aria-label="Visitors" class="min-w-0 space-y-2">
               <Link
                 v-for="person in journeys.visitors"
@@ -478,7 +830,8 @@ async function removeVisitor() {
                 }}</span></Link
               >
               <p v-if="!journeys.visitors.length" class="text-sm text-gray-500">
-                No measurable visitors in this range.
+                No measurable visitors in this range. Check collection readiness
+                or choose another date range.
               </p>
             </nav>
             <section class="min-w-0 space-y-4">
@@ -530,6 +883,13 @@ async function removeVisitor() {
                     }}
                   </p>
                 </div>
+                <p
+                  v-if="!journeys.events.length && !journeys.receipts.length"
+                  class="text-sm text-gray-500"
+                >
+                  No retained timeline events or receipts in this range. Raw
+                  activity expires after 30 days.
+                </p>
                 <Button
                   v-if="canManage"
                   class="border border-red-200 bg-transparent text-red-600 dark:bg-transparent dark:text-red-400"
@@ -548,6 +908,13 @@ async function removeVisitor() {
           class="max-w-2xl space-y-6"
           @submit.prevent="save"
         >
+          <div>
+            <h2 class="font-semibold">Collection & privacy</h2>
+            <p class="mt-2 text-sm leading-6 text-gray-500">
+              Choose what Wake can collect. Saving while enabled rotates the
+              collection credential and requires an app redeploy.
+            </p>
+          </div>
           <label class="flex items-center justify-between gap-4"
             ><span
               ><span class="block font-medium">Enable Wake</span
