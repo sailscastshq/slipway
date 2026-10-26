@@ -12,11 +12,73 @@ const {
 } = require('../api/helpers/system/build-update-docker-args')
 const execute = promisify(execFile)
 const PREFIX = 'SLIPWAY_UPDATE '
+const BACKUP_PROGRESS_PREFIX = 'SLIPWAY_BACKUP_PROGRESS '
 const TERMINAL = new Set(['success', 'failed', 'rolled-back', 'interrupted'])
 const owned = (info) =>
   info?.Config?.Labels?.['slipway.updater.protocol'] === '1'
 const missing = (error) =>
   /No such (?:object|container|image)/i.test(error.message)
+
+function parseBackupProgress(line) {
+  if (line.length > 4096 || !line.startsWith(BACKUP_PROGRESS_PREFIX))
+    return null
+  try {
+    const data = JSON.parse(line.slice(BACKUP_PROGRESS_PREFIX.length))
+    if (!['copying', 'verifying', 'hashing', 'archiving'].includes(data.stage))
+      return null
+    const result = { stage: data.stage }
+    if (data.stage !== 'archiving') {
+      if (
+        !['app.db', 'observability.db', 'analytics.db', 'stash.db'].includes(
+          data.database
+        )
+      )
+        return null
+      result.database = data.database
+    }
+    if (
+      data.stage === 'copying' &&
+      Number.isSafeInteger(data.copiedPages) &&
+      Number.isSafeInteger(data.totalPages) &&
+      data.copiedPages >= 0 &&
+      data.totalPages >= data.copiedPages
+    ) {
+      result.copiedPages = data.copiedPages
+      result.totalPages = data.totalPages
+    }
+    if (
+      Number.isSafeInteger(data.bytes) &&
+      Number.isSafeInteger(data.totalBytes) &&
+      data.bytes >= 0 &&
+      data.totalBytes >= data.bytes
+    ) {
+      result.bytes = data.bytes
+      result.totalBytes = data.totalBytes
+    }
+    return result
+  } catch {
+    return null
+  }
+}
+function describeBackupProgress(event) {
+  const byteProgress = event.totalBytes
+    ? ` (${Math.round(event.bytes / 1024 ** 2)}/${Math.round(
+        event.totalBytes / 1024 ** 2
+      )} MiB read)`
+    : ''
+  if (event.stage === 'archiving')
+    return 'Compressing the verified recovery archive' + byteProgress
+  const verb = {
+    copying: 'Copying',
+    verifying: 'Checking integrity and foreign keys for',
+    hashing: 'Hashing'
+  }[event.stage]
+  const pages =
+    event.stage === 'copying' && event.totalPages
+      ? ` (${event.copiedPages}/${event.totalPages} pages)`
+      : ''
+  return `${verb} ${event.database}${pages}${byteProgress}`
+}
 
 function createUpdater({
   docker: suppliedDocker,
@@ -24,6 +86,8 @@ function createUpdater({
   now = Date.now,
   emit = console.log,
   binary = 'docker',
+  commandTimeoutMs = 30000,
+  backupTimeoutMs = 300000,
   migrateApps
 } = {}) {
   let sensitive = []
@@ -31,17 +95,37 @@ function createUpdater({
     suppliedDocker ||
     (async (args, options = {}) => {
       try {
-        const { stdout } = await execute(binary, args, {
-          timeout: 30000,
+        const { onBackupProgress, ...executionOptions } = options
+        const pending = execute(binary, args, {
+          timeout: commandTimeoutMs,
           maxBuffer: 16 * 1024 * 1024,
-          ...options
+          ...executionOptions,
+          killSignal: 'SIGKILL'
         })
+        if (onBackupProgress) {
+          let buffer = ''
+          pending.child.stderr.on('data', (chunk) => {
+            buffer += chunk.toString()
+            const lines = buffer.split('\n')
+            buffer = lines.pop().slice(-4096)
+            for (const line of lines) {
+              const event = parseBackupProgress(line)
+              if (event) onBackupProgress(event)
+            }
+          })
+        }
+        const { stdout } = await pending
         return stdout
       } catch (error) {
         const safe = new Error(
           formatDockerError(error, [...args, ...sensitive])
         )
-        safe.code = error.code
+        safe.code =
+          error.killed &&
+          error.signal === 'SIGKILL' &&
+          typeof error.code !== 'string'
+            ? 'UPDATER_COMMAND_DEADLINE'
+            : error.code
         throw safe
       }
     })
@@ -424,14 +508,19 @@ function createUpdater({
           'Published image metadata does not match the requested release.'
         )
       targetVersion = metadata.version
-      progress('backing-up', 'Verifying snapshots of all four datastores', {
-        targetVersion,
-        targetImageId: imageId,
-        checksum: metadata.checksum
-      })
+      const backupDirectory = `/app/db/system-backups/${operationId}`
+      progress(
+        'backing-up',
+        'Checking capacity for verified database snapshots',
+        {
+          backupDirectory,
+          targetVersion,
+          targetImageId: imageId,
+          checksum: metadata.checksum
+        }
+      )
       const mount =
         db.Type === 'volume' ? `${db.Name}:/app/db` : `${db.Source}:/app/db`
-      const backupDirectory = `/app/db/system-backups/${operationId}`
       const capacity = JSON.parse(
         await docker(
           [
@@ -439,6 +528,8 @@ function createUpdater({
             '--rm',
             '--name',
             helperName,
+            '--init',
+            '--no-healthcheck',
             '--label',
             `slipway.updater.operation=${operationId}`,
             '-v',
@@ -454,6 +545,10 @@ function createUpdater({
       )
       if (!capacity.capacityVerified)
         throw new Error('Update backup capacity could not be verified.')
+      progress(
+        'backing-up',
+        'Starting verified snapshots of all four datastores'
+      )
       const snapshot = JSON.parse(
         await docker(
           [
@@ -461,6 +556,8 @@ function createUpdater({
             '--rm',
             '--name',
             helperName,
+            '--init',
+            '--no-healthcheck',
             '--label',
             `slipway.updater.operation=${operationId}`,
             '-v',
@@ -470,12 +567,22 @@ function createUpdater({
             imageId,
             '/app/bin/slipway-database.cjs',
             'snapshot',
+            '--progress',
             '--directory',
             '/app/db',
             '--output',
             backupDirectory
           ],
-          { timeout: 300000, maxBuffer: 131072 }
+          {
+            timeout: backupTimeoutMs,
+            maxBuffer: 131072,
+            onBackupProgress(event) {
+              if (state.phase === 'backing-up')
+                progress('backing-up', describeBackupProgress(event), {
+                  backupProgress: event
+                })
+            }
+          }
         )
       )
       if (
@@ -489,6 +596,11 @@ function createUpdater({
         throw new Error(
           'Verified database snapshots are required before replacing Slipway.'
         )
+      progress(
+        'backing-up',
+        'Retaining the verified backup and remote archive request',
+        { backupProgress: null }
+      )
       // The resident app's Quest worker archives this verified bundle using the
       // existing private-storage adapters. A restart cannot lose the pending marker.
       await docker([
@@ -496,6 +608,8 @@ function createUpdater({
         '--rm',
         '--name',
         helperName,
+        '--init',
+        '--no-healthcheck',
         '--label',
         `slipway.updater.operation=${operationId}`,
         '-v',
@@ -511,7 +625,7 @@ function createUpdater({
       progress(
         'inspecting',
         'Preserving the existing container configuration',
-        { backupDirectory }
+        { backupDirectory, backupProgress: null }
       )
       const hasApps = source.Mounts.some((m) => m.Destination === appsDir)
       if (!hasApps) {
@@ -543,6 +657,8 @@ function createUpdater({
                   '-i',
                   '--name',
                   helperName,
+                  '--init',
+                  '--no-healthcheck',
                   '--label',
                   `slipway.updater.operation=${operationId}`,
                   '-v',
@@ -708,11 +824,14 @@ function createUpdater({
       for (const temporary of [preflightName, helperName])
         try {
           const partial = await inspect(temporary)
-          if (
-            partial?.Config?.Labels?.['slipway.updater.operation'] ===
-            operationId
-          )
-            await docker(['rm', '-f', partial.Id])
+          if (partial) {
+            if (
+              partial.Config?.Labels?.['slipway.updater.operation'] !==
+              operationId
+            )
+              cleanupVerified = false
+            else await docker(['rm', '-f', partial.Id])
+          }
         } catch {
           cleanupVerified = false
           /* Retain uncertain containers for operator review. */
@@ -770,11 +889,16 @@ function createUpdater({
           )
         }
       }
-      return progress(
-        'failed',
-        String(error.message || 'Update preparation failed.').slice(0, 1200),
-        { canRetry: beforeSwap && cleanupVerified }
-      )
+      const detail =
+        error.code === 'UPDATER_COMMAND_DEADLINE'
+          ? cleanupVerified
+            ? 'An update command exceeded its deadline. Owned temporary workers were removed, any partial backups were retained, and the previous container was not stopped by this update.'
+            : 'An update command exceeded its deadline and temporary worker cleanup could not be verified. Retain the helper and partial backup for review; do not start another update.'
+          : String(error.message || 'Update preparation failed.').slice(0, 1200)
+      return progress('failed', detail, {
+        canRetry: beforeSwap && cleanupVerified,
+        code: error.code
+      })
     }
   }
   return { start, status, run }
@@ -829,7 +953,15 @@ async function main(args) {
       'Usage: slipway-updater start|status|watch|run --container NAME --image IMAGE --version VERSION'
     )
 }
-module.exports = { createUpdater, PREFIX, TERMINAL, main }
+module.exports = {
+  createUpdater,
+  PREFIX,
+  TERMINAL,
+  main,
+  parseBackupProgress,
+  describeBackupProgress,
+  BACKUP_PROGRESS_PREFIX
+}
 if (require.main === module)
   main(process.argv.slice(2)).catch(() => {
     console.error(

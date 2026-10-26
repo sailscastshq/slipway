@@ -6,7 +6,10 @@ function fixture({
   preflightNormal = false,
   badTarget = false,
   partialStart = false,
-  wrongChecksum = false
+  wrongChecksum = false,
+  snapshotDeadline = false,
+  cleanupFails = false,
+  withProgress = false
 } = {}) {
   let now = 0,
     counter = 0
@@ -70,7 +73,7 @@ function fixture({
       checksum: version === '0.0.121' ? 'old-checksum' : 'target-checksum'
     }
   })
-  const docker = async (args) => {
+  const docker = async (args, options = {}) => {
     calls.push([...args])
     if (args[0] === 'image') return JSON.stringify([{ Id: 'target-image' }])
     if (args[0] === 'inspect') {
@@ -105,11 +108,27 @@ function fixture({
     }
     if (args[0] === 'rm') {
       const i = find(args.at(-1))
+      if (cleanupFails && i?.Id === 'snapshot-helper')
+        throw Error('Fixture cleanup unavailable')
       if (i) items.delete(i.Id)
       return ''
     }
     if (args[0] === 'network') return ''
-    if (args[0] === 'run' && args.includes('/app/bin/slipway-database.cjs'))
+    if (args[0] === 'run' && args.includes('/app/bin/slipway-database.cjs')) {
+      if (withProgress)
+        options.onBackupProgress({
+          stage: 'verifying',
+          database: 'observability.db'
+        })
+      if (snapshotDeadline) {
+        items.set('snapshot-helper', {
+          Id: 'snapshot-helper',
+          Name: '/' + args[args.indexOf('--name') + 1],
+          State: { Running: true },
+          Config: { Labels: labels(args) }
+        })
+        throw Error('Snapshot command deadline exceeded')
+      }
       return JSON.stringify({
         archive: '/app/db/system-backups/verified/system.tar.gz',
         manifest: {
@@ -125,6 +144,7 @@ function fixture({
           }))
         }
       })
+    }
     if (args[0] === 'run' && args.some((x) => x.includes('statfsSync')))
       return JSON.stringify({ capacityVerified: true })
     if (args[0] === 'run' && args.includes('--rm'))
@@ -372,4 +392,123 @@ test('an abandoned creation reconciles the original before admitting a retry', a
   const replacement = await f.engine.start(f.options)
   assert.notEqual(replacement.operationId, op.operationId)
   assert.equal(f.source.State.Running, true)
+})
+
+for (const cleanupFails of [false, true])
+  test(`snapshot deadline keeps old writer running and retry ${
+    cleanupFails
+      ? 'blocked on unknown cleanup'
+      : 'safe only after owned cleanup'
+  }`, async () => {
+    const f = fixture({ snapshotDeadline: true, cleanupFails })
+    f.items.set('unrelated', {
+      Id: 'unrelated',
+      Name: '/unrelated',
+      State: { Running: true },
+      Config: { Labels: {} }
+    })
+    const result = await f.run()
+    assert.equal(result.phase, 'failed')
+    assert.equal(result.canRetry, !cleanupFails)
+    assert.equal(f.source.State.Running, true)
+    assert.equal(
+      f.calls.some((args) => args[0] === 'stop' || args[0] === 'rename'),
+      false
+    )
+    assert.equal(f.items.has('unrelated'), true)
+    assert.equal(f.items.has('snapshot-helper'), cleanupFails)
+  })
+test('native backup progress reaches the durable operation and maintenance helpers do not inherit web health', async () => {
+  const f = fixture({ withProgress: true })
+  await f.run()
+  const events = f.logs
+    .filter((line) => line.startsWith(PREFIX))
+    .map((line) => JSON.parse(line.slice(PREFIX.length)))
+  assert.ok(
+    events.some(
+      (event) =>
+        event.phase === 'backing-up' &&
+        event.detail ===
+          'Checking integrity and foreign keys for observability.db'
+    )
+  )
+  const helpers = f.calls.filter(
+    (args) =>
+      args[0] === 'run' &&
+      args.includes('--name') &&
+      args[args.indexOf('--name') + 1].includes('-snapshot-')
+  )
+  assert.ok(helpers.length >= 3)
+  for (const args of helpers)
+    assert.ok(args.includes('--init') && args.includes('--no-healthcheck'))
+})
+test('backup progress rejects untrusted fields and distinguishes copy, verification, hashing and archive input', () => {
+  const {
+    parseBackupProgress,
+    describeBackupProgress,
+    BACKUP_PROGRESS_PREFIX
+  } = require('../../../../bin/slipway-updater.cjs')
+  const parse = (data) =>
+    parseBackupProgress(BACKUP_PROGRESS_PREFIX + JSON.stringify(data))
+  assert.equal(parse({ stage: 'copying', database: 'secret/path' }), null)
+  assert.equal(parse({ stage: 'success' }), null)
+  assert.equal(
+    parseBackupProgress(BACKUP_PROGRESS_PREFIX + 'x'.repeat(5000)),
+    null
+  )
+  assert.deepEqual(
+    parse({
+      stage: 'copying',
+      database: 'app.db',
+      copiedPages: 5,
+      totalPages: 10,
+      secret: 'never-forward'
+    }),
+    { stage: 'copying', database: 'app.db', copiedPages: 5, totalPages: 10 }
+  )
+  assert.match(
+    describeBackupProgress(
+      parse({
+        stage: 'copying',
+        database: 'app.db',
+        copiedPages: 5,
+        totalPages: 10
+      })
+    ),
+    /5\/10 pages/
+  )
+  assert.match(
+    describeBackupProgress(
+      parse({ stage: 'archiving', bytes: 1024 ** 2, totalBytes: 2 * 1024 ** 2 })
+    ),
+    /1\/2 MiB read/
+  )
+})
+test('an external command that ignores TERM still hits the hard client deadline', async () => {
+  const fs = require('node:fs'),
+    os = require('node:os'),
+    path = require('node:path')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'updater-hard-deadline-'))
+  const binary = path.join(dir, 'docker-fixture'),
+    ready = binary + '.ready'
+  fs.writeFileSync(
+    binary,
+    '#!/bin/sh\ntrap "" TERM\n: > "$0.ready"\nwhile :; do sleep 1; done\n',
+    { mode: 0o755 }
+  )
+  const started = Date.now()
+  try {
+    await assert.rejects(
+      createUpdater({ binary, commandTimeoutMs: 750 }).status(),
+      (error) => error.code === 'UPDATER_COMMAND_DEADLINE'
+    )
+    assert.ok(Date.now() - started < 5000)
+    assert.equal(
+      fs.existsSync(ready),
+      true,
+      'fixture installed its TERM handler before deadline'
+    )
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
 })
