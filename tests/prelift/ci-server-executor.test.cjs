@@ -172,9 +172,13 @@ test(
             : path.join(root, 'bin/ci-server-executor.cjs')) +
             ':/app/bin/ci-server-executor.cjs:ro',
           '--entrypoint',
-          'node',
+          '/bin/sh',
           parentImage,
-          '/app/bin/ci-server-executor.cjs',
+          '-c',
+          // The executor parent is root; return only test-created cache ownership
+          // to the runner so corruption fixtures and cleanup work on Linux too.
+          `node /app/bin/ci-server-executor.cjs \"$@\"; result=$?; if [ -d /evidence/cache ]; then chown -R ${process.getuid()}:${process.getgid()} /evidence/cache; fi; exit \"$result\"`,
+          'ci-proof',
           '--repo',
           '/fixture',
           '--commit',
