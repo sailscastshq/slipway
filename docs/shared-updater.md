@@ -23,7 +23,7 @@ node /app/bin/slipway-updater.cjs status --container slipway
 node /app/bin/slipway-updater.cjs watch --container slipway
 ```
 
-`start` accepts a reviewed `--image`, `--version` and optional `--runner-image`. `install.sh` bootstraps the runner from the target image, which must include this engine. An already-installed older web updater retains its old behavior until updated. This source change does not patch an existing running installation. The engine's `run` command is internal to an admitted operation.
+`start` accepts a reviewed `--image`, `--version` and optional `--runner-image`. `install.sh` checks the target package version and runner interface in a read-only, network-isolated probe with no Docker socket or installation mounts. Unsupported targets (including official releases before 0.0.122), missing runners and mismatched metadata stop before admission; no legacy or fresh-install fallback is attempted. It then bootstraps and watches the verified immutable image ID, without pulling the tag again. Use a matching version-pinned installer and target. An already-installed older web updater retains its old behavior until updated. This source change does not patch an existing running installation. The engine's `run` command is internal to an admitted operation.
 
 Read `docker logs --tail 100 slipway-updater` for retained progress. Do not remove a running updater to retry. For an interrupted state, preserve the updater, previous container and `db/system-backups/<operation-id>` while reviewing ownership and health. Follow [SQLite recovery](sqlite-recovery.md) for actual integrity failures. Completed operations remain available until a subsequent safe admission replaces the updater container.
 

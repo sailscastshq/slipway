@@ -324,21 +324,61 @@ fi
 SLIPWAY_IMAGE="$SLIPWAY_IMAGE_REPOSITORY:$SLIPWAY_VERSION"
 }
 
+# Inspect the exact target without access to the installation or Docker socket.
+# Old published images do not contain the detached runner. Never fall back to
+# the legacy update path or fresh-install host setup when this check fails.
+verify_update_image() {
+    if ! SLIPWAY_UPDATE_IMAGE_ID=$(docker image inspect --format '{{.Id}}' "$SLIPWAY_IMAGE"); then
+        echo "Could not inspect $SLIPWAY_IMAGE; no updater operation was started." >&2
+        return 1
+    fi
+    if ! docker run --rm --network none --read-only --no-healthcheck \
+        --entrypoint node "$SLIPWAY_UPDATE_IMAGE_ID" -e '
+        try {
+            const version = require("/app/package.json").version
+            const requested = process.argv[1]
+            if (typeof version !== "string" || !/^\d+\.\d+\.\d+$/.test(version))
+                throw Error("The target image has invalid package version metadata.")
+            if (requested !== "latest" && version !== requested)
+                throw Error("The target declares " + version + ", but " + requested + " was requested.")
+            const [major, minor, patch] = version.split(".").map(Number)
+            if (major === 0 && minor === 0 && patch < 122)
+                throw Error("Release " + version + " predates the shared updater; it requires 0.0.122 or later.")
+            const file = "/app/bin/slipway-updater.cjs"
+            if (!require("fs").existsSync(file))
+                throw Error("The target image does not contain the shared update engine.")
+            const engine = require(file)
+            if (typeof engine.main !== "function" || typeof engine.createUpdater !== "function" || engine.PREFIX !== "SLIPWAY_UPDATE ")
+                throw Error("The target image has an unsupported update engine interface.")
+            console.log("Verified shared update engine in Slipway " + version)
+        } catch (error) {
+            console.error(error.message)
+            process.exitCode = 1
+        }
+        ' "$SLIPWAY_VERSION"; then
+        echo "Cannot update with $SLIPWAY_IMAGE. No updater operation was started by this request." >&2
+        echo "Use a release with the shared updater (0.0.122 or later) and its matching version-pinned install.sh." >&2
+        echo "No legacy fallback or fresh-install setup was attempted. Inspect the current container and any existing updater before retrying." >&2
+        return 1
+    fi
+}
+
 if command -v docker >/dev/null 2>&1 && container_exists "$SLIPWAY_CONTAINER"; then
     resolve_slipway_image
     if [ "$SLIPWAY_SKIP_PULL" != true ]; then
         docker pull "$SLIPWAY_IMAGE"
     fi
+    verify_update_image || exit 1
     echo "Starting Slipway's shared update engine..."
     docker run --rm \
         -v /var/run/docker.sock:/var/run/docker.sock \
-        --entrypoint node "$SLIPWAY_IMAGE" \
+        --entrypoint node "$SLIPWAY_UPDATE_IMAGE_ID" \
         /app/bin/slipway-updater.cjs start \
-        --container "$SLIPWAY_CONTAINER" --image "$SLIPWAY_IMAGE" \
-        --version "$SLIPWAY_VERSION" --runner-image "$SLIPWAY_IMAGE" \
-        --apps-dir "$SLIPWAY_APPS_DIR" --skip-pull "$SLIPWAY_SKIP_PULL"
+        --container "$SLIPWAY_CONTAINER" --image "$SLIPWAY_UPDATE_IMAGE_ID" \
+        --version "$SLIPWAY_VERSION" --runner-image "$SLIPWAY_UPDATE_IMAGE_ID" \
+        --apps-dir "$SLIPWAY_APPS_DIR" --skip-pull true
     docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-        --entrypoint node "$SLIPWAY_IMAGE" /app/bin/slipway-updater.cjs watch \
+        --entrypoint node "$SLIPWAY_UPDATE_IMAGE_ID" /app/bin/slipway-updater.cjs watch \
         --container "$SLIPWAY_CONTAINER"
     echo "Slipway update complete. Existing environment, proxy and firewall were preserved."
     exit 0
