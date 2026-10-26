@@ -243,7 +243,9 @@ test(
     connect(1)
     await capture('cookieless', 'Runtime connected', true)
     await expect(
-      page.raw.getByText('Unavailable in cookieless mode', { exact: true })
+      page.raw
+        .getByLabel('Activity metrics', { exact: true })
+        .getByText('—', { exact: true })
     ).toHaveCount(3)
     await page.goto(base + '?tab=journeys')
     await expect(

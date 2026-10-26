@@ -188,16 +188,12 @@ const metrics = computed(() =>
         [
           'Visitors',
           props.report.visitors ?? '—',
-          props.report.measurable
-            ? 'Distinct in this range'
-            : 'Unavailable in cookieless mode'
+          props.report.measurable ? 'Distinct in this range' : ''
         ],
         [
           'Sessions',
           props.report.sessions ?? '—',
-          props.report.measurable
-            ? 'Started in this range'
-            : 'Unavailable in cookieless mode'
+          props.report.measurable ? 'Started in this range' : ''
         ],
         [
           'Signup conversion',
@@ -210,7 +206,7 @@ const metrics = computed(() =>
                   props.report.signups === 1 ? 'visitor' : 'visitors'
                 } signed up`
               : 'No visitors to measure'
-            : 'Unavailable in cookieless mode'
+            : ''
         ]
       ]
     : []
@@ -375,7 +371,7 @@ async function removeVisitor() {
               >{{ busy ? 'Loading…' : collection.action }}</Button
             >
             <Button
-              v-else
+              v-else-if="collection.app || collection.tab !== tab"
               :as="Link"
               :href="collection.app ? base : base + '/wake'"
               :data="collection.app ? undefined : query(collection.tab)"
@@ -386,7 +382,7 @@ async function removeVisitor() {
           <p class="mt-3 text-xs leading-5 text-gray-500">
             {{
               app.wakeSettings?.mode === 'cookieless'
-                ? 'Cookieless events · no persistent visitors or journeys'
+                ? 'Cookieless events'
                 : 'First-party visitors'
             }}
             ·
@@ -524,6 +520,7 @@ async function removeVisitor() {
             </div>
           </section>
           <dl
+            aria-label="Activity metrics"
             class="grid grid-cols-2 gap-x-6 gap-y-7 border-b border-gray-200 pb-7 dark:border-gray-800 sm:grid-cols-4"
           >
             <div
@@ -537,7 +534,9 @@ async function removeVisitor() {
               >
                 {{ typeof value === 'number' ? value.toLocaleString() : value }}
               </dd>
-              <dd class="mt-2 text-xs leading-5 text-gray-500">{{ detail }}</dd>
+              <dd v-if="detail" class="mt-2 text-xs leading-5 text-gray-500">
+                {{ detail }}
+              </dd>
             </div>
           </dl>
           <section
