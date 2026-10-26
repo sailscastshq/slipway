@@ -51,7 +51,14 @@ function configuration(manifest, image, platform) {
     install: ['npm', 'ci'],
     runtime: image,
     platform,
-    testProfile: 'sails-sqlite-no-egress-v3',
+    testProfile: 'sails-sqlite-no-egress-v4',
+    packageCache: {
+      path: '/workspace/.npm-cache',
+      audit: false,
+      fund: false,
+      jobs: 2,
+      serverArchiveBytes: 67108864
+    },
     executorDigest: executorDigest(),
     filesystem: {
       root: 'read-only',

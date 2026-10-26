@@ -50,7 +50,14 @@ function configuration(manifest, image, platform) {
     install: ['npm', 'ci'],
     runtime: image,
     platform,
-    testProfile: 'sails-sqlite-no-egress-v3',
+    testProfile: 'sails-sqlite-no-egress-v4',
+    packageCache: {
+      path: '/workspace/.npm-cache',
+      audit: false,
+      fund: false,
+      jobs: 2,
+      serverArchiveBytes: 67108864
+    },
     executorDigest: executorDigest(),
     filesystem: {
       root: 'read-only',
@@ -66,7 +73,7 @@ function configuration(manifest, image, platform) {
   }
 }
 function executorDigest() {
-  return 'sha256:49a536be5593423e197a1f10db8054b5115cbe9b1359ae20183fccc0d8290ac2'
+  return 'sha256:8668e7af0ceaa16f23a746b5ab2f730768e651256c60c064b4130eaa5d36fe1b'
 }
 
 function statement(challenge, report) {

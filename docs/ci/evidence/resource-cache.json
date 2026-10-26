@@ -1,0 +1,366 @@
+{
+  "baseline": {
+    "sourceRevision": "a2d21e5b0b865f747a680a74a7bc033d5cd06c53",
+    "runtime": {
+      "image": "node@sha256:ea11b74b986d520137cdef9a5346e447a00f275ecc4abc0055b7151226231e09",
+      "imageId": "sha256:58a96d9752cfedf3c4fcfcbe2dabbad725c147f7003caa9f7899a3f414ada3fc",
+      "architecture": "amd64",
+      "unpackedImageBytes": 227045676,
+      "node": "v22.23.4",
+      "npm": "10.9.9"
+    },
+    "durationSeconds": 10.51,
+    "resources": {
+      "cpuSeconds": 5.57908,
+      "peakMemoryBytes": 117706752
+    },
+    "cache": "cold, disposable package cache",
+    "steps": [
+      {
+        "name": "install",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 2.22,
+        "exitCode": 0,
+        "resources": {
+          "cpuSeconds": 2.175564,
+          "peakMemoryBytes": 117706752
+        }
+      },
+      {
+        "name": "lint",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 0.95,
+        "exitCode": 0,
+        "resources": {
+          "cpuSeconds": 3.191834,
+          "peakMemoryBytes": 117706752
+        }
+      },
+      {
+        "name": "test",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 0.98,
+        "exitCode": 0,
+        "resources": {
+          "cpuSeconds": 4.247043,
+          "peakMemoryBytes": 117706752
+        }
+      },
+      {
+        "name": "build",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 0.99,
+        "exitCode": 0,
+        "resources": {
+          "cpuSeconds": 5.312779,
+          "peakMemoryBytes": 117706752
+        }
+      }
+    ],
+    "cleanup": {
+      "state": "completed",
+      "container": "slipway-ci-server-fa1f902b-7841-4f1a-92bc-fc58c1a3f0d4"
+    },
+    "checkNetwork": "disconnected",
+    "state": "passed"
+  },
+  "cold": {
+    "sourceRevision": "a2d21e5b0b865f747a680a74a7bc033d5cd06c53",
+    "runtime": {
+      "image": "node@sha256:ea11b74b986d520137cdef9a5346e447a00f275ecc4abc0055b7151226231e09",
+      "imageId": "sha256:58a96d9752cfedf3c4fcfcbe2dabbad725c147f7003caa9f7899a3f414ada3fc",
+      "architecture": "amd64",
+      "unpackedImageBytes": 227045676,
+      "node": "v22.23.4",
+      "npm": "10.9.9"
+    },
+    "durationSeconds": 11.28,
+    "resources": {
+      "mounts": {
+        "/workspace": {
+          "totalBytes": 1610612736,
+          "availableBytes": 1609850880,
+          "totalInodes": 1003035,
+          "availableInodes": 1002995
+        },
+        "/tmp": {
+          "totalBytes": 268435456,
+          "availableBytes": 265777152,
+          "totalInodes": 1003035,
+          "availableInodes": 1002477
+        }
+      },
+      "cpuSeconds": 6.087337,
+      "peakMemoryBytes": 117391360
+    },
+    "cache": {
+      "state": "miss",
+      "maxArchiveBytes": 67108864,
+      "savedBytes": 143360
+    },
+    "steps": [
+      {
+        "name": "install",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 2.48,
+        "exitCode": 0,
+        "resources": {
+          "mounts": {
+            "/workspace": {
+              "totalBytes": 1610612736,
+              "availableBytes": 1609863168,
+              "totalInodes": 1003035,
+              "availableInodes": 1002998
+            },
+            "/tmp": {
+              "totalBytes": 268435456,
+              "availableBytes": 265781248,
+              "totalInodes": 1003035,
+              "availableInodes": 1002478
+            }
+          },
+          "cpuSeconds": 2.497155,
+          "peakMemoryBytes": 117391360,
+          "stepCpuSeconds": 1.5028439999999998
+        }
+      },
+      {
+        "name": "lint",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 0.97,
+        "exitCode": 0,
+        "resources": {
+          "mounts": {
+            "/workspace": {
+              "totalBytes": 1610612736,
+              "availableBytes": 1609859072,
+              "totalInodes": 1003035,
+              "availableInodes": 1002997
+            },
+            "/tmp": {
+              "totalBytes": 268435456,
+              "availableBytes": 265777152,
+              "totalInodes": 1003035,
+              "availableInodes": 1002477
+            }
+          },
+          "cpuSeconds": 3.57315,
+          "peakMemoryBytes": 117391360,
+          "stepCpuSeconds": 1.0759950000000003
+        }
+      },
+      {
+        "name": "test",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 1.01,
+        "exitCode": 0,
+        "resources": {
+          "mounts": {
+            "/workspace": {
+              "totalBytes": 1610612736,
+              "availableBytes": 1609854976,
+              "totalInodes": 1003035,
+              "availableInodes": 1002996
+            },
+            "/tmp": {
+              "totalBytes": 268435456,
+              "availableBytes": 265777152,
+              "totalInodes": 1003035,
+              "availableInodes": 1002477
+            }
+          },
+          "cpuSeconds": 4.649922,
+          "peakMemoryBytes": 117391360,
+          "stepCpuSeconds": 1.076772
+        }
+      },
+      {
+        "name": "build",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 1.07,
+        "exitCode": 0,
+        "resources": {
+          "mounts": {
+            "/workspace": {
+              "totalBytes": 1610612736,
+              "availableBytes": 1609850880,
+              "totalInodes": 1003035,
+              "availableInodes": 1002995
+            },
+            "/tmp": {
+              "totalBytes": 268435456,
+              "availableBytes": 265777152,
+              "totalInodes": 1003035,
+              "availableInodes": 1002477
+            }
+          },
+          "cpuSeconds": 5.814038,
+          "peakMemoryBytes": 117391360,
+          "stepCpuSeconds": 1.164116
+        }
+      }
+    ],
+    "cleanup": {
+      "state": "completed",
+      "container": "slipway-ci-server-cf6965ba-ef32-402b-a076-f295655e6bad"
+    },
+    "checkNetwork": "disconnected",
+    "state": "passed"
+  },
+  "warm": {
+    "sourceRevision": "a2d21e5b0b865f747a680a74a7bc033d5cd06c53",
+    "runtime": {
+      "image": "node@sha256:ea11b74b986d520137cdef9a5346e447a00f275ecc4abc0055b7151226231e09",
+      "imageId": "sha256:58a96d9752cfedf3c4fcfcbe2dabbad725c147f7003caa9f7899a3f414ada3fc",
+      "architecture": "amd64",
+      "unpackedImageBytes": 227045676,
+      "node": "v22.23.4",
+      "npm": "10.9.9"
+    },
+    "durationSeconds": 10.14,
+    "resources": {
+      "mounts": {
+        "/workspace": {
+          "totalBytes": 1610612736,
+          "availableBytes": 1609850880,
+          "totalInodes": 1003035,
+          "availableInodes": 1002996
+        },
+        "/tmp": {
+          "totalBytes": 268435456,
+          "availableBytes": 265777152,
+          "totalInodes": 1003035,
+          "availableInodes": 1002477
+        }
+      },
+      "cpuSeconds": 5.938382,
+      "peakMemoryBytes": 113512448
+    },
+    "cache": {
+      "state": "hit",
+      "maxArchiveBytes": 67108864,
+      "restoredBytes": 143360,
+      "publish": "unchanged"
+    },
+    "steps": [
+      {
+        "name": "install",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 1.28,
+        "exitCode": 0,
+        "resources": {
+          "mounts": {
+            "/workspace": {
+              "totalBytes": 1610612736,
+              "availableBytes": 1609863168,
+              "totalInodes": 1003035,
+              "availableInodes": 1002999
+            },
+            "/tmp": {
+              "totalBytes": 268435456,
+              "availableBytes": 265781248,
+              "totalInodes": 1003035,
+              "availableInodes": 1002478
+            }
+          },
+          "cpuSeconds": 2.396251,
+          "peakMemoryBytes": 113512448,
+          "stepCpuSeconds": 1.388682
+        }
+      },
+      {
+        "name": "lint",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 0.97,
+        "exitCode": 0,
+        "resources": {
+          "mounts": {
+            "/workspace": {
+              "totalBytes": 1610612736,
+              "availableBytes": 1609859072,
+              "totalInodes": 1003035,
+              "availableInodes": 1002998
+            },
+            "/tmp": {
+              "totalBytes": 268435456,
+              "availableBytes": 265777152,
+              "totalInodes": 1003035,
+              "availableInodes": 1002477
+            }
+          },
+          "cpuSeconds": 3.466487,
+          "peakMemoryBytes": 113512448,
+          "stepCpuSeconds": 1.070236
+        }
+      },
+      {
+        "name": "test",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 1.02,
+        "exitCode": 0,
+        "resources": {
+          "mounts": {
+            "/workspace": {
+              "totalBytes": 1610612736,
+              "availableBytes": 1609854976,
+              "totalInodes": 1003035,
+              "availableInodes": 1002997
+            },
+            "/tmp": {
+              "totalBytes": 268435456,
+              "availableBytes": 265777152,
+              "totalInodes": 1003035,
+              "availableInodes": 1002477
+            }
+          },
+          "cpuSeconds": 4.583477,
+          "peakMemoryBytes": 113512448,
+          "stepCpuSeconds": 1.1169900000000004
+        }
+      },
+      {
+        "name": "build",
+        "required": true,
+        "state": "passed",
+        "durationSeconds": 1,
+        "exitCode": 0,
+        "resources": {
+          "mounts": {
+            "/workspace": {
+              "totalBytes": 1610612736,
+              "availableBytes": 1609850880,
+              "totalInodes": 1003035,
+              "availableInodes": 1002996
+            },
+            "/tmp": {
+              "totalBytes": 268435456,
+              "availableBytes": 265777152,
+              "totalInodes": 1003035,
+              "availableInodes": 1002477
+            }
+          },
+          "cpuSeconds": 5.664802,
+          "peakMemoryBytes": 113512448,
+          "stepCpuSeconds": 1.0813249999999996
+        }
+      }
+    ],
+    "cleanup": {
+      "state": "completed",
+      "container": "slipway-ci-server-bc968a81-6860-4bdd-81a8-39ff0e1d83a4"
+    },
+    "checkNetwork": "disconnected",
+    "state": "passed"
+  }
+}

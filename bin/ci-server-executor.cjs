@@ -4,10 +4,14 @@ const fs = require('node:fs')
 const path = require('node:path')
 const crypto = require('node:crypto')
 const { spawn } = require('node:child_process')
+const tar = require('tar-stream')
+const { finished } = require('node:stream/promises')
 const { performance } = require('node:perf_hooks')
 const hash = (value) =>
   'sha256:' + crypto.createHash('sha256').update(value).digest('hex')
 const contract = require('../api/lib/contracts/ci-contract')
+const CACHE_BYTES = 64 * 1024 * 1024
+const CACHE_TTL = 7 * 24 * 3600000
 const MAX_LOG_BYTES = 10 * 1024 * 1024
 let child,
   container,
@@ -32,7 +36,7 @@ function save() {
 function command(
   binary,
   args,
-  { input, log, timeout = 30000, captureLimit = 1024 * 1024 } = {}
+  { input, log, binaryFile, timeout = 30000, captureLimit = 1024 * 1024 } = {}
 ) {
   return new Promise((resolve, reject) => {
     if (stopReason) return reject(new Error(stopReason))
@@ -40,6 +44,7 @@ function command(
     child = proc
     const chunks = []
     let captured = 0,
+      binaryBytes = 0,
       failure
     const remaining = deadline ? deadline - Date.now() : timeout
     const timer = setTimeout(() => {
@@ -50,6 +55,18 @@ function command(
     const stream = log
       ? fs.createWriteStream(path.join(output, log), { mode: 0o600 })
       : null
+    const cacheStream = binaryFile
+      ? fs.createWriteStream(binaryFile, { flags: 'wx', mode: 0o600 })
+      : null
+    const cacheDone = cacheStream
+      ? finished(cacheStream).catch((error) => {
+          failure = error
+        })
+      : null
+    cacheStream?.on('error', (error) => {
+      failure = error
+      proc.kill('SIGTERM')
+    })
     function consume(data) {
       logBytes += data.length
       if (logBytes > MAX_LOG_BYTES) {
@@ -64,14 +81,28 @@ function command(
       }
     }
     proc.stdin.on('error', () => {})
-    proc.stdout.on('data', consume)
+    proc.stdout.on('data', (data) => {
+      if (!cacheStream) return consume(data)
+      binaryBytes += data.length
+      if (binaryBytes > CACHE_BYTES) {
+        failure = new Error('Package cache exceeds its archive budget.')
+        proc.kill('SIGTERM')
+      } else if (!cacheStream.write(data)) {
+        proc.stdout.pause()
+        cacheStream.once('drain', () => proc.stdout.resume())
+      }
+    })
     proc.stderr.on('data', consume)
     proc.on('error', (error) => {
       failure = error
     })
-    proc.on('close', (code) => {
+    proc.on('close', async (code) => {
       clearTimeout(timer)
       stream?.end()
+      if (cacheStream) {
+        cacheStream.end()
+        await cacheDone
+      }
       if (child === proc) child = null
       if (failure) reject(failure)
       else resolve({ code, text: Buffer.concat(chunks).toString('utf8') })
@@ -97,10 +128,11 @@ async function stats() {
       container,
       'node',
       '-e',
-      `const f=require('fs');const r=p=>{try{return f.readFileSync(p,'utf8')}catch{return null}};console.log(JSON.stringify({cpu:r('/sys/fs/cgroup/cpu.stat'),memoryPeak:r('/sys/fs/cgroup/memory.peak')}))`
+      `const f=require('fs');const r=p=>{try{return f.readFileSync(p,'utf8')}catch{return null}};const mounts={};for(const p of ['/workspace','/tmp']){try{const s=f.statfsSync(p);mounts[p]={totalBytes:s.blocks*s.bsize,availableBytes:s.bavail*s.bsize,totalInodes:s.files,availableInodes:s.ffree}}catch{mounts[p]=null}};console.log(JSON.stringify({cpu:r('/sys/fs/cgroup/cpu.stat'),memoryPeak:r('/sys/fs/cgroup/memory.peak'),mounts}))`
     ])
     const data = JSON.parse(text)
     return {
+      mounts: data.mounts,
       cpuSeconds:
         Number(data.cpu?.match(/^usage_usec (\d+)/m)?.[1]) / 1e6 || null,
       peakMemoryBytes:
@@ -110,6 +142,180 @@ async function stats() {
     }
   } catch {
     return { cpuSeconds: null, peakMemoryBytes: null }
+  }
+}
+async function validateCacheArchive(file) {
+  const extract = tar.extract()
+  let entries = 0
+  extract.on('entry', (header, stream, next) => {
+    if (
+      ++entries > 10000 ||
+      header.name.length > 512 ||
+      !/^_cacache\/(content-v2|index-v5)(\/[A-Za-z0-9_-]+)*\/?$/.test(
+        header.name
+      ) ||
+      !['file', 'directory'].includes(header.type) ||
+      !Number.isSafeInteger(header.size) ||
+      header.size < 0 ||
+      header.size > CACHE_BYTES
+    ) {
+      stream.resume()
+      extract.destroy(
+        new Error('Package cache contains an unsafe archive entry.')
+      )
+      return
+    }
+    stream.on('end', next)
+    stream.resume()
+  })
+  const input = fs.createReadStream(file)
+  input.on('error', (error) => extract.destroy(error))
+  try {
+    input.pipe(extract)
+    await finished(extract)
+  } finally {
+    input.destroy()
+  }
+}
+async function packageCache(flags, lock) {
+  const directory = flags['--cache-dir']
+  const scope = flags['--cache-scope']
+  const cache = { state: 'disabled', maxArchiveBytes: CACHE_BYTES }
+  report.cache = cache
+  if (!directory) return {}
+  if (!/^[a-f0-9]{64}$/.test(scope || ''))
+    throw new Error('A server-owned cache scope is required.')
+  fs.mkdirSync(directory, { recursive: true, mode: 0o700 })
+  const stat = fs.lstatSync(directory)
+  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.mode & 0o077)
+    throw new Error('Package cache requires a private server-owned directory.')
+  // One global slot: at most one 64 MiB archive plus one bounded replacement.
+  // Never extract repository-controlled archive entries on the management host.
+  const key = crypto
+    .createHash('sha256')
+    .update(
+      JSON.stringify({
+        scope,
+        lock: report.lockDigest,
+        runtime: report.runtime,
+        configuration: report.configRevision
+      })
+    )
+    .digest('hex')
+  const file = path.join(directory, key + '.tar')
+  for (const name of fs.readdirSync(directory)) {
+    if (!/^[a-f0-9]{64}\.tar(?:\.next)?$/.test(name)) continue
+    const candidate = path.join(directory, name),
+      info = fs.lstatSync(candidate)
+    if (
+      name !== key + '.tar' ||
+      Date.now() - info.mtimeMs > CACHE_TTL ||
+      !info.isFile() ||
+      info.size > CACHE_BYTES
+    )
+      fs.unlinkSync(candidate)
+  }
+  // Git/file/link dependencies do not always have lockfile integrity. Keep them cold.
+  const packages = Object.entries(lock.packages || {}).filter(([name]) => name)
+  if (
+    !lock.packages ||
+    packages.some(
+      ([, item]) =>
+        !item.resolved?.startsWith('https://') ||
+        !/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(item.integrity || '')
+    )
+  ) {
+    cache.state = 'ineligible-lockfile'
+    return {}
+  }
+  cache.state = 'miss'
+  await checked('docker', [
+    'exec',
+    container,
+    'rm',
+    '-rf',
+    '/workspace/.npm-cache'
+  ])
+  await checked('docker', [
+    'exec',
+    container,
+    'mkdir',
+    '-p',
+    '/workspace/.npm-cache'
+  ])
+  let fd
+  try {
+    fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)
+    const info = fs.fstatSync(fd)
+    if (!info.isFile() || info.size > CACHE_BYTES)
+      throw new Error('Invalid cache archive.')
+    await validateCacheArchive(file)
+    await checked(
+      'docker',
+      [
+        'exec',
+        '-i',
+        container,
+        'tar',
+        '--no-same-owner',
+        '--no-same-permissions',
+        '-xf',
+        '-',
+        '-C',
+        '/workspace/.npm-cache'
+      ],
+      { input: fs.createReadStream(file, { fd, autoClose: false }) }
+    )
+    cache.state = 'hit'
+    cache.restoredBytes = info.size
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      cache.state = 'invalid-archive'
+      await checked('docker', [
+        'exec',
+        container,
+        'rm',
+        '-rf',
+        '/workspace/.npm-cache'
+      ])
+    }
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd)
+  }
+  return {
+    async publish() {
+      if (cache.state === 'hit') {
+        cache.publish = 'unchanged'
+        return
+      }
+      const next = file + '.next'
+      try {
+        await checked(
+          'docker',
+          [
+            'exec',
+            container,
+            'tar',
+            '-cf',
+            '-',
+            '-C',
+            '/workspace/.npm-cache',
+            '_cacache/content-v2',
+            '_cacache/index-v5'
+          ],
+          { binaryFile: next, captureLimit: 0 }
+        )
+        const info = fs.lstatSync(next)
+        if (info.size > CACHE_BYTES) throw new Error('Cache archive too large.')
+        await validateCacheArchive(next)
+        fs.renameSync(next, file)
+        cache.savedBytes = info.size
+      } catch {
+        cache.publish = 'skipped'
+      } finally {
+        fs.rmSync(next, { force: true })
+      }
+    }
   }
 }
 async function main() {
@@ -127,7 +333,9 @@ async function main() {
         '--out',
         '--retry-of',
         '--platform',
-        '--run-id'
+        '--run-id',
+        '--cache-dir',
+        '--cache-scope'
       ].includes(key) ||
       !value ||
       Object.hasOwn(flags, key)
@@ -194,7 +402,7 @@ async function main() {
       .split('\n')
       .some(
         (file) =>
-          /(^|\/)(\.env(?:\.[^/]+)?|\.tmp|node_modules|db)(\/|$)|\.(?:sqlite|db|db-wal|db-shm)$/.test(
+          /(^|\/)(\.env(?:\.[^/]+)?|\.tmp|\.npm-cache|node_modules|db)(\/|$)|\.(?:sqlite|db|db-wal|db-shm)$/.test(
             file
           ) && !/\.env\.(?:example|sample)$/.test(file)
       )
@@ -292,7 +500,7 @@ async function main() {
         '--platform',
         platform,
         '--pull',
-        'always',
+        'missing',
         '-d',
         '--name',
         container,
@@ -327,9 +535,15 @@ async function main() {
         '--env',
         'HOME=/tmp/home',
         '--env',
-        'npm_config_cache=/tmp/npm-cache',
+        'npm_config_cache=/workspace/.npm-cache',
         '--env',
         'npm_config_update_notifier=false',
+        '--env',
+        'npm_config_audit=false',
+        '--env',
+        'npm_config_fund=false',
+        '--env',
+        'npm_config_jobs=2',
         '--env',
         'DATABASE_PATH=.tmp/db/test.sqlite',
         flags['--image'],
@@ -400,12 +614,14 @@ async function main() {
       throw new Error(
         'The reviewed Sailsconf pilot profile requires Node 22.12 or newer on the 22.x line.'
       )
+    const cache = await packageCache(flags, lock)
     report.state = 'running'
     save()
     const commands = [
       ['install', ['ci']],
       ...approved.map((name) => [name, ['run', name]])
     ]
+    let before = await stats()
     for (const [name, args] of commands) {
       const stepStarted = performance.now()
       const step = { name, required: true, state: 'running' }
@@ -421,10 +637,15 @@ async function main() {
       step.exitCode = result.code
       step.state = result.code === 0 ? 'passed' : 'failed'
       step.resources = await stats()
+      step.resources.stepCpuSeconds =
+        before.cpuSeconds != null && step.resources.cpuSeconds != null
+          ? Math.max(0, step.resources.cpuSeconds - before.cpuSeconds)
+          : null
+      before = step.resources
       save()
       if (result.code !== 0) {
         const error = new Error(
-          `${name} failed (exit ${result.code}); private CI log retained.`
+          `${name} failed (exit ${result.code}); inspect private CI log and per-mount available bytes/inodes in resource evidence.`
         )
         error.failureClass =
           result.code === 125
@@ -435,6 +656,7 @@ async function main() {
         throw error
       }
       if (name === 'install') {
+        await cache.publish?.()
         await checked('docker', ['network', 'disconnect', 'bridge', container])
         const networks = JSON.parse(
           await checked('docker', [
@@ -504,7 +726,9 @@ for (const signal of ['SIGINT', 'SIGTERM'])
     stopReason = 'cancelled'
     child?.kill('SIGTERM')
   })
-main().catch((error) => {
-  process.stderr.write(error.message + '\n')
-  process.exitCode = 1
-})
+if (require.main === module)
+  main().catch((error) => {
+    process.stderr.write(error.message + '\n')
+    process.exitCode = 1
+  })
+module.exports._private = { validateCacheArchive }
