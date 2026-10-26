@@ -11,15 +11,19 @@ test(
   'the host installer and detached engine update a disposable instance with real SQLite copies, receipts and preserved configuration',
   { skip: process.env.SLIPWAY_UPDATER_DOCKER !== '1', timeout: 600000 },
   async () => {
+    const targetVersion = require('../../package.json').version
+    const nextParts = targetVersion.split('.').map(Number)
+    nextParts[2]++
+    const nextVersion = nextParts.join('.')
     const id = crypto.randomUUID().slice(0, 8),
       name = 'updater-proof-' + id,
       network = name + '-network',
       volume = name + '-db',
       apps = name + '-apps',
       repository = 'updater-proof-image-' + id,
-      target = repository + ':0.0.121',
+      target = repository + ':' + targetVersion,
       old = repository + ':old',
-      broken = repository + ':0.0.122',
+      broken = repository + ':' + nextVersion,
       witness = name + '-witness'
     const root = path.resolve(__dirname, '../..')
     const docker = (...args) =>
@@ -70,7 +74,7 @@ test(
           cwd: root,
           encoding: 'utf8',
           timeout: 60000,
-          input: `FROM ${target}\nENV UPDATER_PROOF_FAIL=1\nRUN node -e "const f=require('fs'),p=require('/app/package.json');p.version='0.0.122';f.writeFileSync('/app/package.json',JSON.stringify(p))"\n`
+          input: `FROM ${target}\nENV UPDATER_PROOF_FAIL=1\nRUN node -e "const f=require('fs'),p=require('/app/package.json');p.version='${nextVersion}';f.writeFileSync('/app/package.json',JSON.stringify(p))"\n`
         }
       )
       docker('network', 'create', network)
@@ -136,7 +140,7 @@ test(
       assert.equal(health?.version, '0.0.120')
       assert.equal(health.releaseMigrations.ready, true)
       const before = inspect(name)
-      const output = execFileSync('bash', ['install.sh', '0.0.121'], {
+      const output = execFileSync('bash', ['install.sh', targetVersion], {
         cwd: root,
         encoding: 'utf8',
         timeout: 480000,
@@ -189,7 +193,7 @@ test(
       health = JSON.parse(
         docker('exec', name, 'curl', '-fsS', 'http://localhost:1337/health')
       )
-      assert.equal(health.version, '0.0.121')
+      assert.equal(health.version, targetVersion)
       assert.equal(health.releaseMigrations.ready, true)
       const status = JSON.parse(
         docker(
@@ -207,7 +211,7 @@ test(
         )
       )
       assert.equal(status.phase, 'success')
-      assert.equal(status.targetVersion, '0.0.121')
+      assert.equal(status.targetVersion, targetVersion)
       const manifest = JSON.parse(
         docker('exec', name, 'cat', status.backupDirectory + '/manifest.json')
       )
@@ -225,7 +229,7 @@ test(
       docker('update', '--restart', 'on-failure:1', name)
       let rejected = false
       try {
-        execFileSync('bash', ['install.sh', '0.0.122'], {
+        execFileSync('bash', ['install.sh', nextVersion], {
           cwd: root,
           encoding: 'utf8',
           timeout: 480000,
