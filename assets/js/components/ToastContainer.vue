@@ -6,6 +6,7 @@ import X from '@/components/ui/icons/X.vue'
 import Toast from '@/components/ui/toast/Toast.vue'
 import BackupToast from '@/components/BackupToast.vue'
 import DeploymentToast from '@/components/DeploymentToast.vue'
+import HostCleanupToast from '@/components/HostCleanupToast.vue'
 import ServiceActionToast from '@/components/ServiceActionToast.vue'
 
 const props = defineProps({
@@ -47,6 +48,11 @@ function updateBackup(item, state) {
   })
 }
 
+function dismissCleanup(item, dismiss) {
+  item.cleanup.onDismiss?.()
+  dismiss()
+}
+
 function activateAction(item, event, dismiss) {
   item.action?.onClick?.(event, item)
   dismiss()
@@ -66,6 +72,11 @@ function activateAction(item, event, dismiss) {
         v-if="item.kind === 'bridge-action-result'"
         :result="item.result"
         @dismiss="dismiss"
+      />
+      <HostCleanupToast
+        v-else-if="item.kind === 'host-cleanup'"
+        :cleanup="item.cleanup"
+        @dismiss="dismissCleanup(item, dismiss)"
       />
       <DeploymentToast
         v-else-if="item.kind === 'deployment'"

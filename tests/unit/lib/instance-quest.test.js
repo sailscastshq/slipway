@@ -243,8 +243,14 @@ test('build cache maintenance is allowlisted with strict preview input and indep
     await assert.rejects(adapter.trigger(job.name, randomUUID(), input), {
       status: 400
     })
-  await adapter.trigger(job.name, randomUUID(), { preview: true })
-  assert.deepEqual(inputsSent[0], { preview: true })
+  const requestId = randomUUID()
+  await adapter.trigger(job.name, requestId, { preview: true })
+  assert.deepEqual(inputsSent[0], { preview: true, requestId })
+  assert.deepEqual((await adapter.snapshot()).runs[0].inputs, { preview: true })
+  await assert.rejects(
+    adapter.trigger(job.name, randomUUID(), { requestId: randomUUID() }),
+    { status: 400 }
+  )
   finish()
   sails.config.buildCacheRetention = { remove: false }
   assert.equal((await adapter.snapshot()).jobs[0].cleanupEnabled, false)

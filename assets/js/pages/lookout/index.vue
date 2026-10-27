@@ -9,6 +9,7 @@ import { Link, Head, router, usePoll } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
+import HostDiskPrune from '@/components/HostDiskPrune.vue'
 
 defineOptions({
   layout: AppLayout
@@ -383,6 +384,8 @@ function envTelemetry(container) {
                 ></div>
               </div>
             </div>
+
+            <HostDiskPrune />
 
             <div
               data-test="lookout-observability-health"

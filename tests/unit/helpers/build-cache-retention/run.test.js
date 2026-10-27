@@ -46,6 +46,7 @@ async function fixture(t, config = {}) {
       { availableBytes: 30000000000, totalBytes: 301000000000 }
     ],
     jobs: 0,
+    update: { phase: 'idle' },
     audits: [],
     writes: [],
     logs: []
@@ -58,6 +59,7 @@ async function fixture(t, config = {}) {
     },
     helpers: {
       buildCacheRetention: {
+        getUpdateStatus: async () => state.update,
         getPolicy,
         getInventory: async () =>
           structuredClone(state.inventories.shift() || cache())
@@ -256,4 +258,52 @@ test('cache inventory validates engine active counts and rejects incomplete or a
     /incomplete/
   )
   assert.throws(() => parse('not json'))
+})
+
+test('active updater admission holds cleanup without invoking any prune command', async (t) => {
+  const { state, commands } = await fixture(t)
+  state.update = { phase: 'pulling', maintenanceBusy: true }
+  const result = await run()
+  assert.equal(result.status, 'held')
+  assert.deepEqual(result.holds, ['instance-update-active'])
+  assert.deepEqual(await commands(), [])
+})
+
+test('updater admission is rechecked before mutation and unknown ownership fails closed', async (t) => {
+  const { commands } = await fixture(t)
+  let checks = 0
+  sails.helpers.buildCacheRetention.getUpdateStatus = async () =>
+    ++checks === 1
+      ? { phase: 'idle' }
+      : { phase: 'starting', maintenanceBusy: true }
+  const result = await run()
+  assert.equal(result.status, 'held')
+  assert.deepEqual(result.holds, ['instance-update-active'])
+  assert.deepEqual(await commands(), [['builder', 'prune', '--help']])
+  sails.helpers.buildCacheRetention.getUpdateStatus = async () => {
+    throw new Error('fixture ownership unavailable')
+  }
+  await assert.rejects(run(), /Build cache cleanup failed/)
+  assert.deepEqual(await commands(), [['builder', 'prune', '--help']])
+})
+
+test('manual cleanup persists correlated real stages before mutation and measurement', async (t) => {
+  const { state } = await fixture(t)
+  const requestId = require('node:crypto').randomUUID()
+  await run({ requestId })
+  const snapshots = state.writes.map((v) => v.value)
+  assert.ok(snapshots.every((v) => v.requestId === requestId))
+  const phases = snapshots.map((v) => v.phase)
+  assert.equal(phases[0], 'checking')
+  assert.ok(phases.indexOf('pruning') > phases.indexOf('checking'))
+  assert.ok(phases.indexOf('refreshing') > phases.indexOf('pruning'))
+  assert.equal(phases.at(-1), 'complete')
+  assert.equal(
+    snapshots.find((v) => v.phase === 'pruning').filesystemAvailableDeltaBytes,
+    null
+  )
+  assert.equal(
+    snapshots.find((v) => v.phase === 'refreshing').dockerReportedReclaimed,
+    '74.75GB'
+  )
 })

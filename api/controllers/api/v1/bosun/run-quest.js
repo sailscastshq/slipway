@@ -25,6 +25,18 @@ module.exports = {
       if (exit) throw { [exit]: { error: error.message } }
       throw error
     }
+    if (!result.duplicate && name === 'retain-build-cache') {
+      const user = await User.forRequest(this.req)
+      await AuditLog.create({
+        action: 'infrastructure.cache-prune.requested',
+        resourceType: 'build-cache-retention',
+        resourceId: requestId,
+        user: user.id,
+        team: user.team,
+        ipAddress: this.req.ip,
+        details: { name, preview: jobInputs?.preview === true }
+      })
+    }
     if (result.duplicate) throw { duplicate: result }
     return result
   }

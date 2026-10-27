@@ -789,6 +789,7 @@ module.exports.routes = {
   'GET /api/v1/bosun/helm/completions': 'api/v1/bosun/get-helm-completions',
   'POST /api/v1/helm/executions/:executionId/cancel':
     'api/v1/helm/cancel-execution',
+  'GET /api/v1/bosun/disk-cleanup': 'api/v1/bosun/get-disk-cleanup',
   'GET /api/v1/bosun/quest': 'api/v1/bosun/get-quest',
   'GET /api/v1/bosun/quest/runs/:runId': 'api/v1/bosun/get-quest-run',
   'GET /api/v1/bosun/quest/runs/:runId/logs': 'api/v1/bosun/get-quest-run-logs',

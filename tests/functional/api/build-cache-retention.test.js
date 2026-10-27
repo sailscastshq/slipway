@@ -9,6 +9,7 @@ test(
   { world: 'configured-slipway' },
   async ({ sails }) => {
     const original = {
+      update: sails.helpers.buildCacheRetention.getUpdateStatus,
       appPath: sails.config.appPath,
       policy: sails.config.buildCacheRetention,
       inventory: sails.helpers.buildCacheRetention.getInventory,
@@ -22,6 +23,9 @@ test(
         typeof sails.helpers.buildCacheRetention.getInventory.with,
         'function'
       )
+      sails.helpers.buildCacheRetention.getUpdateStatus = async () => ({
+        phase: 'idle'
+      })
       sails.config.appPath = root
       sails.config.buildCacheRetention = { remove: true }
       sails.helpers.buildCacheRetention.getInventory = async () => ({
@@ -54,6 +58,7 @@ test(
         []
       )
     } finally {
+      sails.helpers.buildCacheRetention.getUpdateStatus = original.update
       sails.config.appPath = original.appPath
       sails.config.buildCacheRetention = original.policy
       sails.helpers.buildCacheRetention.getInventory = original.inventory

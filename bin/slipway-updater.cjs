@@ -11,6 +11,8 @@ const {
   networkAliases
 } = require('../api/helpers/system/build-update-docker-args')
 const execute = promisify(execFile)
+const CACHE_GUARD_CHECK =
+  "const fs=require('node:fs');try{console.log(fs.readdirSync('/app/db/image-operation-guard').includes('cleanup')?'held':'clear')}catch(e){if(e.code!=='ENOENT')throw e;console.log('clear')}"
 const PREFIX = 'SLIPWAY_UPDATE '
 const BACKUP_PROGRESS_PREFIX = 'SLIPWAY_BACKUP_PROGRESS '
 const TERMINAL = new Set(['success', 'failed', 'rolled-back', 'interrupted'])
@@ -198,7 +200,7 @@ function createUpdater({
       (job.State?.Status === 'created' &&
         now() - Number(labels['slipway.updater.created']) < 30000)
     )
-      return base
+      return { ...base, maintenanceBusy: true }
     if (TERMINAL.has(base.phase)) return base
     // A dead runner is not proof of rollback. Reconcile only from exact container identity and normal health.
     const live = await inspect(containerName)
@@ -247,6 +249,41 @@ function createUpdater({
         'Update ownership was interrupted. Inspect the retained updater and rollback containers before retrying.',
       canRetry: false
     }
+  }
+  async function maintenanceStatus() {
+    // Cache is host-wide, so include custom-named Slipway installations as well.
+    const names = String(
+      await docker(
+        [
+          'ps',
+          '--all',
+          '--filter',
+          'label=slipway.updater.protocol=1',
+          '--format',
+          '{{.Names}}'
+        ],
+        { timeout: 15000, maxBuffer: 65536 }
+      )
+    )
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+    if (
+      names.length > 10 ||
+      names.some((name) => !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*-updater$/.test(name))
+    )
+      throw new Error('Host update ownership could not be verified.')
+    for (const name of names) {
+      const state = await status({ containerName: name.slice(0, -8) })
+      if (
+        state.maintenanceBusy === true ||
+        state.cleanupPending === true ||
+        (state.phase === 'failed' && state.canRetry !== true) ||
+        !['idle', 'success', 'failed', 'rolled-back'].includes(state.phase)
+      )
+        return { phase: 'maintenance', maintenanceBusy: true }
+    }
+    return { phase: 'idle', maintenanceBusy: false }
   }
   async function start({
     targetImage,
@@ -465,6 +502,33 @@ function createUpdater({
       if (source.State?.Running && !normal(originalHealth))
         throw new Error(
           'The original Slipway container has not completed normal startup; update stopped.'
+        )
+      // The updater owns its unique Docker admission name before checking the
+      // shared cache guard. Cleanup owns that guard before checking this name.
+      // This two-sided ordering prevents either operation passing an overlapping
+      // admission, including updates started from the terminal or a stopped source.
+      const cacheAdmission = String(
+        await docker(
+          [
+            'run',
+            '--rm',
+            '--network',
+            'none',
+            '--read-only',
+            '--volumes-from',
+            source.Id + ':ro',
+            '--entrypoint',
+            'node',
+            source.Image,
+            '-e',
+            CACHE_GUARD_CHECK
+          ],
+          { timeout: 30000, maxBuffer: 65536 }
+        )
+      ).trim()
+      if (cacheAdmission !== 'clear')
+        throw new Error(
+          'Disk cleanup holds maintenance admission. Wait for its verified completion before updating.'
         )
       progress('pulling', 'Downloading the reviewed release image')
       if (!skipPull) await docker(['pull', targetImage], { timeout: 300000 })
@@ -901,7 +965,7 @@ function createUpdater({
       })
     }
   }
-  return { start, status, run }
+  return { start, status, run, maintenanceStatus }
 }
 
 async function main(args) {
@@ -955,6 +1019,7 @@ async function main(args) {
 }
 module.exports = {
   createUpdater,
+  CACHE_GUARD_CHECK,
   PREFIX,
   TERMINAL,
   main,
