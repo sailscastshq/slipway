@@ -11,7 +11,8 @@ const props = defineProps({
   project: Object,
   environment: Object,
   app: Object,
-  appearance: Object
+  appearance: Object,
+  widgetStyles: String
 })
 const base = computed(
   () =>
@@ -426,7 +427,6 @@ function resetDraft() {
               >
                 {{ choice }}</button
               ><button
-                v-if="!widget"
                 type="button"
                 :aria-pressed="mobile"
                 class="text-xs"
@@ -439,7 +439,7 @@ function resetDraft() {
           <div
             class="overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 p-3 dark:border-gray-800 dark:bg-gray-900 sm:p-6"
           >
-            <div class="mb-5 flex justify-center gap-5">
+            <div v-if="!widget" class="mb-5 flex justify-center gap-5">
               <button
                 v-for="choice in ['feedback', 'roadmap', 'updates']"
                 :key="choice"
@@ -452,12 +452,13 @@ function resetDraft() {
                 {{ choice }}
               </button>
             </div>
-            <div class="overflow-hidden rounded-xl shadow-lg">
+            <div class="overflow-hidden rounded-xl">
               <AppearancePreview
                 :appearance="form.appearance"
                 :fallback-name="project.name"
                 :mode="mode"
-                :surface="surface"
+                v-model:surface="surface"
+                :widget-styles="widgetStyles"
                 :widget="widget"
                 :mobile="mobile"
               />

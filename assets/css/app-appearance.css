@@ -101,22 +101,6 @@ html[data-app-appearance] body {
   color: var(--app-text);
 }
 
-.appearance-widget-preview {
-  display: grid;
-  grid-template-rows: 56px minmax(0, 1fr) auto;
-  height: 620px;
-  max-width: 390px;
-  margin: auto;
-  background: var(--app-canvas);
-}
-.appearance-widget-preview > .app-appearance {
-  min-height: 0;
-  overflow-y: auto;
-}
-.appearance-widget-preview .min-h-screen {
-  min-height: 100%;
-}
-
 .app-appearance :is(input, textarea)::placeholder {
   color: var(--app-muted-text);
   opacity: 1;

@@ -1,3 +1,4 @@
+const widgetShell = require('../../lib/bearing-widget-shell')
 module.exports = {
   friendlyName: 'View Bearing bootstrap',
 
@@ -17,10 +18,10 @@ module.exports = {
 }
 
 function bootstrapSource() {
-  return `(${bearingBootstrap.toString()})();`
+  return `(${bearingBootstrap.toString()})(${widgetShell.toString()});`
 }
 
-function bearingBootstrap() {
+function bearingBootstrap(widgetShell) {
   const script = document.currentScript
   if (!script || script.dataset.slipwayBearingReady) return
   script.dataset.slipwayBearingReady = 'true'
@@ -34,7 +35,6 @@ function bearingBootstrap() {
     .then((config) => {
       if (!config?.enabled) return
 
-      const side = config.side === 'left' ? 'left' : 'right'
       const surfaceOrder = ['feedback', 'roadmap', 'updates']
       const surfaces = Object.fromEntries(
         surfaceOrder
@@ -69,57 +69,7 @@ function bearingBootstrap() {
       document.body.append(host)
 
       const root = host.attachShadow({ mode: 'open' })
-      root.innerHTML = `
-        <link rel="stylesheet" href="${escapeHtml(config.widgetStyles)}">
-        <link rel="stylesheet" href="${escapeHtml(config.stylesheet)}?widget=1">
-
-        <button
-          type="button"
-          class="bearing-trigger"
-          data-trigger
-          data-side="${side}"
-          aria-haspopup="dialog"
-          aria-expanded="false"
-          aria-controls="slipway-bearing-panel"
-        ></button>
-        <dialog
-          id="slipway-bearing-panel"
-          class="bearing-panel"
-          data-panel
-          data-side="${side}"
-          data-opened-from="host"
-          aria-labelledby="slipway-bearing-title"
-          aria-modal="true"
-        >
-          <div class="bearing-panel-surface">
-          <header class="bearing-panel-header">
-            <span id="slipway-bearing-title">${escapeHtml(
-              config.appName
-            )}</span>
-            <button
-              type="button"
-              class="bearing-panel-close"
-              data-close
-              aria-label="Close"
-            >×</button>
-          </header>
-          <iframe data-frame title="${escapeHtml(
-            config.appName
-          )} Feedback"></iframe>
-          <nav class="bearing-panel-nav" aria-label="Bearing">
-            <button type="button" data-surface="feedback">Feedback</button>
-            <button type="button" data-surface="roadmap">Roadmap</button>
-            <button type="button" data-surface="updates">Updates</button>
-          </nav>
-          <a
-            class="bearing-powered-by"
-            href="https://docs.sailscasts.com/slipway"
-            target="_blank"
-            rel="noreferrer"
-          >Powered by Slipway</a>
-          </div>
-        </dialog>
-      `
+      root.innerHTML = widgetShell(config)
 
       Promise.all(
         Array.from(root.querySelectorAll('link[rel="stylesheet"]')).map(
@@ -464,17 +414,5 @@ function bearingBootstrap() {
     } catch {
       // The widget remains usable when storage is unavailable.
     }
-  }
-
-  function escapeHtml(value) {
-    return String(value || '').replace(/[&<>"']/g, (character) => {
-      return {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-      }[character]
-    })
   }
 }

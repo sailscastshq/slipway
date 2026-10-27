@@ -384,3 +384,182 @@ test(
     expect(errors).toEqual([])
   }
 )
+
+test(
+  'Widget draft preview shares the floating shell and stays isolated while opening, navigating and changing viewport',
+  {
+    browser: true,
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: { slug: 'widget-preview-qa', name: 'TemboAI' }
+      }
+    }
+  },
+  async ({ sails, world, login, page, expect }) => {
+    const current = world.current
+    const app = current.apps.web
+    const env = current.environments.production
+    const project = current.projects.deploymentTarget
+    await login.withPassword('genesisUser', page, {
+      password: current.auth.genesisUserPassword
+    })
+    await page.resize(1440, 1100)
+    await page.goto(
+      `/projects/${project.slug}/environments/${env.slug}/apps/${app.slug}/appearance`
+    )
+    await page.raw.locator('#appearance-name').fill('TemboAI')
+    await page.raw
+      .locator('#appearance-logoLight')
+      .setInputFiles(path.resolve('tests/fixtures/appearance/tembo-logo.png'))
+    await page.raw
+      .locator('#appearance-logoDark')
+      .setInputFiles(
+        path.resolve('tests/fixtures/appearance/tembo-logo-dark.png')
+      )
+    for (const mode of ['light', 'dark']) {
+      await page.raw
+        .getByRole('button', { name: new RegExp('^' + mode + '$', 'i') })
+        .first()
+        .click()
+      const labels = {
+        canvas: 'Background',
+        surface: 'Surface',
+        text: 'Text',
+        mutedText: 'Secondary text',
+        border: 'Border',
+        accent: 'Accent',
+        accentText: 'On accent',
+        focus: 'Focus ring'
+      }
+      for (const [token, value] of Object.entries(brands.tembo[mode]))
+        await page.raw
+          .getByLabel(`${mode} ${labels[token]}`, { exact: true })
+          .fill(value)
+    }
+    await page.raw
+      .getByRole('button', { name: /^light$/i })
+      .last()
+      .click()
+    const errors = []
+    page.raw.on('pageerror', (error) => errors.push(error.message))
+    const requests = []
+    page.raw.on('request', (request) =>
+      requests.push({ url: request.url(), method: request.method() })
+    )
+    const storage = await page.raw.evaluate(() =>
+      JSON.stringify({ ...localStorage })
+    )
+    const stage = page.raw.frameLocator(
+      'iframe[title="Draft appearance preview"]'
+    )
+    const widget = stage.locator('[data-widget-preview]')
+    const panel = widget.locator('dialog')
+    const content = stage.frameLocator('[data-frame]')
+    await expect(panel).toBeVisible()
+    await expect(
+      content.getByText('A little less busywork', { exact: true })
+    ).toBeVisible()
+    await expect(widget.locator('#slipway-bearing-title')).toContainText(
+      'TemboAI'
+    )
+    await expect(panel).toHaveCSS('width', '420px')
+    expect(
+      await panel.evaluate((el) => Math.round(el.getBoundingClientRect().width))
+    ).toBe(420)
+    await widget.getByRole('button', { name: 'Roadmap', exact: true }).click()
+    await expect(
+      content.getByRole('heading', { name: 'Roadmap', exact: true })
+    ).toBeVisible()
+    await widget.getByRole('button', { name: 'Updates', exact: true }).click()
+    await expect(
+      content.getByText('Good things, made simpler', { exact: true })
+    ).toBeVisible()
+    await expect(widget.locator('.bearing-powered-by')).not.toHaveAttribute(
+      'href'
+    )
+    expect(await content.locator('[inert]').count()).toBe(1)
+    await widget
+      .getByRole('button', {
+        name: 'Close what’s new for TemboAI',
+        exact: true
+      })
+      .click()
+    await expect(panel).not.toBeVisible()
+    await expect(
+      widget.getByRole('button', {
+        name: 'Open what’s new for TemboAI',
+        exact: true
+      })
+    ).toBeFocused()
+    await widget
+      .getByRole('button', { name: 'Open what’s new for TemboAI', exact: true })
+      .click()
+    await expect(panel).toBeVisible()
+    await widget.locator('[data-trigger]').press('Escape')
+    await expect(panel).not.toBeVisible()
+    await widget
+      .getByRole('button', { name: 'Open what’s new for TemboAI', exact: true })
+      .click()
+    await widget.getByRole('button', { name: 'Feedback', exact: true }).click()
+    const root = path.resolve('.tmp/screenshots/issue-877')
+    fs.mkdirSync(root, { recursive: true })
+    for (const mode of ['light', 'dark']) {
+      await page.raw.emulateMedia({ colorScheme: mode })
+      await page.raw
+        .getByRole('button', { name: new RegExp('^' + mode + '$', 'i') })
+        .first()
+        .click()
+      await page.raw
+        .getByRole('button', { name: new RegExp('^' + mode + '$', 'i') })
+        .last()
+        .click()
+      await expect(widget).toHaveAttribute('data-appearance-mode', mode)
+      const logo = widget.locator('.bearing-app-logo')
+      await expect(logo).toHaveAttribute('src', /^data:image\/png;base64,/)
+      await page.raw.screenshot({
+        path: path.join(root, `tembo-widget-preview-${mode}.png`),
+        fullPage: true
+      })
+    }
+    await page.raw.getByRole('button', { name: 'Mobile', exact: true }).click()
+    expect(
+      await panel.evaluate((el) => Math.round(el.getBoundingClientRect().width))
+    ).toBe(366)
+    await widget
+      .locator('.bearing-panel-surface')
+      .evaluate((el) =>
+        el.getAnimations().forEach((animation) => animation.finish())
+      )
+    expect(
+      await panel.evaluate((el) => Math.round(el.getBoundingClientRect().top))
+    ).toBe(16)
+    await page.raw.screenshot({
+      path: path.join(root, 'tembo-widget-preview-mobile-dark.png'),
+      fullPage: true
+    })
+    await page.raw
+      .getByRole('button', { name: 'Public page', exact: true })
+      .click()
+    await expect(
+      stage.getByText('A little less busywork', { exact: true })
+    ).toBeVisible()
+    await page.raw.getByRole('button', { name: 'Widget', exact: true }).click()
+    await expect(widget.locator('dialog')).toBeVisible()
+    expect(
+      await sails.models.setting.count({ key: `app-appearance:v1:${app.id}` })
+    ).toBe(0)
+    expect(
+      await page.raw.evaluate(() => JSON.stringify({ ...localStorage }))
+    ).toBe(storage)
+    expect(requests.filter((r) => r.method !== 'GET')).toEqual([])
+    expect(
+      requests.filter((r) =>
+        /widget-config|bootstrap\.js|\/bearing\/.*(?:feedback|roadmap|updates)/.test(
+          r.url
+        )
+      )
+    ).toEqual([])
+    expect(errors).toEqual([])
+  }
+)
