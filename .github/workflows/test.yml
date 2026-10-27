@@ -64,10 +64,17 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Verify fixture startup selection and owned-resource cleanup
+        run: node --test tests/prelift/local-upgrade-cleanup.test.cjs
       - name: Build and boot the disposable local installation
         run: npm run local
-      - name: Verify the previous public release database upgrade
+      - name: Verify the historical 0.0.86 database upgrade
         run: npm run local:upgrade-check -- 0.0.86
+      - name: Verify the current public 0.0.124 database upgrade
+        run: npm run local:upgrade-check -- 0.0.124
       - name: Remove only the disposable local installation
         if: always()
         run: npm run local:destroy

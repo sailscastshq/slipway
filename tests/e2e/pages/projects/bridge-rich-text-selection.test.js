@@ -178,6 +178,27 @@ for (const browser of ['desktop', 'mobile']) {
           ).toBe(true)
           await page.screenshot(path.join(out, `${browser}-${colorScheme}.png`))
         }
+        await editor.evaluate((element) => {
+          const data = new DataTransfer()
+          data.setData(
+            'text/html',
+            '<p>Sanitized paste <strong>kept</strong></p><img src=x onerror="window.dependencyPasteExecuted=true"><svg><a><animate attributeName="href" values="x;javascript:alert(1)"/></a></svg>'
+          )
+          element.dispatchEvent(
+            new ClipboardEvent('paste', {
+              clipboardData: data,
+              bubbles: true,
+              cancelable: true
+            })
+          )
+        })
+        await expect(editor).toContainText('Sanitized paste')
+        await expect(
+          editor.locator('script,svg,iframe,[onerror],[onclick]')
+        ).toHaveCount(0)
+        expect(
+          await page.raw.evaluate(() => window.dependencyPasteExecuted)
+        ).toBe(undefined)
         expect(page).toHaveNoJavascriptErrors()
       } finally {
         Object.assign(sails.helpers.bridge, original)
