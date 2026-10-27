@@ -64,7 +64,7 @@ module.exports = {
       resolved.space.feedbackCategories
     )
     const image = await sails.helpers.bearing.renderSocialImage.with({
-      appName: resolved.project.name,
+      appName: resolved.appearance.displayName,
       surface,
       item,
       itemCount,

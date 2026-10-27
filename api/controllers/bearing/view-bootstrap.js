@@ -64,293 +64,15 @@ function bearingBootstrap() {
 
       const host = document.createElement('div')
       host.dataset.slipwayBearingWidget = ''
+      if (config.appearance?.configured) host.dataset.appAppearance = '1'
+      host.hidden = true
       document.body.append(host)
 
       const root = host.attachShadow({ mode: 'open' })
       root.innerHTML = `
-        <style>
-          :host {
-            all: initial;
-            --bearing-safe-top: env(safe-area-inset-top, 0px);
-            --bearing-safe-right: env(safe-area-inset-right, 0px);
-            --bearing-safe-bottom: env(safe-area-inset-bottom, 0px);
-            --bearing-safe-left: env(safe-area-inset-left, 0px);
-          }
-          *, *::before, *::after { box-sizing: border-box; }
+        <link rel="stylesheet" href="${escapeHtml(config.widgetStyles)}">
+        <link rel="stylesheet" href="${escapeHtml(config.stylesheet)}?widget=1">
 
-          .bearing-trigger {
-            align-items: center;
-            backdrop-filter: blur(16px);
-            background: rgb(255 255 255 / 92%);
-            border: 1px solid rgb(17 17 17 / 12%);
-            border-radius: 14px;
-            bottom: calc(20px + var(--bearing-safe-bottom));
-            box-shadow: 0 14px 38px -14px rgb(0 0 0 / 36%);
-            color: #171717;
-            cursor: pointer;
-            display: inline-flex;
-            font: 600 14px/1 system-ui, sans-serif;
-            gap: 10px;
-            min-height: 48px;
-            padding: 0 15px 0 9px;
-            position: fixed;
-            transition: transform 160ms ease, box-shadow 160ms ease;
-            z-index: 2147483001;
-          }
-
-          .bearing-trigger:hover {
-            box-shadow: 0 18px 44px -14px rgb(0 0 0 / 42%);
-            transform: translateY(-2px);
-          }
-          .bearing-trigger:focus-visible {
-            outline: 3px solid rgb(59 130 246 / 48%);
-            outline-offset: 3px;
-          }
-          .bearing-trigger[hidden] { display: none; }
-          .bearing-trigger[data-side='right'] { right: calc(20px + var(--bearing-safe-right)); }
-          .bearing-trigger[data-side='left'] { left: calc(20px + var(--bearing-safe-left)); }
-          .bearing-trigger[aria-expanded='true'] {
-            padding: 0;
-            width: 48px;
-            justify-content: center;
-          }
-          .bearing-trigger[aria-expanded='true']:hover { transform: none; }
-          .bearing-trigger[aria-expanded='true'] .bearing-trigger-mark {
-            background: transparent;
-            color: inherit;
-            font-size: 26px;
-          }
-          .bearing-trigger-mark {
-            align-items: center;
-            background: #171717;
-            border-radius: 9px;
-            color: #fff;
-            display: inline-flex;
-            font: 600 15px/1 system-ui, sans-serif;
-            height: 30px;
-            justify-content: center;
-            width: 30px;
-          }
-
-          .bearing-panel {
-            background: transparent;
-            border: 0;
-            bottom: calc(76px + var(--bearing-safe-bottom));
-            color: #111;
-            height: min(620px, calc(100dvh - 108px - var(--bearing-safe-bottom) - var(--bearing-safe-top)));
-            inset-block-start: auto;
-            margin: 0;
-            max-height: none;
-            max-width: none;
-            overflow: visible;
-            padding: 0;
-            position: fixed;
-            width: min(420px, calc(100vw - 40px - var(--bearing-safe-left) - var(--bearing-safe-right)));
-            z-index: 2147483000;
-          }
-          .bearing-panel[data-side='right'] { left: auto; right: calc(20px + var(--bearing-safe-right)); }
-          .bearing-panel[data-side='left'] { left: calc(20px + var(--bearing-safe-left)); right: auto; }
-          .bearing-panel[data-opened-from='host'] { bottom: 20px; }
-          .bearing-panel[open] { display: block; }
-          .bearing-panel-surface {
-            background: #fff;
-            border: 1px solid #dedede;
-            border-radius: 20px;
-            box-shadow: 0 24px 70px rgb(0 0 0 / 22%);
-            display: grid;
-            grid-template-rows: 52px minmax(0, 1fr) auto 30px;
-            height: 100%;
-            overflow: hidden;
-          }
-          .bearing-panel[open] .bearing-panel-surface {
-            animation: bearing-panel-in 180ms cubic-bezier(.2, .8, .2, 1);
-          }
-          .bearing-panel[data-closing] .bearing-panel-surface {
-            animation: bearing-panel-out 140ms ease-in both;
-          }
-          .bearing-panel[data-closing] .bearing-trigger {
-            opacity: 0;
-            transform: scale(.9);
-            transition: opacity 140ms ease-in, transform 140ms ease-in;
-          }
-          .bearing-panel-close[hidden] { display: none; }
-          .bearing-panel::backdrop { background: transparent; }
-
-          .bearing-panel-header {
-            align-items: center;
-            background: #fff;
-            border-bottom: 1px solid #ececec;
-            color: #111;
-            display: flex;
-            font: 600 14px/1 system-ui, sans-serif;
-            justify-content: space-between;
-            padding: 0 10px 0 16px;
-          }
-          .bearing-panel-close {
-            align-items: center;
-            background: transparent;
-            border: 0;
-            border-radius: 10px;
-            color: #777;
-            cursor: pointer;
-            display: inline-flex;
-            font: 500 22px/1 system-ui, sans-serif;
-            height: 36px;
-            justify-content: center;
-            padding: 0;
-            width: 36px;
-          }
-          .bearing-panel-close:hover { background: #f4f4f4; color: #111; }
-          .bearing-panel-close:focus-visible {
-            outline: 2px solid #3b82f6;
-            outline-offset: 1px;
-          }
-          .bearing-panel iframe {
-            background: #fff;
-            border: 0;
-            display: block;
-            height: 100%;
-            width: 100%;
-          }
-          .bearing-panel-nav {
-            background: #fafafa;
-            display: grid;
-            gap: 4px;
-            grid-auto-columns: minmax(0, 1fr);
-            grid-auto-flow: column;
-            padding: 8px;
-          }
-          .bearing-panel-nav button {
-            align-items: center;
-            background: transparent;
-            border: 0;
-            border-radius: 10px;
-            color: #777;
-            cursor: pointer;
-            display: inline-flex;
-            font: 500 13px/1 system-ui, sans-serif;
-            justify-content: center;
-            min-height: 44px;
-            padding: 0 10px;
-          }
-          .bearing-panel-nav button:hover { background: #f0f0f0; color: #111; }
-          .bearing-panel-nav button:focus-visible {
-            outline: 2px solid #3b82f6;
-            outline-offset: -2px;
-          }
-          .bearing-panel-nav button[aria-current='page'] {
-            background: #fff;
-            box-shadow: 0 1px 4px rgb(0 0 0 / 10%);
-            color: #111;
-            font-weight: 650;
-          }
-          .bearing-panel-nav button[hidden] { display: none; }
-          .bearing-powered-by {
-            align-items: center;
-            background: #fafafa;
-            color: #999;
-            display: flex;
-            font: 500 11px/1 system-ui, sans-serif;
-            justify-content: center;
-            text-decoration: none;
-          }
-          .bearing-powered-by:hover { color: #555; }
-          .bearing-powered-by:focus-visible {
-            border-radius: 4px;
-            outline: 2px solid #3b82f6;
-            outline-offset: -1px;
-          }
-
-          @keyframes bearing-panel-in {
-            from { opacity: 0; transform: translateY(10px) scale(.985); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
-          }
-
-          @keyframes bearing-panel-out {
-            from { opacity: 1; transform: translateY(0) scale(1); }
-            to { opacity: 0; transform: translateY(10px) scale(.985); }
-          }
-
-          @media (prefers-color-scheme: dark) {
-            .bearing-trigger {
-              background: rgb(17 17 17 / 92%);
-              border-color: rgb(255 255 255 / 16%);
-              color: #fff;
-            }
-            .bearing-trigger-mark { background: #fff; color: #171717; }
-            .bearing-panel-surface { background: #030712; border-color: #30343b; }
-            .bearing-panel-header {
-              background: #030712;
-              border-color: #20242b;
-              color: #fff;
-            }
-            .bearing-panel-close { color: #aaa; }
-            .bearing-panel-close:hover { background: #171b22; color: #fff; }
-            .bearing-panel iframe { background: #030712; }
-            .bearing-panel-nav,
-            .bearing-powered-by { background: #090d14; }
-            .bearing-panel-nav button { color: #999; }
-            .bearing-panel-nav button:hover {
-              background: #171b22;
-              color: #fff;
-            }
-            .bearing-panel-nav button[aria-current='page'] {
-              background: #1d222b;
-              box-shadow: none;
-              color: #fff;
-            }
-            .bearing-powered-by:hover { color: #ddd; }
-          }
-
-          @media (max-width: 640px) {
-            .bearing-trigger { bottom: calc(12px + var(--bearing-safe-bottom)); }
-            .bearing-trigger[data-side='right'] { right: calc(12px + var(--bearing-safe-right)); }
-            .bearing-trigger[data-side='left'] { left: calc(12px + var(--bearing-safe-left)); }
-            .bearing-panel {
-              bottom: 0;
-              height: min(760px, calc(100dvh - 16px));
-              width: 100vw;
-            }
-            .bearing-panel[data-side='right'],
-            .bearing-panel[data-side='left'] {
-              left: 0;
-              right: 0;
-            }
-            .bearing-panel[data-opened-from='host'] { bottom: 0; }
-            .bearing-panel[data-opened-from='widget'] {
-              bottom: calc(72px + var(--bearing-safe-bottom));
-              height: min(760px, calc(100dvh - 88px - var(--bearing-safe-bottom) - var(--bearing-safe-top)));
-              width: calc(100vw - 24px - var(--bearing-safe-left) - var(--bearing-safe-right));
-            }
-            .bearing-panel[data-opened-from='widget'][data-side='right'] { left: auto; right: calc(12px + var(--bearing-safe-right)); }
-            .bearing-panel[data-opened-from='widget'][data-side='left'] { left: calc(12px + var(--bearing-safe-left)); right: auto; }
-            .bearing-panel[data-opened-from='host'] .bearing-panel-surface {
-              border-bottom: 0;
-              border-radius: 20px 20px 0 0;
-            }
-            .bearing-panel[open]:not([data-closing]) .bearing-panel-surface {
-              animation-name: bearing-sheet-in;
-            }
-            .bearing-panel-surface {
-              grid-template-rows:
-                52px minmax(0, 1fr) auto
-                calc(30px + var(--bearing-safe-bottom));
-            }
-            .bearing-powered-by {
-              padding-bottom: var(--bearing-safe-bottom);
-            }
-          }
-
-          @media (prefers-reduced-motion: reduce) {
-            .bearing-panel[open] .bearing-panel-surface { animation: none; }
-            .bearing-trigger { transition: none !important; }
-          }
-
-          @keyframes bearing-sheet-in {
-            from { opacity: .96; transform: translateY(100%); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-        </style>
         <button
           type="button"
           class="bearing-trigger"
@@ -399,11 +121,82 @@ function bearingBootstrap() {
         </dialog>
       `
 
+      Promise.all(
+        Array.from(root.querySelectorAll('link[rel="stylesheet"]')).map(
+          (link) =>
+            new Promise((resolve) => {
+              link.addEventListener('load', resolve, { once: true })
+              link.addEventListener('error', resolve, { once: true })
+              if (link.sheet) resolve()
+            })
+        )
+      ).then(() => {
+        host.hidden = false
+      })
       const trigger = root.querySelector('[data-trigger]')
       const panel = root.querySelector('[data-panel]')
       const closeButton = root.querySelector('[data-close]')
       const frame = root.querySelector('[data-frame]')
       const surfaceButtons = root.querySelectorAll('[data-surface]')
+      const appearance = config.appearance
+      const media = window.matchMedia('(prefers-color-scheme: dark)')
+      let currentMode
+      let logo
+      if (appearance?.configured && appearance.logoLight) {
+        logo = document.createElement('img')
+        logo.className = 'bearing-app-logo'
+        logo.alt = appearance.logoText || ''
+        logo.addEventListener('error', () => {
+          logo.hidden = true
+        })
+        root.querySelector('#slipway-bearing-title').prepend(logo)
+      }
+      function resolvedMode() {
+        const saved = appearance?.mode || 'system'
+        if (saved === 'light' || saved === 'dark') return saved
+        if (saved === 'host') {
+          const element = document.documentElement
+          const mapping = element.dataset.theme || element.dataset.colorScheme
+          if (mapping === 'light' || mapping === 'dark') return mapping
+          if (element.classList.contains('dark')) return 'dark'
+          if (element.classList.contains('light')) return 'light'
+          const fallback = appearance.fallbackMode
+          if (fallback === 'light' || fallback === 'dark') return fallback
+        }
+        return media.matches ? 'dark' : 'light'
+      }
+      function syncAppearance() {
+        currentMode = resolvedMode()
+        host.dataset.appearanceMode = currentMode
+        if (logo) {
+          logo.src =
+            currentMode === 'dark' && appearance.logoDark
+              ? appearance.logoDark
+              : appearance.logoLight
+          logo.classList.toggle('bearing-app-logo-single', !appearance.logoDark)
+        }
+        try {
+          if (
+            appearance?.mode === 'host' &&
+            frame.contentWindow &&
+            frame.contentWindow.location.origin === window.location.origin
+          ) {
+            frame.contentWindow.postMessage(
+              { type: 'slipway:appearance', version: 1, mode: currentMode },
+              window.location.origin
+            )
+          }
+        } catch {
+          /* Only the expected same-origin frame receives mode changes. */
+        }
+      }
+      media.addEventListener('change', syncAppearance)
+      if (appearance?.mode === 'host')
+        new MutationObserver(syncAppearance).observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ['class', 'data-theme', 'data-color-scheme']
+        })
+      syncAppearance()
 
       function paintTrigger() {
         trigger.setAttribute('aria-expanded', String(open))
@@ -448,8 +241,12 @@ function bearingBootstrap() {
       function setSurface(surface) {
         if (!surfaces[surface]) return false
         currentSurface = surface
-        if (frame.getAttribute('src') !== surfaces[surface].path) {
-          frame.src = surfaces[surface].path
+        const url = new URL(surfaces[surface].path, window.location.href)
+        if (appearance?.mode === 'host')
+          url.searchParams.set('appearanceMode', currentMode)
+        if (frame.dataset.bearingSurface !== surface) {
+          frame.src = url.pathname + url.search
+          frame.dataset.bearingSurface = surface
         }
         frame.title = `${config.appName} ${surfaces[surface].label}`
         if (surface === 'updates') markLatestSeen()
@@ -610,7 +407,10 @@ function bearingBootstrap() {
         closePanel()
       })
       panel.addEventListener('keydown', trapPanelFocus)
-      frame.addEventListener('load', listenForFrameEscape)
+      frame.addEventListener('load', () => {
+        listenForFrameEscape()
+        syncAppearance()
+      })
       panel.addEventListener('click', (event) => {
         if (event.target !== panel) return
         const bounds = panel.getBoundingClientRect()

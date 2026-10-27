@@ -1,0 +1,48 @@
+{
+  "tembo": {
+    "displayName": "Tembo",
+    "light": {
+      "canvas": "#fbf8f3",
+      "surface": "#f0ebe3",
+      "text": "#2d1b0e",
+      "mutedText": "#6b5d4d",
+      "border": "#bca88f",
+      "accent": "#c8862e",
+      "accentText": "#1a1005",
+      "focus": "#7e531b"
+    },
+    "dark": {
+      "canvas": "#0f0d0a",
+      "surface": "#1c1812",
+      "text": "#f0ebe3",
+      "mutedText": "#bca88f",
+      "border": "#4a3d30",
+      "accent": "#c8862e",
+      "accentText": "#1a1005",
+      "focus": "#ddb164"
+    }
+  },
+  "northstar": {
+    "displayName": "Northstar",
+    "light": {
+      "canvas": "#f8f7fc",
+      "surface": "#eeebf7",
+      "text": "#24143f",
+      "mutedText": "#645473",
+      "border": "#c9c0df",
+      "accent": "#6d28d9",
+      "accentText": "#ffffff",
+      "focus": "#6d28d9"
+    },
+    "dark": {
+      "canvas": "#100c1b",
+      "surface": "#21172f",
+      "text": "#f9f5ff",
+      "mutedText": "#c2b4d6",
+      "border": "#4d3a65",
+      "accent": "#c4b5fd",
+      "accentText": "#24143f",
+      "focus": "#c4b5fd"
+    }
+  }
+}

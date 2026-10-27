@@ -62,7 +62,10 @@ module.exports = {
     this.res.set('Cache-Control', 'private, no-store')
     return {
       enabled: resolved.space.widgetEnabled,
-      appName: resolved.project.name,
+      appName: resolved.appearance.displayName,
+      appearance: resolved.appearance,
+      stylesheet: `${resolved.publicBasePath}/feedback/_/appearance.css`,
+      widgetStyles: `${resolved.publicBasePath}/feedback/_/widget.css`,
       space: resolved.space.publicSlug,
       side: resolved.space.widgetSide,
       openingView,

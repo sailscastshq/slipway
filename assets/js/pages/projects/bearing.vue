@@ -1085,6 +1085,17 @@ onUnmounted(() => {
           class="mt-10 max-w-3xl space-y-12"
           @submit.prevent="save"
         >
+          <Link
+            :href="`${basePath}/appearance`"
+            class="mb-8 flex items-center justify-between border-b border-gray-200 pb-5 dark:border-gray-800"
+            ><span
+              ><span class="block text-sm font-medium">App appearance</span
+              ><span class="mt-1 block text-sm text-gray-500"
+                >Brand Bearing with your name, logos and colours.</span
+              ></span
+            ><span aria-hidden="true">→</span></Link
+          >
+
           <section aria-labelledby="bearing-availability-heading">
             <div>
               <h2

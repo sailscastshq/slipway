@@ -34,7 +34,7 @@ module.exports = {
     if (!update) throw 'notFound'
 
     const image = await sails.helpers.bearing.renderSocialImage.with({
-      appName: resolved.project.name,
+      appName: resolved.appearance.displayName,
       surface: 'updates',
       item: update,
       itemCount: 1

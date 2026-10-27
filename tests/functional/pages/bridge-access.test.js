@@ -444,6 +444,14 @@ test(
     expect(launch.session.bridgeAccessId).toBe(access.id)
     expect(launch.session.bridgeHostOrigin).toBe(true)
 
+    await sails.helpers.setting.set(
+      `app-appearance:v1:${app.id}`,
+      JSON.stringify({
+        ...require('../../../api/lib/app-appearance').normalize(),
+        displayName: 'Host Studio'
+      })
+    )
+
     const bridge = await request
       .withSession(launch.session)
       .get(internalBridgePath, {
@@ -457,6 +465,12 @@ test(
     expect(bridge).toHaveStatus(200)
     expect(bridge).toBeInertiaPage('projects/bridge')
     expect(bridge.data.url).toBe('/bridge')
+    expect(bridge).toHaveInertiaProp('appearance.displayName', 'Host Studio')
+    expect(bridge).toHaveInertiaProp('app.name', 'Host Studio')
+    expect(bridge).toHaveInertiaProp(
+      'appearance.stylesheet',
+      '/bridge/_/appearance.css'
+    )
     expect(bridge).toHaveInertiaProps({
       bridgeRequestBasePath: '/bridge',
       bridgeRequestApiBasePath: '/bridge',

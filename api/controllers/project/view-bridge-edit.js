@@ -201,6 +201,17 @@ module.exports = {
       }
     }
 
+    const appearance = bridgeHostOrigin
+      ? {
+          ...(await require('../../lib/app-appearance-store').resolve(
+            app,
+            `${bridgeBasePath}/_`,
+            app.name
+          )),
+          stylesheet: `${bridgeBasePath}/_/appearance.css`
+        }
+      : null
+
     return {
       page: 'projects/bridge-form',
       props: {
@@ -214,12 +225,17 @@ module.exports = {
           name: environment.name,
           slug: environment.slug
         },
-        app: { id: app.id, name: app.name, slug: app.slug },
+        app: {
+          id: app.id,
+          name: appearance?.configured ? appearance.displayName : app.name,
+          slug: app.slug
+        },
         appScoped: Boolean(appSlug),
         bridgeRequestBasePath: bridgeBasePath,
         bridgeRequestApiBasePath: bridgeApiBasePath,
         hostBridgeAssetBasePath: bridgeAssetBasePath,
         hostBridgeOrigin: bridgeHostOrigin,
+        appearance,
         bridgeWorkspace,
         mode: 'edit',
         modelIdentity,

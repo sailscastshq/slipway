@@ -131,14 +131,14 @@ module.exports = {
       ? `${feedbackPath}/${encodeURIComponent(focusedFeedback.publicId)}`
       : feedbackPath
     const title = focusedFeedback
-      ? `${focusedFeedback.title} · ${resolved.project.name}`
-      : `Feedback · ${resolved.project.name}`
+      ? `${focusedFeedback.title} · ${resolved.appearance.displayName}`
+      : `Feedback · ${resolved.appearance.displayName}`
     const description =
       focusedFeedback?.details?.trim() ||
-      `Share feedback and help shape what comes next for ${resolved.project.name}.`
+      `Share feedback and help shape what comes next for ${resolved.appearance.displayName}.`
     const social = buildBearingSocialMetadata({
       req: this.req,
-      appName: resolved.project.name,
+      appName: resolved.appearance.displayName,
       path: publicPath,
       imagePath: `${resolved.publicBasePath}/feedback/og.png`,
       title,
@@ -150,8 +150,18 @@ module.exports = {
       page: focusedFeedback ? 'bearing/feedback-detail' : 'bearing/feedback',
       props: {
         hostAssetBasePath: resolved.hostAssetBasePath,
+        appearance: {
+          ...resolved.appearance,
+          stylesheet: `${resolved.publicBasePath}/feedback/_/appearance.css`,
+          resolvedMode:
+            resolved.appearance.mode === 'host' &&
+            embedded &&
+            ['light', 'dark'].includes(this.req.query.appearanceMode)
+              ? this.req.query.appearanceMode
+              : null
+        },
         app: {
-          name: resolved.project.name,
+          name: resolved.appearance.displayName,
           homeUrl: resolved.homeUrl,
           feedbackPath,
           roadmapPath: `${resolved.publicBasePath}/roadmap`,

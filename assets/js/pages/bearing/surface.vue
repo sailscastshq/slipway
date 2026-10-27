@@ -1,9 +1,15 @@
 <script setup>
+import { bearingUrl } from '@/lib/bearing-url'
+import AppAppearance from '@/components/appearance/AppAppearance.vue'
+import AppBrand from '@/components/appearance/AppBrand.vue'
+
 import { Head } from '@inertiajs/vue3'
 import { computed, onUnmounted, ref } from 'vue'
 import { useBearingRealtime } from '@/composables/useBearingRealtime'
 
 const props = defineProps({
+  appearance: Object,
+  preview: Boolean,
   app: Object,
   bearing: Object,
   realtime: Object,
@@ -132,7 +138,11 @@ function statusLabel(status) {
 }
 
 function updateHref(item) {
-  return `${props.app.updatesPath}/p/${encodeURIComponent(item.slug)}`
+  return bearingUrl(
+    `${props.app.updatesPath}/p/${encodeURIComponent(item.slug)}`,
+    props.embedded,
+    props.appearance
+  )
 }
 
 function shortDate(value) {
@@ -149,7 +159,7 @@ function isoDate(value) {
 </script>
 
 <template>
-  <Head :title="`${title} · ${app.name}`">
+  <Head v-if="!preview" :title="`${title} · ${app.name}`">
     <meta head-key="description" name="description" :content="description" />
     <meta head-key="og:type" property="og:type" content="website" />
     <meta head-key="og:site_name" property="og:site_name" :content="app.name" />
@@ -190,189 +200,199 @@ function isoDate(value) {
     />
     <link head-key="canonical" rel="canonical" :href="app.publicUrl" />
   </Head>
-  <div
-    class="min-h-screen bg-white text-gray-950 dark:bg-gray-950 dark:text-white"
-    :data-bearing-realtime="realtimeState"
-  >
-    <header v-if="!embedded" class="px-5 sm:px-8">
-      <nav
-        class="mx-auto flex h-16 max-w-5xl items-center justify-between"
-        aria-label="Bearing"
-      >
-        <a :href="app.homeUrl" class="text-sm font-semibold tracking-tight">{{
-          app.name
-        }}</a>
-        <div class="flex items-center gap-5 text-sm">
-          <a
-            :href="app.feedbackPath"
-            class="text-gray-500 transition hover:text-gray-950 dark:text-gray-400 dark:hover:text-white"
-            >Feedback</a
-          >
-          <a
-            v-if="bearing.showPublicRoadmap"
-            :href="app.roadmapPath"
-            :class="
-              surface === 'roadmap'
-                ? 'font-medium text-gray-950 dark:text-white'
-                : 'text-gray-500 dark:text-gray-400'
-            "
-            >Roadmap</a
-          >
-          <a
-            v-if="bearing.showPublicUpdates"
-            :href="app.updatesPath"
-            :class="
-              surface === 'updates'
-                ? 'font-medium text-gray-950 dark:text-white'
-                : 'text-gray-500 dark:text-gray-400'
-            "
-            >Updates</a
-          >
-        </div>
-      </nav>
-    </header>
-
-    <main
-      :class="
-        embedded
-          ? 'px-5 pb-10 pt-8 sm:px-6 sm:pt-10'
-          : 'px-5 pb-20 pt-14 sm:px-8 sm:pt-20'
-      "
+  <AppAppearance :appearance="appearance">
+    <div
+      class="min-h-screen bg-white text-gray-950 dark:bg-gray-950 dark:text-white"
+      :data-bearing-realtime="realtimeState"
     >
-      <div class="mx-auto max-w-3xl">
-        <p
-          class="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400"
-        >
-          {{ eyebrow }}
-        </p>
-        <h1 class="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
-          {{ title }}
-        </h1>
-        <p
-          class="mt-3 max-w-2xl text-base leading-7 text-gray-500 dark:text-gray-400"
-        >
-          {{ description }}
-        </p>
-
-        <p class="sr-only" aria-live="polite" aria-atomic="true">
-          {{ liveAnnouncement }}
-        </p>
-
-        <TransitionGroup
-          v-if="surfaceItems.length"
-          name="bearing-feedback-list"
-          tag="div"
-          class="mt-12 space-y-3"
-        >
-          <div v-for="item in surfaceItems" :key="item.publicId">
-            <article
-              class="bearing-feedback-card rounded-2xl bg-gray-50 p-6 dark:bg-gray-900"
-              :data-live-highlight="
-                highlightedFeedback.has(item.publicId) ? 'true' : undefined
-              "
-            >
-              <template v-if="surface === 'updates'">
-                <time
-                  :datetime="isoDate(item.publishedAt)"
-                  class="text-xs text-gray-400"
-                >
-                  {{ shortDate(item.publishedAt) }}
-                </time>
-                <h2 class="mt-2 text-lg font-semibold tracking-tight">
-                  <a
-                    :href="updateHref(item)"
-                    class="transition hover:text-gray-600 dark:hover:text-gray-300"
-                  >
-                    {{ item.title }}
-                  </a>
-                </h2>
-                <p
-                  class="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400"
-                >
-                  {{ item.excerpt }}
-                </p>
-                <p class="mt-4 text-xs text-gray-400">
-                  {{ item.authorName }} · Read update
-                </p>
-              </template>
-              <template v-else>
-                <div class="flex flex-wrap items-center gap-2.5">
-                  <h2 class="text-base font-semibold">
-                    <a
-                      :href="`${app.feedbackPath}/${encodeURIComponent(
-                        item.publicId
-                      )}`"
-                      class="hover:underline"
-                      >{{ item.title }}</a
-                    >
-                  </h2>
-                  <span
-                    class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400"
-                  >
-                    <span
-                      aria-hidden="true"
-                      :class="[
-                        'size-1.5 rounded-full',
-                        item.status === 'in_progress'
-                          ? 'bg-emerald-500'
-                          : 'bg-gray-400 dark:bg-gray-500'
-                      ]"
-                    ></span>
-                    {{ statusLabel(item.status) }}
-                  </span>
-                </div>
-                <p
-                  v-if="item.details"
-                  class="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400"
-                >
-                  {{ item.details }}
-                </p>
-                <div
-                  v-if="item.images?.length"
-                  class="mt-4 flex flex-wrap gap-2"
-                >
-                  <a
-                    v-for="(image, index) in item.images"
-                    :key="image.url"
-                    :href="image.url"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <img
-                      :src="image.url"
-                      :alt="`${item.title} — image ${index + 1}`"
-                      class="h-24 w-36 rounded-lg object-cover"
-                    />
-                  </a>
-                </div>
-              </template>
-            </article>
-          </div>
-        </TransitionGroup>
-        <div
-          v-else
-          class="mt-12 rounded-2xl bg-gray-50 px-6 py-14 text-center dark:bg-gray-900"
-        >
-          <p class="text-sm font-medium">Nothing to announce yet.</p>
-          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            When there is something worth saying, it will be here.
-          </p>
-        </div>
-
-        <footer
-          v-if="!embedded"
-          class="mt-16 text-center text-xs text-gray-400"
+      <header v-if="!embedded" class="px-5 sm:px-8">
+        <nav
+          class="mx-auto flex h-16 max-w-5xl items-center justify-between"
+          aria-label="Bearing"
         >
           <a
-            href="https://docs.sailscasts.com/slipway"
-            target="_blank"
-            rel="noreferrer"
-            class="transition hover:text-gray-600 dark:hover:text-gray-300"
+            :href="app.homeUrl"
+            class="min-w-0 max-w-[45%] text-sm font-semibold tracking-tight"
+            ><AppBrand :appearance="appearance" :name="app.name"
+          /></a>
+          <div class="flex items-center gap-5 text-sm">
+            <a
+              :href="app.feedbackPath"
+              class="text-gray-500 transition hover:text-gray-950 dark:text-gray-400 dark:hover:text-white"
+              >Feedback</a
+            >
+            <a
+              v-if="bearing.showPublicRoadmap"
+              :href="app.roadmapPath"
+              :class="
+                surface === 'roadmap'
+                  ? 'font-medium text-gray-950 dark:text-white'
+                  : 'text-gray-500 dark:text-gray-400'
+              "
+              >Roadmap</a
+            >
+            <a
+              v-if="bearing.showPublicUpdates"
+              :href="app.updatesPath"
+              :class="
+                surface === 'updates'
+                  ? 'font-medium text-gray-950 dark:text-white'
+                  : 'text-gray-500 dark:text-gray-400'
+              "
+              >Updates</a
+            >
+          </div>
+        </nav>
+      </header>
+
+      <main
+        :class="
+          embedded
+            ? 'px-5 pb-10 pt-8 sm:px-6 sm:pt-10'
+            : 'px-5 pb-20 pt-14 sm:px-8 sm:pt-20'
+        "
+      >
+        <div class="mx-auto max-w-3xl">
+          <p
+            class="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400"
           >
-            Powered by Slipway
-          </a>
-        </footer>
-      </div>
-    </main>
-  </div>
+            {{ eyebrow }}
+          </p>
+          <h1 class="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
+            {{ title }}
+          </h1>
+          <p
+            class="mt-3 max-w-2xl text-base leading-7 text-gray-500 dark:text-gray-400"
+          >
+            {{ description }}
+          </p>
+
+          <p class="sr-only" aria-live="polite" aria-atomic="true">
+            {{ liveAnnouncement }}
+          </p>
+
+          <TransitionGroup
+            v-if="surfaceItems.length"
+            name="bearing-feedback-list"
+            tag="div"
+            class="mt-12 space-y-3"
+          >
+            <div v-for="item in surfaceItems" :key="item.publicId">
+              <article
+                class="bearing-feedback-card rounded-2xl bg-gray-50 p-6 dark:bg-gray-900"
+                :data-live-highlight="
+                  highlightedFeedback.has(item.publicId) ? 'true' : undefined
+                "
+              >
+                <template v-if="surface === 'updates'">
+                  <time
+                    :datetime="isoDate(item.publishedAt)"
+                    class="text-xs text-gray-400"
+                  >
+                    {{ shortDate(item.publishedAt) }}
+                  </time>
+                  <h2 class="mt-2 text-lg font-semibold tracking-tight">
+                    <a
+                      :href="updateHref(item)"
+                      class="transition hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      {{ item.title }}
+                    </a>
+                  </h2>
+                  <p
+                    class="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400"
+                  >
+                    {{ item.excerpt }}
+                  </p>
+                  <p class="mt-4 text-xs text-gray-400">
+                    {{ item.authorName }} · Read update
+                  </p>
+                </template>
+                <template v-else>
+                  <div class="flex flex-wrap items-center gap-2.5">
+                    <h2 class="text-base font-semibold">
+                      <a
+                        :href="
+                          bearingUrl(
+                            `${app.feedbackPath}/${encodeURIComponent(
+                              item.publicId
+                            )}`,
+                            embedded,
+                            appearance
+                          )
+                        "
+                        class="hover:underline"
+                        >{{ item.title }}</a
+                      >
+                    </h2>
+                    <span
+                      class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400"
+                    >
+                      <span
+                        aria-hidden="true"
+                        :class="[
+                          'size-1.5 rounded-full',
+                          item.status === 'in_progress'
+                            ? 'bg-emerald-500'
+                            : 'bg-gray-400 dark:bg-gray-500'
+                        ]"
+                      ></span>
+                      {{ statusLabel(item.status) }}
+                    </span>
+                  </div>
+                  <p
+                    v-if="item.details"
+                    class="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400"
+                  >
+                    {{ item.details }}
+                  </p>
+                  <div
+                    v-if="item.images?.length"
+                    class="mt-4 flex flex-wrap gap-2"
+                  >
+                    <a
+                      v-for="(image, index) in item.images"
+                      :key="image.url"
+                      :href="image.url"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <img
+                        :src="image.url"
+                        :alt="`${item.title} — image ${index + 1}`"
+                        class="h-24 w-36 rounded-lg object-cover"
+                      />
+                    </a>
+                  </div>
+                </template>
+              </article>
+            </div>
+          </TransitionGroup>
+          <div
+            v-else
+            class="mt-12 rounded-2xl bg-gray-50 px-6 py-14 text-center dark:bg-gray-900"
+          >
+            <p class="text-sm font-medium">Nothing to announce yet.</p>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              When there is something worth saying, it will be here.
+            </p>
+          </div>
+
+          <footer
+            v-if="!embedded"
+            class="mt-16 text-center text-xs text-gray-400"
+          >
+            <a
+              href="https://docs.sailscasts.com/slipway"
+              target="_blank"
+              rel="noreferrer"
+              class="transition hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              Powered by Slipway
+            </a>
+          </footer>
+        </div>
+      </main>
+    </div>
+  </AppAppearance>
 </template>

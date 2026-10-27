@@ -1,4 +1,5 @@
 <script setup>
+import AppAppearance from '@/components/appearance/AppAppearance.vue'
 import { usePage } from '@inertiajs/vue3'
 import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import BridgeWorkspaceSidebar from '@/components/bridge/BridgeWorkspaceSidebar.vue'
@@ -76,46 +77,48 @@ watch(() => page.url, closeMobileMenu)
 </script>
 
 <template>
-  <div
-    class="flex h-screen min-h-0 overflow-hidden bg-white text-gray-900 dark:bg-gray-950 dark:text-white"
-    data-test="bridge-workspace"
-  >
-    <Sheet
-      id="bridge-navigation-mobile"
-      ref="mobileSheet"
-      v-model:open="mobileMenuOpen"
-      aria-label="Bridge navigation"
-      class="starting:open:-translate-x-full left-0 right-auto ml-0 mr-auto w-72 -translate-x-full border-none bg-gray-50 shadow-2xl dark:bg-gray-950 md:hidden"
+  <AppAppearance :appearance="page.props.appearance">
+    <div
+      class="flex h-screen min-h-0 overflow-hidden bg-white text-gray-900 dark:bg-gray-950 dark:text-white"
+      data-test="bridge-workspace"
     >
-      <BridgeWorkspaceSidebar
-        :app="page.props.app"
-        :base-path="page.props.bridgeRequestBasePath"
-        :workspace="page.props.bridgeWorkspace"
-        class="h-full w-72"
-        @navigate="closeMobileMenu"
-      />
-    </Sheet>
+      <Sheet
+        id="bridge-navigation-mobile"
+        ref="mobileSheet"
+        v-model:open="mobileMenuOpen"
+        aria-label="Bridge navigation"
+        class="starting:open:-translate-x-full left-0 right-auto ml-0 mr-auto w-72 -translate-x-full border-none bg-gray-50 shadow-2xl dark:bg-gray-950 md:hidden"
+      >
+        <BridgeWorkspaceSidebar
+          :app="page.props.app"
+          :base-path="page.props.bridgeRequestBasePath"
+          :workspace="page.props.bridgeWorkspace"
+          class="h-full w-72"
+          @navigate="closeMobileMenu"
+        />
+      </Sheet>
 
-    <Sidebar
-      id="bridge-navigation"
-      ref="desktopSidebar"
-      :default-open="defaultSidebarOpen"
-      aria-label="Bridge navigation"
-      class="hidden w-56 bg-gray-50 data-[state=closed]:w-0 data-[state=closed]:opacity-0 dark:bg-gray-950 md:flex"
-      @update:open="updateSidebarOpen"
-    >
-      <BridgeWorkspaceSidebar
-        :app="page.props.app"
-        :base-path="page.props.bridgeRequestBasePath"
-        :workspace="page.props.bridgeWorkspace"
-        class="w-56"
-      />
-    </Sidebar>
+      <Sidebar
+        id="bridge-navigation"
+        ref="desktopSidebar"
+        :default-open="defaultSidebarOpen"
+        aria-label="Bridge navigation"
+        class="hidden w-56 bg-gray-50 data-[state=closed]:w-0 data-[state=closed]:opacity-0 dark:bg-gray-950 md:flex"
+        @update:open="updateSidebarOpen"
+      >
+        <BridgeWorkspaceSidebar
+          :app="page.props.app"
+          :base-path="page.props.bridgeRequestBasePath"
+          :workspace="page.props.bridgeWorkspace"
+          class="w-56"
+        />
+      </Sidebar>
 
-    <main class="min-w-0 flex-1 overflow-hidden">
-      <slot />
-    </main>
+      <main class="min-w-0 flex-1 overflow-hidden">
+        <slot />
+      </main>
 
-    <ToastContainer :controller="toast" />
-  </div>
+      <ToastContainer :controller="toast" />
+    </div>
+  </AppAppearance>
 </template>
