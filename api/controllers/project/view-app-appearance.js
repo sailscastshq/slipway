@@ -27,6 +27,7 @@ module.exports = {
         project: { id: project.id, name: project.name, slug: project.slug },
         environment: { name: environment.name, slug: environment.slug },
         app: { id: app.id, name: app.name, slug: app.slug },
+        widgetStyles: `/_slipway/bearing/host/${project.slug}/${environment.slug}/${app.slug}/feedback/_/widget.css`,
         appearance: await store.resolve(app, base, project.name)
       }
     }

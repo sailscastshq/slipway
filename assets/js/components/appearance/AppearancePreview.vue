@@ -1,24 +1,47 @@
 <script setup>
-import { computed, ref } from 'vue'
-import AppAppearance from './AppAppearance.vue'
-import AppBrand from './AppBrand.vue'
-import Feedback from '@/pages/bearing/feedback.vue'
-import Surface from '@/pages/bearing/surface.vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import WidgetPreview from './WidgetPreview.vue'
+import PreviewContent from './PreviewContent.vue'
 const props = defineProps({
   appearance: Object,
   fallbackName: String,
   mode: String,
   surface: String,
   widget: Boolean,
-  mobile: Boolean
+  mobile: Boolean,
+  widgetStyles: String
 })
+const emit = defineEmits(['update:surface'])
 const target = ref(null)
+const stage = ref(null)
+const availableWidth = ref(720)
+let observer, resizeFrame
+const viewportWidth = computed(() =>
+  props.mobile ? 390 : Math.max(720, availableWidth.value)
+)
+const scale = computed(() =>
+  Math.min(1, availableWidth.value / viewportWidth.value)
+)
+const height = computed(() => (props.widget ? 760 : 620))
 function loaded(event) {
   const doc = event.target.contentDocument
   for (const link of document.querySelectorAll('link[rel="stylesheet"],style'))
     doc.head.append(link.cloneNode(true))
   target.value = doc.body
 }
+onMounted(() => {
+  observer = new ResizeObserver(([entry]) => {
+    cancelAnimationFrame(resizeFrame)
+    resizeFrame = requestAnimationFrame(() => {
+      availableWidth.value = entry.contentRect.width
+    })
+  })
+  observer.observe(stage.value)
+})
+onUnmounted(() => {
+  observer?.disconnect()
+  cancelAnimationFrame(resizeFrame)
+})
 const appearance = computed(() => ({
   ...props.appearance,
   displayName:
@@ -28,118 +51,48 @@ const appearance = computed(() => ({
   mode: props.mode,
   resolvedMode: props.mode
 }))
-const app = computed(() => ({
-  name: appearance.value.displayName,
-  homeUrl: '#',
-  feedbackPath: '#feedback',
-  roadmapPath: '#roadmap',
-  updatesPath: '#updates',
-  identityPath: '#',
-  publicUrl: '',
-  ogImageUrl: ''
-}))
-const bearing = {
-  acceptFeedback: true,
-  allowAnonymousParticipation: true,
-  showPublicRoadmap: true,
-  showPublicUpdates: true,
-  categories: [
-    { key: 'feature', label: 'Feature', active: true },
-    { key: 'bug', label: 'Bug', active: true }
-  ]
-}
-const feedback = [
-  {
-    publicId: 'preview-feedback',
-    title: 'A little less busywork',
-    details: 'Bring the things we use every day a little closer together.',
-    category: 'feature',
-    status: 'planned',
-    voteCount: 24,
-    images: [],
-    authorName: 'A customer',
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    viewerHasVoted: false
-  }
-]
-const updates = [
-  {
-    publicId: 'preview-update',
-    title: 'Good things, made simpler',
-    excerpt: 'A faster way to get from your first idea to your next big thing.',
-    slug: 'good-things',
-    publishedAt: Date.now(),
-    authorName: 'The team'
-  }
-]
 </script>
 <template>
-  <iframe
-    title="Draft appearance preview"
-    srcdoc="<!doctype html><html><head><meta name='viewport' content='width=device-width, initial-scale=1'></head><body style='margin:0'></body></html>"
-    class="mx-auto block h-[620px] w-full bg-white transition-[max-width]"
-    :class="mobile || widget ? 'max-w-[390px]' : 'max-w-none'"
-    @load="loaded"
-  />
+  <div
+    ref="stage"
+    class="relative w-full"
+    :style="{ height: `${height * scale}px` }"
+  >
+    <iframe
+      title="Draft appearance preview"
+      srcdoc="<!doctype html><html><head><meta name='viewport' content='width=device-width, initial-scale=1'></head><body style='margin:0'></body></html>"
+      class="absolute top-0 block border-0 bg-white"
+      :style="{
+        width: `${viewportWidth}px`,
+        height: `${height}px`,
+        left: '50%',
+        transform: `translateX(-50%) scale(${scale})`,
+        transformOrigin: 'top center'
+      }"
+      @load="loaded"
+    />
+  </div>
   <Teleport v-if="target" :to="target">
-    <AppAppearance
+    <WidgetPreview
+      v-if="widget"
       :appearance="appearance"
-      :preview-mode="mode"
-      :data-app-appearance="widget ? '1' : undefined"
+      :mode="mode"
+      :surface="surface"
+      :widget-styles="widgetStyles"
+      @update:surface="emit('update:surface', $event)"
     >
-      <div
-        inert
-        aria-label="Example content"
-        :class="widget ? 'appearance-widget-preview' : ''"
-      >
-        <header
-          v-if="widget"
-          class="bearing-panel-header flex h-14 items-center justify-between border-b px-4 text-sm font-semibold"
-        >
-          <AppBrand :appearance="appearance" /><span aria-hidden="true">×</span>
-        </header>
-        <Feedback
-          v-if="surface === 'feedback'"
-          :key="`feedback-${widget}`"
-          :app="app"
-          :appearance="appearance"
-          :bearing="bearing"
-          :participant="null"
-          :viewer="{ canVote: true }"
-          :embedded="widget"
-          :realtime="null"
-          :filters="{ q: '', category: 'all', status: 'active', sort: 'top' }"
-          :feedback="{ data: feedback }"
-          preview
-          :feedback-loaded-at="Date.now()"
-        />
-        <Surface
-          v-else
-          preview
-          :key="`${surface}-${widget}`"
-          :app="app"
-          :appearance="appearance"
-          :bearing="bearing"
-          :embedded="widget"
-          :surface="surface"
-          :items="surface === 'updates' ? updates : feedback"
-          :realtime="null"
-        />
-        <nav
-          v-if="widget"
-          class="bearing-panel-nav sticky bottom-0"
-          aria-label="Example navigation"
-        >
-          <button
-            v-for="name in ['feedback', 'roadmap', 'updates']"
-            :key="name"
-            :aria-current="surface === name ? 'page' : undefined"
-          >
-            {{ name[0].toUpperCase() + name.slice(1) }}
-          </button>
-        </nav>
-      </div>
-    </AppAppearance>
+      <PreviewContent
+        :appearance="appearance"
+        :mode="mode"
+        :surface="surface"
+        widget
+      />
+    </WidgetPreview>
+    <PreviewContent
+      v-else
+      :appearance="appearance"
+      :mode="mode"
+      :surface="surface"
+    />
   </Teleport>
 </template>
