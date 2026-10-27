@@ -1113,7 +1113,7 @@ test(
     )
     await expect(widgetTrigger).toBeFocused()
     await expect(widgetPanel.locator('[data-trigger]')).toBeVisible()
-    await expect(widget.locator('[data-close]')).toBeHidden()
+    await expect(widget.locator('[data-close]')).toBeVisible()
     expect(
       await widgetPanel.evaluate((dialog) => dialog.matches(':modal'))
     ).toBe(true)

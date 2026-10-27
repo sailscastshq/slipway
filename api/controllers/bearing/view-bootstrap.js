@@ -151,7 +151,7 @@ function bearingBootstrap(widgetShell) {
       function paintTrigger() {
         trigger.setAttribute('aria-expanded', String(open))
         trigger.hidden = open ? !openedFromInjectedTrigger : !fresh
-        closeButton.hidden = open && openedFromInjectedTrigger
+        closeButton.hidden = false
         if (open && openedFromInjectedTrigger) {
           trigger.innerHTML =
             '<span class="bearing-trigger-mark" aria-hidden="true">×</span>'

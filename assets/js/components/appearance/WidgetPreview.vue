@@ -66,7 +66,7 @@ function openPanel() {
   panel.removeAttribute('data-closing')
   panel.prepend(trigger)
   panel.dataset.openedFrom = 'widget'
-  close.hidden = true
+  close.hidden = false
   if (!panel.open) panel.showModal()
   paint()
 }

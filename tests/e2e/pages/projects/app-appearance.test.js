@@ -135,11 +135,9 @@ test(
       path: path.join(root, 'tembo-settings-dark.png'),
       fullPage: true
     })
-    await page.raw
-      .getByRole('button', { name: 'Save appearance', exact: true })
-      .click()
+    await page.raw.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(
-      page.raw.getByText('Appearance saved.', { exact: true })
+      page.raw.getByText('App appearance saved.', { exact: true })
     ).toBeVisible()
     await page.raw.reload()
     await expect(page.raw.locator('#appearance-name')).toHaveValue('Tembo')
@@ -285,11 +283,9 @@ test(
     await page.raw
       .getByRole('button', { name: 'Reset to defaults', exact: true })
       .click()
-    await page.raw
-      .getByRole('button', { name: 'Save appearance', exact: true })
-      .click()
+    await page.raw.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(
-      page.raw.getByText('Appearance saved.', { exact: true })
+      page.raw.getByText('App appearance saved.', { exact: true })
     ).toBeVisible()
     await page.raw.reload()
     await expect(page.raw.locator('#appearance-name')).toHaveValue('Tembo')
@@ -475,6 +471,11 @@ test(
     await expect(
       content.getByText('Good things, made simpler', { exact: true })
     ).toBeVisible()
+    await expect(widget.locator('[data-close]')).toBeVisible()
+    await expect(widget.locator('.bearing-powered-by')).toHaveAccessibleName(
+      'Powered by Slipway'
+    )
+    await expect(widget.locator('.bearing-slipway-lockup')).toBeVisible()
     await expect(widget.locator('.bearing-powered-by')).not.toHaveAttribute(
       'href'
     )

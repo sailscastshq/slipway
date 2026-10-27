@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { holdDescription } from '../../../api/lib/cache-cleanup-feedback'
 import { Link } from '@inertiajs/vue3'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import CheckCircle from '@/components/ui/icons/CheckCircle.vue'
@@ -74,7 +75,9 @@ const description = computed(
         'Waiting for confirmed job completion and maintenance release.',
       refreshing:
         'Reading the actual host disk change and Docker cache accounting.',
-      held: 'Another operation or safety check prevented cleanup. No retry is queued.',
+      held: `${holdDescription(
+        outcome.value?.holds || props.cleanup.progress?.holds
+      )} No retry is queued.`,
       'dry-run':
         'Removal is disabled or this run was a preview. No cache was removed.',
       unconfirmed:

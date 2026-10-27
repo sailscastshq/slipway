@@ -247,8 +247,24 @@ for (const browser of ['desktop', 'mobile']) {
         await dialog
           .getByRole('button', { name: 'Cancel', exact: true })
           .click()
+        run.result = JSON.stringify({
+          status: 'available',
+          value: { status: 'held', holds: ['instance-update-active'] }
+        })
+        await page.raw.reload()
+        const heldCard = page.raw.locator('[data-test="host-disk-prune"]')
+        await expect(heldCard.getByRole('status')).toContainText(
+          'A Slipway update is still active. No retry is queued.'
+        )
+        const reviewHeld = page.raw.getByRole('button', {
+          name: 'Review cleanup',
+          exact: true
+        })
+        await expect(reviewHeld).toBeVisible()
+        expect(calls).toBe(1)
+        await capture(path.join(output, `${browser}-dark-held.png`))
         activeCache = 1
-        await prune.click()
+        await reviewHeld.click()
         await expect(
           dialog.getByText('A Docker build is using cache.')
         ).toBeVisible()
@@ -260,7 +276,7 @@ for (const browser of ['desktop', 'mobile']) {
           .getByRole('button', { name: 'Cancel', exact: true })
           .click()
         activeCache = 0
-        await prune.click()
+        await reviewHeld.click()
         await dialog
           .getByRole('button', { name: 'Prune cache', exact: true })
           .click()
