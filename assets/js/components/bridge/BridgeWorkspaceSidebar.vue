@@ -1,4 +1,5 @@
 <script setup>
+import AppBrand from '@/components/appearance/AppBrand.vue'
 import ShieldCheck from '@/components/ui/icons/ShieldCheck.vue'
 import Search from '@/components/ui/icons/Search.vue'
 import Heart from '@/components/ui/icons/Heart.vue'
@@ -86,13 +87,19 @@ function isResourceActive(identity) {
       <div
         class="flex w-full min-w-0 items-center space-x-2 rounded-md px-2 py-1.5 text-sm text-gray-700 dark:text-gray-200"
       >
+        <AppBrand
+          v-if="page.props.appearance?.configured"
+          :appearance="page.props.appearance"
+          class="text-sm font-medium"
+        />
         <span
+          v-else
           class="bg-brand flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-medium text-white"
           aria-hidden="true"
         >
           {{ appInitial }}
         </span>
-        <div class="min-w-0 flex-1">
+        <div v-if="!page.props.appearance?.configured" class="min-w-0 flex-1">
           <p class="truncate font-medium" :title="app?.name || 'App'">
             {{ app?.name || 'App' }}
           </p>

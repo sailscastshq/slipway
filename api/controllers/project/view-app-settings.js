@@ -98,6 +98,7 @@ module.exports = {
         decoyPaths: require('../../helpers/lookout/decoy-config')._private
           .PATHS,
         canManageDecoys: ['owner', 'admin'].includes(user.teamRole),
+        canManageAppearance: ['owner', 'admin'].includes(user.teamRole),
         connectedRepo,
         githubConnected,
         startupWindowSeconds:

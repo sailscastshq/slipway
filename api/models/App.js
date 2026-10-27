@@ -212,6 +212,18 @@ module.exports = {
     }
   },
 
+  afterDestroy: async function (records, proceed) {
+    try {
+      const ids = (Array.isArray(records) ? records : [records])
+        .filter(Boolean)
+        .map((record) => `app-appearance:v1:${record.id}`)
+      if (ids.length) await Setting.destroy({ key: { in: ids } })
+      return proceed()
+    } catch (error) {
+      return proceed(error)
+    }
+  },
+
   /**
    * Enforce compound uniqueness (environment + slug) and auto-set isDefault.
    */

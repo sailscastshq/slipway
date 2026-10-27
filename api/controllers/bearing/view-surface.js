@@ -78,14 +78,14 @@ module.exports = {
     const title = surface === 'roadmap' ? 'Roadmap' : 'Updates'
     const description =
       surface === 'roadmap'
-        ? `A clear look at what ${resolved.project.name} is considering and building next.`
-        : `The useful things that recently changed in ${resolved.project.name}.`
+        ? `A clear look at what ${resolved.appearance.displayName} is considering and building next.`
+        : `The useful things that recently changed in ${resolved.appearance.displayName}.`
     const social = buildBearingSocialMetadata({
       req: this.req,
-      appName: resolved.project.name,
+      appName: resolved.appearance.displayName,
       path: `${resolved.publicBasePath}/${surface}`,
       imagePath: `${resolved.publicBasePath}/${surface}/og.png`,
-      title: `${title} · ${resolved.project.name}`,
+      title: `${title} · ${resolved.appearance.displayName}`,
       description
     })
 
@@ -93,8 +93,18 @@ module.exports = {
       page: 'bearing/surface',
       props: {
         hostAssetBasePath: resolved.hostAssetBasePath,
+        appearance: {
+          ...resolved.appearance,
+          stylesheet: `${resolved.publicBasePath}/feedback/_/appearance.css`,
+          resolvedMode:
+            resolved.appearance.mode === 'host' &&
+            embedded &&
+            ['light', 'dark'].includes(this.req.query.appearanceMode)
+              ? this.req.query.appearanceMode
+              : null
+        },
         app: {
-          name: resolved.project.name,
+          name: resolved.appearance.displayName,
           homeUrl: resolved.homeUrl,
           feedbackPath: `${resolved.publicBasePath}/feedback`,
           roadmapPath: `${resolved.publicBasePath}/roadmap`,

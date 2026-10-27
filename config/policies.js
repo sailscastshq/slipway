@@ -125,12 +125,17 @@ module.exports.policies = {
   'bearing/view-update-social-image': true,
   'bearing/toggle-vote': true,
   'bearing/view-bootstrap': true,
+  'bearing/view-appearance-styles': true,
+  'bearing/view-widget-styles': true,
+  'bearing/view-appearance-logo': true,
   'bearing/view-widget-config': true,
   'bearing/redirect-to-feedback': true,
 
   // Bridge pages accept either a Slipway operator session or the dedicated,
   // app-scoped host-user session created by bridge/launch.
   'project/view-bridge': 'is-bridge-authenticated',
+  'project/bridge-appearance-styles': 'is-bridge-authenticated',
+  'project/bridge-appearance-logo': 'is-bridge-authenticated',
   'project/view-bridge-model': 'is-bridge-authenticated',
   'project/view-bridge-create': 'is-bridge-authenticated',
   'project/view-bridge-edit': 'is-bridge-authenticated',

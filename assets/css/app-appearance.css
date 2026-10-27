@@ -1,0 +1,132 @@
+/* Semantic app-owned surfaces. Status and destructive colours stay unchanged. */
+.app-appearance {
+  background: var(--app-canvas);
+  color: var(--app-text);
+  font-family: var(--app-font);
+  --color-brand: var(--app-accent);
+  --color-brand-600: var(--app-accent);
+  --color-brand-500: var(--app-accent);
+  --color-brand-400: var(--app-accent);
+  --color-brand-700: var(--app-accent);
+}
+.app-appearance
+  :is(
+    [class~='bg-white'],
+    [class~='bg-gray-950'],
+    [class~='dark:bg-gray-950']
+  ) {
+  background-color: var(--app-canvas);
+}
+.app-appearance
+  :is(
+    [class~='bg-gray-50'],
+    [class~='bg-gray-100'],
+    [class~='bg-gray-900'],
+    [class~='dark:bg-gray-900'],
+    [class~='dark:bg-gray-800']
+  ) {
+  background-color: var(--app-surface);
+}
+.app-appearance
+  :is(
+    [class~='text-gray-950'],
+    [class~='text-gray-900'],
+    [class~='text-gray-800'],
+    [class~='text-gray-700'],
+    [class~='dark:text-white'],
+    [class~='dark:text-gray-200'],
+    [class~='dark:text-gray-300']
+  ) {
+  color: var(--app-text);
+}
+.app-appearance
+  :is(
+    [class~='text-gray-400'],
+    [class~='text-gray-500'],
+    [class~='text-gray-600'],
+    [class~='dark:text-gray-400'],
+    [class~='dark:text-gray-500']
+  ) {
+  color: var(--app-muted-text);
+}
+.app-appearance
+  :is(
+    [class~='border-gray-100'],
+    [class~='border-gray-200'],
+    [class~='border-gray-300'],
+    [class~='dark:border-gray-700'],
+    [class~='dark:border-gray-800']
+  ) {
+  border-color: var(--app-border);
+}
+.app-appearance
+  :is(
+    [class~='bg-brand'],
+    [class~='bg-brand-600'],
+    [class~='bg-gray-950'][class~='text-white'],
+    [class~='bg-gray-900'][class~='text-white']
+  ) {
+  background: var(--app-accent);
+  color: var(--app-accent-text);
+}
+.app-appearance :is(button, a, input, textarea, select):focus-visible {
+  outline: 2px solid var(--app-focus);
+  outline-offset: 3px;
+}
+.app-appearance
+  :is([class~='rounded-2xl'], [class~='rounded-xl'], [class~='rounded-lg']) {
+  border-radius: var(--app-radius);
+}
+.app-appearance[data-density='compact'] article {
+  padding-block: 1rem;
+}
+.app-logo-dark {
+  display: none;
+}
+[data-appearance-mode='dark'] .app-logo-light {
+  display: none;
+}
+[data-appearance-mode='dark'] .app-logo-dark {
+  display: block;
+}
+.app-brand-single {
+  background: #fff;
+}
+[data-appearance-mode='dark'] .app-brand-single .app-logo-light {
+  display: block;
+}
+
+html[data-app-appearance] body {
+  background: var(--app-canvas);
+  color: var(--app-text);
+}
+
+.appearance-widget-preview {
+  display: grid;
+  grid-template-rows: 56px minmax(0, 1fr) auto;
+  height: 620px;
+  max-width: 390px;
+  margin: auto;
+  background: var(--app-canvas);
+}
+.appearance-widget-preview > .app-appearance {
+  min-height: 0;
+  overflow-y: auto;
+}
+.appearance-widget-preview .min-h-screen {
+  min-height: 100%;
+}
+
+.app-appearance :is(input, textarea)::placeholder {
+  color: var(--app-muted-text);
+  opacity: 1;
+}
+
+.app-appearance :is(input, textarea) {
+  caret-color: var(--app-text);
+}
+
+.appearance-logo-upload:has(+ input:focus-visible) {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 4px;
+}

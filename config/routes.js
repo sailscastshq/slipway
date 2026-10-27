@@ -87,6 +87,12 @@ module.exports.routes = {
   'GET /projects/:slug/environments/:envSlug/apps/:appSlug': 'project/view-app',
   'GET /projects/:slug/environments/:envSlug/apps/:appSlug/settings':
     'project/view-app-settings',
+  'GET /projects/:slug/environments/:envSlug/apps/:appSlug/appearance':
+    'project/view-app-appearance',
+  'PATCH /projects/:slug/environments/:envSlug/apps/:appSlug/appearance':
+    'project/update-app-appearance',
+  'GET /projects/:slug/environments/:envSlug/apps/:appSlug/appearance/logo/:slot':
+    'project/view-app-appearance-logo',
   'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bearing':
     'project/view-bearing',
   'PATCH /projects/:slug/environments/:envSlug/apps/:appSlug/bearing':
@@ -551,6 +557,12 @@ module.exports.routes = {
     'bearing/subscribe-realtime',
   'GET /_slipway/bearing/host/:projectSlug/:environmentSlug/:appSlug/bootstrap.js':
     'bearing/view-bootstrap',
+  'GET /_slipway/bearing/host/:projectSlug/:environmentSlug/:appSlug/feedback/_/appearance.css':
+    'bearing/view-appearance-styles',
+  'GET /_slipway/bearing/host/:projectSlug/:environmentSlug/:appSlug/feedback/_/widget.css':
+    'bearing/view-widget-styles',
+  'GET /_slipway/bearing/host/:projectSlug/:environmentSlug/:appSlug/feedback/_/appearance/logo/:slot':
+    'bearing/view-appearance-logo',
   'GET /_slipway/bearing/host/:projectSlug/:environmentSlug/:appSlug/widget-config':
     'bearing/view-widget-config',
   'GET /_slipway/bearing/host/:projectSlug/:environmentSlug/:appSlug':
@@ -575,6 +587,10 @@ module.exports.routes = {
     'project/update-bridge-access',
   'DELETE /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/access/:accessId':
     'project/revoke-bridge-access',
+  'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/_/appearance.css':
+    'project/bridge-appearance-styles',
+  'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/_/appearance/logo/:slot':
+    'project/bridge-appearance-logo',
   'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge':
     'project/view-bridge',
   'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity':

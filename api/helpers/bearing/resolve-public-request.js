@@ -66,6 +66,11 @@ module.exports = {
     }
 
     return {
+      appearance: await require('../../lib/app-appearance-store').resolve(
+        app,
+        `${publicBasePath}/feedback/_`,
+        project.name
+      ),
       project,
       environment,
       app,

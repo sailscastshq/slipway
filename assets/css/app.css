@@ -1,4 +1,6 @@
 @import 'tailwindcss' source(none);
+@import './bearing-widget.css';
+@import './app-appearance.css';
 
 /* Only UI source belongs in discovery; runtime data may include live SQLite sidecars. */
 @source '../js';
