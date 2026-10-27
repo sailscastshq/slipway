@@ -12,7 +12,7 @@ const props = defineProps({
 const emit = defineEmits(['update:surface'])
 const host = ref(null)
 const content = ref(null)
-let root, panel, trigger, close, frame, previewWindow, logo, closeTimer
+let root, panel, trigger, frame, previewWindow, logo, closeTimer
 function paint() {
   if (!root) return
   const name = props.appearance.displayName
@@ -66,7 +66,6 @@ function openPanel() {
   panel.removeAttribute('data-closing')
   panel.prepend(trigger)
   panel.dataset.openedFrom = 'widget'
-  close.hidden = false
   if (!panel.open) panel.showModal()
   paint()
 }
@@ -118,7 +117,6 @@ onMounted(() => {
   root.querySelector('[data-appearance-styles]')?.remove()
   panel = root.querySelector('[data-panel]')
   trigger = root.querySelector('[data-trigger]')
-  close = root.querySelector('[data-close]')
   frame = root.querySelector('[data-frame]')
   const powered = root.querySelector('.bearing-powered-by')
   powered.removeAttribute('href')
@@ -130,7 +128,6 @@ onMounted(() => {
   trigger.addEventListener('click', () =>
     panel.open ? closePanel() : openPanel()
   )
-  close.addEventListener('click', closePanel)
   panel.addEventListener('cancel', (event) => {
     event.preventDefault()
     closePanel()

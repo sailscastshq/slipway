@@ -241,7 +241,7 @@ test(
     ).toHaveCount(0)
     await page.raw
       .locator('[data-slipway-bearing-widget]')
-      .getByRole('button', { name: 'Close', exact: true })
+      .getByRole('button', { name: 'Close what’s new for Tembo', exact: true })
       .click()
     await expect(
       page.raw.locator('[data-slipway-bearing-widget]').locator('dialog')
@@ -471,7 +471,10 @@ test(
     await expect(
       content.getByText('Good things, made simpler', { exact: true })
     ).toBeVisible()
-    await expect(widget.locator('[data-close]')).toBeVisible()
+    await expect(widget.locator('[data-close]')).toHaveCount(0)
+    await expect(widget.locator('[data-trigger]')).toHaveAccessibleName(
+      'Close what’s new for TemboAI'
+    )
     await expect(widget.locator('.bearing-powered-by')).toHaveAccessibleName(
       'Powered by Slipway'
     )

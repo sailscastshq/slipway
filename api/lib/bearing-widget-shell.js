@@ -34,12 +34,6 @@ function widgetShell(config) {
             <span id="slipway-bearing-title">${escapeHtml(
               config.appName
             )}</span>
-            <button
-              type="button"
-              class="bearing-panel-close"
-              data-close
-              aria-label="Close"
-            >×</button>
           </header>
           <iframe data-frame title="${escapeHtml(
             config.appName
