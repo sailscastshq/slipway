@@ -14,6 +14,17 @@ module.exports = {
     const snapshot = await sails.instanceQuest.snapshot()
     const source = snapshot.runs?.find((run) => run.id === runId)
     if (!source) throw 'notFound'
-    return { run: workspace.normalizeRun(source) }
+    return {
+      run: workspace.normalizeRun(source),
+      ...(source.name === 'retain-build-cache'
+        ? {
+            cleanupProgress:
+              await require('../../../../lib/cache-cleanup-progress').read(
+                sails,
+                runId
+              )
+          }
+        : {})
+    }
   }
 }

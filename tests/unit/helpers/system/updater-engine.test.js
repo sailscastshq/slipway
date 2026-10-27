@@ -9,6 +9,7 @@ function fixture({
   wrongChecksum = false,
   snapshotDeadline = false,
   cleanupFails = false,
+  cacheHeld = false,
   withProgress = false
 } = {}) {
   let now = 0,
@@ -82,6 +83,13 @@ function fixture({
       return JSON.stringify([i])
     }
     if (args[0] === 'logs') return logs.join('\n')
+    if (args[0] === 'ps')
+      return [...items.values()]
+        .filter(
+          (item) => item.Config?.Labels?.['slipway.updater.protocol'] === '1'
+        )
+        .map((item) => item.Name.slice(1))
+        .join('\n')
     if (args[0] === 'create') {
       const name = args[args.indexOf('--name') + 1]
       if (find(name)) throw Error('Conflict: name already in use')
@@ -145,6 +153,13 @@ function fixture({
         }
       })
     }
+    if (
+      args[0] === 'run' &&
+      args.includes(
+        require('../../../../bin/slipway-updater.cjs').CACHE_GUARD_CHECK
+      )
+    )
+      return cacheHeld ? 'held' : 'clear'
     if (args[0] === 'run' && args.some((x) => x.includes('statfsSync')))
       return JSON.stringify({ capacityVerified: true })
     if (args[0] === 'run' && args.includes('--rm'))
@@ -410,6 +425,10 @@ for (const cleanupFails of [false, true])
     const result = await f.run()
     assert.equal(result.phase, 'failed')
     assert.equal(result.canRetry, !cleanupFails)
+    assert.equal(
+      (await f.engine.maintenanceStatus()).maintenanceBusy,
+      cleanupFails
+    )
     assert.equal(f.source.State.Running, true)
     assert.equal(
       f.calls.some((args) => args[0] === 'stop' || args[0] === 'rename'),
@@ -511,4 +530,48 @@ test('an external command that ignores TERM still hits the hard client deadline'
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
   }
+})
+
+test('cache cleanup holds terminal and UI updates before image pull or source mutation', async () => {
+  const f = fixture({ cacheHeld: true })
+  const result = await f.run()
+  assert.equal(result.phase, 'failed')
+  assert.equal(result.canRetry, true)
+  assert.equal(f.source.State.Running, true)
+  assert.equal(
+    f.calls.some((args) => ['pull', 'stop', 'rename'].includes(args[0])),
+    false
+  )
+  const check = f.calls.find((args) =>
+    args.includes(
+      require('../../../../bin/slipway-updater.cjs').CACHE_GUARD_CHECK
+    )
+  )
+  assert.ok(check.includes('--read-only'))
+  assert.ok(check.includes('original-id:ro'))
+  assert.ok(check.includes('none'))
+})
+
+test('running update worker remains busy even after emitting its terminal progress event', async () => {
+  const f = fixture()
+  await f.run()
+  f.find('slipway-updater').State = { Running: true, Status: 'running' }
+  const status = await f.engine.status()
+  assert.equal(status.phase, 'success')
+  assert.equal(status.maintenanceBusy, true)
+})
+
+test('host-wide cleanup admission detects updates for custom-named installations', async () => {
+  const f = fixture()
+  assert.deepEqual(await f.engine.maintenanceStatus(), {
+    phase: 'idle',
+    maintenanceBusy: false
+  })
+  f.source.Name = '/custom-slipway'
+  await f.engine.start({ ...f.options, containerName: 'custom-slipway' })
+  assert.deepEqual(await f.engine.maintenanceStatus(), {
+    phase: 'maintenance',
+    maintenanceBusy: true
+  })
+  assert.equal(f.source.State.Running, true)
 })

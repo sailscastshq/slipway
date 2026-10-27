@@ -290,7 +290,10 @@ function create(sails) {
       // request never re-executes, including after an interrupted web response.
       await save(run, true)
       runs.set(run.id, run)
-      const execution = sails.quest.run(name, jobInputs)
+      const execution = sails.quest.run(
+        name,
+        name === 'retain-build-cache' ? { ...jobInputs, requestId } : jobInputs
+      )
       Promise.resolve(execution)
         .catch((error) => {
           enqueue(async () => {

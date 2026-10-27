@@ -7,12 +7,17 @@ module.exports = {
   friendlyName: 'Clean up old build cache',
   description:
     'Prune only unused age-filtered build cache, preserving deployment images and volumes.',
-  inputs: { preview: { type: 'boolean', defaultsTo: false } },
+  inputs: {
+    preview: { type: 'boolean', defaultsTo: false },
+    requestId: { type: 'string', regex: /^[a-f0-9-]{36}$/ }
+  },
   exits: { success: { outputType: 'ref' } },
-  fn: async function ({ preview = false } = {}) {
+  fn: async function ({ preview = false, requestId } = {}) {
     const policy = await sails.helpers.buildCacheRetention.getPolicy()
     const result = {
       runId: randomUUID(),
+      requestId: requestId || null,
+      phase: 'checking',
       startedAt: Date.now(),
       status: 'planning',
       mode: policy.remove && !preview ? 'remove' : 'dry-run',
@@ -30,6 +35,7 @@ module.exports = {
       preserveGuard = false
     const docker = sails.config.docker?.binaryPath || 'docker'
     try {
+      await save()
       release = await require('../../lib/image-operation-guard').acquire(
         sails.config.appPath,
         'cleanup',
@@ -41,6 +47,7 @@ module.exports = {
         }
       )
       result.recoveredGuards = release.recoveredCount
+      if (await updateBusy()) return await held('instance-update-active')
       const beforeDisk = await sails.helpers.lookout.getDiskSpace()
       if (!validDisk(beforeDisk))
         return await held('disk-inventory-unavailable')
@@ -70,6 +77,7 @@ module.exports = {
       const current = await sails.helpers.buildCacheRetention.getPolicy()
       if (JSON.stringify(current) !== JSON.stringify(policy))
         return await held('policy-changed')
+      if (await updateBusy()) return await held('instance-update-active')
       const fresh = await sails.helpers.buildCacheRetention.getInventory()
       if (await activeWork(fresh))
         return await held('active-build-or-deployment')
@@ -86,6 +94,7 @@ module.exports = {
         '--force'
       ]
       result.status = 'running'
+      result.phase = 'pruning'
       await save()
       await audit('build-cache-retention.removal-started')
       const remaining = policy.maxRunMs - (Date.now() - result.startedAt)
@@ -101,6 +110,8 @@ module.exports = {
           stdout
         )
       result.dockerReportedReclaimed = reclaimed?.[1] || null
+      result.phase = 'refreshing'
+      await save()
       const afterDisk = await sails.helpers.lookout.getDiskSpace()
       result.after = {
         cache: await sails.helpers.buildCacheRetention.getInventory(),
@@ -122,7 +133,7 @@ module.exports = {
       if (preserveGuard)
         result.holds = ['build-cache-cleanup-outcome-unconfirmed']
       result.error = preserveGuard
-        ? 'Cache cleanup completion is unconfirmed; preserve its guard and inspect the daemon before resuming deployments.'
+        ? 'Cache cleanup completion is unconfirmed. Inspect Docker before retrying or resuming deployments; the maintenance hold stays in place.'
         : 'Build cache cleanup failed; inspect the bounded audit outcome.'
       await finish()
       throw new Error(result.error, { cause: error })
@@ -133,6 +144,15 @@ module.exports = {
       result.status = 'held'
       result.holds = [reason]
       return finish()
+    }
+    async function updateBusy() {
+      const state = await sails.helpers.buildCacheRetention.getUpdateStatus()
+      if (!state || typeof state.phase !== 'string')
+        throw new Error('Update ownership could not be verified.')
+      return (
+        state.maintenanceBusy === true ||
+        !['idle', 'success', 'failed', 'rolled-back'].includes(state.phase)
+      )
     }
     async function activeWork(cache) {
       return (
@@ -153,6 +173,7 @@ module.exports = {
       })
     }
     async function save() {
+      result.updatedAt = Date.now()
       await sails.helpers.setting.set(
         'buildCacheRetentionLastRun',
         JSON.stringify(result)
@@ -160,7 +181,9 @@ module.exports = {
     }
     async function finish() {
       result.finishedAt = Date.now()
+      result.phase = result.status
       const summary = {
+        runId: result.runId,
         status: result.status,
         mode: result.mode,
         holds: result.holds,

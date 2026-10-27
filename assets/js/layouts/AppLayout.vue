@@ -27,6 +27,7 @@ import Search from '@/components/ui/icons/Search.vue'
 import User from '@/components/ui/icons/User.vue'
 import X from '@/components/ui/icons/X.vue'
 import { createToast } from '@/composables/toast'
+import { createHostCleanup } from '@/composables/host-cleanup'
 import { useFlashToast } from '@/composables/flash-toast'
 import {
   createServiceActions,
@@ -192,6 +193,10 @@ function openCommandPaletteFromUserMenu() {
 
 // Toast system
 const toast = createToast({ max: 0 })
+createHostCleanup(
+  toast,
+  computed(() => loggedInUser.value?.isGenesisUser === true)
+)
 useFlashToast(toast)
 
 // Service actions (global tracking for service start/stop/restart)
