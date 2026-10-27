@@ -147,3 +147,48 @@ previous-release SQLite upgrade check on Linux. The full existing workflow owns
 mail, editor sanitation, streaming and storage regressions. Record exact-head
 CI results in the PR before merging; local Docker is unavailable on the authoring
 host and does not count as executed proof. Do not close #647 until these gates pass.
+
+## Bounded advisory patch on 2026-10-27 (#879)
+
+The fresh committed-lock audit before this patch reported thirteen affected
+package entries (one critical, six high, six moderate), representing nine
+advisory families. They were already present in the unchanged 0.0.124 dependency
+files; the Bearing appearance and preview changes did not introduce them.
+
+The patch is limited to these published fixed versions, preserving their major
+versions and the existing dependency-range conventions:
+
+| Package                           | Before  | Patched lock |
+| --------------------------------- | ------- | ------------ |
+| DOMPurify                         | 3.4.16  | 3.4.17       |
+| Nodemailer                        | 10.0.14 | 10.1.4       |
+| ip-address                        | 10.7.3  | 10.7.4       |
+| qs                                | 6.16.0  | 6.16.1       |
+| body-parser, Sails/Skipper copies | 1.20.6  | 1.20.9       |
+| body-parser, Express 5 copy       | 2.3.0   | 2.4.0        |
+
+`npm ci --no-audit --no-fund` installed the frozen lockfile in an isolated local
+dependency directory. The fresh `npm audit --json --package-lock-only` result
+contains **zero reported vulnerabilities**, including development and optional
+dependencies. This is a dated registry result, not a claim that the application
+has no security defects or a waiver for future findings. No unrestricted audit
+fix, dependency downgrade or forced major override is used.
+
+DOMPurify is a production browser dependency used by Bearing update markdown,
+Bridge markdown and rich-text rendering. Its reported critical advisory requires
+non-default template-safe DOM-returning/in-place modes and a downstream template
+evaluator. The current application call sites sanitize strings without those
+modes. The patch still removes the affected version; no release risk exception
+is inferred from the absence of a demonstrated application exploit path.
+
+Focused regressions cover intended mail-recipient parsing, own-property query
+serialization, bounded invalid IP rejection, and compressed-request decoder
+cleanup in disposable Express/Skipper child servers. Browser coverage checks
+markdown output and pasted rich text with template, SVG and event-handler input.
+
+The official Linux dependency upgrade job retains the 0.0.86 rehearsal and adds
+`npm run local:upgrade-check -- 0.0.124` after the same exact-checkout local boot.
+Both execute the real supported scripts; this supplies current-public-release
+upgrade evidence without changing an author's Docker settings or skipping the
+release gate. Record exact-head CI results before merging. This patch does not
+publish a release, tag, container or npm package and does not deploy production.

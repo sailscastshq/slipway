@@ -173,11 +173,14 @@ test(
       ).toBeVisible()
       await expect(page.raw.locator('.bridge-markdown')).toHaveCount(0)
       persistedRecord.body =
-        'Safe **text**\n\n<script>window.pwned=true</script>\n\n[bad](javascript:alert(1)) <img src=x onerror="window.pwned=true">'
+        'Safe **text**\n\n<script>window.pwned=true</script>\n\n[bad](javascript:alert(1)) <img src=x onerror="window.pwned=true">\n\nLiteral {{7*7}}\n\n<template shadowrootmode="open"><img src=x onerror="window.pwned=true"></template><svg><a><animate attributeName="href" values="x;javascript:alert(1)"/></a></svg>'
       await page.goto(`${base}/42`)
       const detail = page.raw.locator('.bridge-markdown')
-      await expect(detail.locator('script,img,iframe')).toHaveCount(0)
+      await expect(
+        detail.locator('script,img,iframe,svg,template')
+      ).toHaveCount(0)
       await expect(detail.locator('[href^="javascript:"]')).toHaveCount(0)
+      await expect(detail).toContainText('Literal {{7*7}}')
       expect(await page.raw.evaluate(() => window.pwned)).toBe(undefined)
       persistedRecord.body = 'Legacy plain text\r\nSecond line\r\n'
       await page.goto(`${base}/42/edit`)
