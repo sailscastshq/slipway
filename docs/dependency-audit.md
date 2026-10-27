@@ -188,7 +188,11 @@ markdown output and pasted rich text with template, SVG and event-handler input.
 
 The official Linux dependency upgrade job retains the 0.0.86 rehearsal and adds
 `npm run local:upgrade-check -- 0.0.124` after the same exact-checkout local boot.
-Both execute the real supported scripts; this supplies current-public-release
+Modern previous images initialize the fixture through their own production
+release-startup path; only legacy images without that capability use a development
+seed. Startup detection errors fail rather than changing schema policy. This
+avoids passing an ORM development schema to a guarded production catalog.
+Both baselines execute the real supported scripts; this supplies current-public-release
 upgrade evidence without changing an author's Docker settings or skipping the
 release gate. Record exact-head CI results before merging. This patch does not
 publish a release, tag, container or npm package and does not deploy production.

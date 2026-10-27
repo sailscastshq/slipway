@@ -250,7 +250,7 @@ check_upgrade_from_previous_release() {
 
   local suffix previous_image seed_container current_container
   local candidate_container db_volume apps_volume session_secret
-  local data_encryption_key
+  local data_encryption_key seed_environment
   suffix="$$"
   previous_image="ghcr.io/sailscastshq/slipway:${PREVIOUS_VERSION#v}"
   seed_container="slipway-upgrade-seed-${suffix}"
@@ -277,17 +277,27 @@ check_upgrade_from_previous_release() {
   ensure_network
   build_local_image
   docker pull "$previous_image"
+  # Modern releases initialize their own production schema before ORM lift.
+  # Development's migrate:alter schema is not an interchangeable fixture: it
+  # can differ from the guarded production catalog (for example ci_policies).
+  # Older images predate release-startup and still need their legacy dev seed.
+  seed_environment="$(docker run --rm --entrypoint node "$previous_image" -e \
+    "console.log(require('node:fs').existsSync('./api/lib/release-startup.js') ? 'production' : 'development')")"
+  case "$seed_environment" in
+    production|development) ;;
+    *) echo "Could not determine the previous image's supported startup mode." >&2; return 1 ;;
+  esac
   docker volume create "$db_volume" >/dev/null
   docker volume create "$apps_volume" >/dev/null
 
-  echo "Creating the ${PREVIOUS_VERSION#v} database shape..."
+  echo "Creating the ${PREVIOUS_VERSION#v} ${seed_environment} database shape..."
   docker run -d \
     --name "$seed_container" \
     --network "$NETWORK_NAME" \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v "$db_volume:/app/db" \
     -v "$apps_volume:/var/slipway/apps" \
-    -e NODE_ENV=development \
+    -e NODE_ENV="$seed_environment" \
     -e PORT=1337 \
     -e SLIPWAY_IMAGE_RETENTION_REMOVE="${SLIPWAY_IMAGE_RETENTION_REMOVE:-true}" \
     -e SLIPWAY_BUILD_CACHE_RETENTION_REMOVE="${SLIPWAY_BUILD_CACHE_RETENTION_REMOVE:-true}" \
