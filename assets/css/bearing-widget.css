@@ -187,9 +187,14 @@
   display: none;
 }
 .bearing-slipway-lockup {
-  width: 70px;
-  height: 16px;
+  width: 80px;
+  height: 18px;
+  color: #525252;
   flex: none;
+}
+.bearing-powered-by > span {
+  font-size: 10px;
+  font-weight: 400;
 }
 .bearing-powered-by {
   gap: 5px;
@@ -269,6 +274,9 @@
     background: #1d222b;
     box-shadow: none;
     color: #fff;
+  }
+  .bearing-slipway-lockup {
+    color: #d4d4d4;
   }
   .bearing-powered-by {
     color: #a3a3a3;
@@ -404,4 +412,8 @@
 }
 .bearing-app-logo[hidden] {
   display: none;
+}
+
+:host([data-app-appearance]) .bearing-slipway-lockup {
+  color: var(--app-text);
 }
