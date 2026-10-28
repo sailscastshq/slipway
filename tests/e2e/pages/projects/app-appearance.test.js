@@ -135,11 +135,9 @@ test(
       path: path.join(root, 'tembo-settings-dark.png'),
       fullPage: true
     })
-    await page.raw
-      .getByRole('button', { name: 'Save appearance', exact: true })
-      .click()
+    await page.raw.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(
-      page.raw.getByText('Appearance saved.', { exact: true })
+      page.raw.getByText('App appearance saved.', { exact: true })
     ).toBeVisible()
     await page.raw.reload()
     await expect(page.raw.locator('#appearance-name')).toHaveValue('Tembo')
@@ -243,7 +241,7 @@ test(
     ).toHaveCount(0)
     await page.raw
       .locator('[data-slipway-bearing-widget]')
-      .getByRole('button', { name: 'Close', exact: true })
+      .getByRole('button', { name: 'Close what’s new for Tembo', exact: true })
       .click()
     await expect(
       page.raw.locator('[data-slipway-bearing-widget]').locator('dialog')
@@ -285,11 +283,9 @@ test(
     await page.raw
       .getByRole('button', { name: 'Reset to defaults', exact: true })
       .click()
-    await page.raw
-      .getByRole('button', { name: 'Save appearance', exact: true })
-      .click()
+    await page.raw.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(
-      page.raw.getByText('Appearance saved.', { exact: true })
+      page.raw.getByText('App appearance saved.', { exact: true })
     ).toBeVisible()
     await page.raw.reload()
     await expect(page.raw.locator('#appearance-name')).toHaveValue('Tembo')
@@ -475,6 +471,14 @@ test(
     await expect(
       content.getByText('Good things, made simpler', { exact: true })
     ).toBeVisible()
+    await expect(widget.locator('[data-close]')).toHaveCount(0)
+    await expect(widget.locator('[data-trigger]')).toHaveAccessibleName(
+      'Close what’s new for TemboAI'
+    )
+    await expect(widget.locator('.bearing-powered-by')).toHaveAccessibleName(
+      'Powered by Slipway'
+    )
+    await expect(widget.locator('.bearing-slipway-lockup')).toBeVisible()
     await expect(widget.locator('.bearing-powered-by')).not.toHaveAttribute(
       'href'
     )
@@ -515,6 +519,49 @@ test(
         .last()
         .click()
       await expect(widget).toHaveAttribute('data-appearance-mode', mode)
+      await expect(widget.locator('.bearing-powered-by > span')).toHaveCSS(
+        'font-weight',
+        '400'
+      )
+      await expect(widget.locator('.bearing-powered-by > span')).toHaveCSS(
+        'font-size',
+        '10px'
+      )
+      await expect(widget.locator('.bearing-slipway-lockup')).toHaveCSS(
+        'width',
+        '80px'
+      )
+      const attribution = await widget
+        .locator('.bearing-powered-by')
+        .evaluate((element) => ({
+          prefix: getComputedStyle(element.querySelector('span')).color,
+          logo: getComputedStyle(element.querySelector('svg')).color,
+          background: getComputedStyle(element).backgroundColor
+        }))
+      const hex = (rgb) =>
+        '#' +
+        rgb
+          .match(/\d+/g)
+          .slice(0, 3)
+          .map((n) => Number(n).toString(16).padStart(2, '0'))
+          .join('')
+      expect(
+        contract.contrast(
+          hex(attribution.prefix),
+          hex(attribution.background)
+        ) >= 4.5
+      ).toBe(true)
+      expect(
+        contract.contrast(hex(attribution.logo), hex(attribution.background)) >
+          contract.contrast(
+            hex(attribution.prefix),
+            hex(attribution.background)
+          )
+      ).toBe(true)
+      await widget
+        .locator('.bearing-powered-by')
+        .screenshot({ path: path.join(root, `attribution-${mode}.png`) })
+
       const logo = widget.locator('.bearing-app-logo')
       await expect(logo).toHaveAttribute('src', /^data:image\/png;base64,/)
       await page.raw.screenshot({
@@ -523,6 +570,9 @@ test(
       })
     }
     await page.raw.getByRole('button', { name: 'Mobile', exact: true }).click()
+    await widget
+      .locator('.bearing-powered-by')
+      .screenshot({ path: path.join(root, 'attribution-mobile-dark.png') })
     expect(
       await panel.evaluate((el) => Math.round(el.getBoundingClientRect().width))
     ).toBe(366)

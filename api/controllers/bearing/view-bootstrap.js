@@ -52,6 +52,7 @@ function bearingBootstrap(widgetShell) {
       let currentSurface = openingView
       let opener = null
       let openedFromInjectedTrigger = false
+      let launcherReturnFocus = null
       let hostScrollState = null
       let transitionId = 0
       let closeTimer = null
@@ -85,7 +86,6 @@ function bearingBootstrap(widgetShell) {
       })
       const trigger = root.querySelector('[data-trigger]')
       const panel = root.querySelector('[data-panel]')
-      const closeButton = root.querySelector('[data-close]')
       const frame = root.querySelector('[data-frame]')
       const surfaceButtons = root.querySelectorAll('[data-surface]')
       const appearance = config.appearance
@@ -150,16 +150,15 @@ function bearingBootstrap(widgetShell) {
 
       function paintTrigger() {
         trigger.setAttribute('aria-expanded', String(open))
-        trigger.hidden = open ? !openedFromInjectedTrigger : !fresh
-        closeButton.hidden = open && openedFromInjectedTrigger
-        if (open && openedFromInjectedTrigger) {
+        trigger.hidden = !open && !fresh
+        if (open) {
           trigger.innerHTML =
             '<span class="bearing-trigger-mark" aria-hidden="true">×</span>'
           trigger.setAttribute(
             'aria-label',
             `Close what’s new for ${config.appName}`
           )
-        } else if (fresh) {
+        } else {
           trigger.innerHTML =
             '<span class="bearing-trigger-mark" aria-hidden="true">✦</span><span>What’s new</span>'
           trigger.setAttribute(
@@ -228,20 +227,24 @@ function bearingBootstrap(widgetShell) {
         const transition = ++transitionId
         clearTimeout(closeTimer)
         panel.removeAttribute('data-closing')
-        opener = nextOpener || document.activeElement
-        openedFromInjectedTrigger = opener === trigger
+        const requestedOpener = nextOpener || document.activeElement
+        if (
+          !open ||
+          (requestedOpener !== host && !panel.contains(requestedOpener))
+        )
+          opener = requestedOpener
+        openedFromInjectedTrigger = requestedOpener === trigger
         panel.dataset.openedFrom = openedFromInjectedTrigger ? 'widget' : 'host'
         // Moving the same button into the dialog keeps it in the native top
         // layer, including when the browser makes the host document inert.
-        if (openedFromInjectedTrigger) panel.prepend(trigger)
-        else root.insertBefore(trigger, panel)
+        panel.prepend(trigger)
         open = true
         setSurface(surface)
         if (!panel.open) panel.showModal()
         lockHostScroll()
         requestAnimationFrame(() => {
           if (transition !== transitionId || !open) return
-          ;(openedFromInjectedTrigger ? trigger : closeButton).focus()
+          trigger.focus()
         })
         return true
       }
@@ -260,9 +263,13 @@ function bearingBootstrap(widgetShell) {
           root.insertBefore(trigger, panel)
           unlockHostScroll()
           paintTrigger()
-          if (previousOpener?.isConnected && previousOpener !== trigger) {
-            previousOpener.focus()
-          }
+          const returnTarget =
+            previousOpener === trigger
+              ? trigger.hidden
+                ? launcherReturnFocus
+                : trigger
+              : previousOpener
+          if (returnTarget?.isConnected) returnTarget.focus()
         }
         panel.setAttribute('data-closing', '')
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -346,7 +353,14 @@ function bearingBootstrap(widgetShell) {
         if (open) closePanel()
         else openPanel('updates', trigger)
       })
-      closeButton.addEventListener('click', closePanel)
+      trigger.addEventListener('focus', (event) => {
+        if (
+          !open &&
+          event.relatedTarget?.isConnected &&
+          event.relatedTarget !== host
+        )
+          launcherReturnFocus = event.relatedTarget
+      })
       surfaceButtons.forEach((button) => {
         button.addEventListener('click', () =>
           setSurface(button.dataset.surface)

@@ -1113,7 +1113,7 @@ test(
     )
     await expect(widgetTrigger).toBeFocused()
     await expect(widgetPanel.locator('[data-trigger]')).toBeVisible()
-    await expect(widget.locator('[data-close]')).toBeHidden()
+    await expect(widget.locator('[data-close]')).toHaveCount(0)
     expect(
       await widgetPanel.evaluate((dialog) => dialog.matches(':modal'))
     ).toBe(true)
@@ -1223,14 +1223,14 @@ test(
       )
     })
     await expect(widgetPanel).toHaveAttribute('data-opened-from', 'host')
-    await expect(widgetTrigger).toBeHidden()
-    await expect(widget.locator('[data-close]')).toBeFocused()
+    await expect(widgetTrigger).toBeVisible()
+    await expect(widget.locator('[data-trigger]')).toBeFocused()
     await page.raw.evaluate(
       () => new Promise((resolve) => setTimeout(resolve, 180))
     )
     await expect(widgetPanel).toBeVisible()
-    await expect(widget.locator('[data-close]')).toBeFocused()
-    await widget.locator('[data-close]').click()
+    await expect(widget.locator('[data-trigger]')).toBeFocused()
+    await widget.locator('[data-trigger]').click()
     await expect(widgetPanel).not.toBeVisible()
     await expect(widgetTrigger).toBeHidden()
     await page.reload()
@@ -1282,7 +1282,7 @@ test(
     await hostFeedbackButton.click()
     await expect(widgetPanel).toBeVisible()
     await expect(widgetPanel).toHaveAttribute('data-opened-from', 'host')
-    await expect(widgetTrigger).toBeHidden()
+    await expect(widgetTrigger).toBeVisible()
     const widgetFrame = widget.locator('iframe')
     await expect(widgetFrame).toHaveAttribute(
       'src',
@@ -1331,17 +1331,17 @@ test(
       bottom: Math.round(
         hostWidgetMobileBounds.y + hostWidgetMobileBounds.height
       )
-    }).toEqual({ left: 0, right: 390, bottom: 844 })
+    }).toEqual({ left: 12, right: 378, bottom: 772 })
     await page.screenshot(
       path.join(screenshotRoot, 'widget-feedback-from-host-mobile.png')
     )
     await page.resize(1440, 1000)
-    await expect(widget.locator('[data-close]')).toBeFocused()
+    await expect(widget.locator('[data-trigger]')).toBeFocused()
     await page.raw.keyboard.press('Shift+Tab')
     await expect(widget.locator('.bearing-powered-by')).toBeFocused()
     await page.raw.keyboard.press('Tab')
-    await expect(widget.locator('[data-close]')).toBeFocused()
-    await widget.locator('[data-close]').click()
+    await expect(widget.locator('[data-trigger]')).toBeFocused()
+    await widget.locator('[data-trigger]').click()
     await expect(widgetPanel).not.toBeVisible()
     await expect(hostFeedbackButton).toBeFocused()
     expect(
@@ -1365,7 +1365,7 @@ test(
     await page.raw.evaluate(() => {
       document
         .querySelector('[data-slipway-bearing-widget]')
-        .shadowRoot.querySelector('[data-close]')
+        .shadowRoot.querySelector('[data-trigger]')
         .click()
       document.querySelector('#host-roadmap-button').click()
     })
@@ -1376,7 +1376,7 @@ test(
       () => new Promise((resolve) => setTimeout(resolve, 180))
     )
     await expect(widgetPanel).toBeVisible()
-    await expect(widget.locator('[data-close]')).toBeFocused()
+    await expect(widget.locator('[data-trigger]')).toBeFocused()
     await expect(widgetFrame).toHaveAttribute(
       'src',
       '/bearing/roadmap?embedded=1'
@@ -1385,7 +1385,7 @@ test(
       'aria-current',
       'page'
     )
-    await widget.locator('[data-close]').click()
+    await widget.locator('[data-trigger]').click()
     await expect(hostRoadmapButton).toBeFocused()
 
     await hostUpdatesButton.click()
@@ -1393,7 +1393,7 @@ test(
       'src',
       '/bearing/updates?embedded=1'
     )
-    await widget.locator('[data-close]').click()
+    await widget.locator('[data-trigger]').click()
     await expect(hostUpdatesButton).toBeFocused()
     await expect(widgetTrigger).toBeHidden()
 
@@ -1409,7 +1409,7 @@ test(
       'src',
       '/bearing/feedback?embedded=1'
     )
-    await widget.locator('[data-close]').click()
+    await widget.locator('[data-trigger]').click()
 
     await expect(widgetPanel).not.toBeVisible()
     await sails.models.bearingspace

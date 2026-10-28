@@ -4,6 +4,7 @@ import { usePage } from '@inertiajs/vue3'
 import Button from '@/components/ui/button/Button.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
+import { holdDescription } from '../../../api/lib/cache-cleanup-feedback'
 import { useHostCleanup } from '@/composables/host-cleanup'
 
 const page = usePage()
@@ -57,7 +58,9 @@ const status = computed(() => {
     )} available on disk`
   }
   if (outcome.value?.status === 'held')
-    return 'Cleanup held · another operation needs to finish'
+    return `Last cleanup held · ${holdDescription(
+      outcome.value.holds || progress.value?.holds
+    )} No retry is queued.`
   if (outcome.value?.status === 'dry-run')
     return 'Preview complete · no cache removed'
   if (
@@ -180,6 +183,7 @@ onBeforeUnmount(() => {
       <span v-if="active" class="flex items-center gap-2"
         ><Spinner class="size-4" />View progress</span
       >
+      <span v-else-if="outcome?.status === 'held'">Review cleanup</span>
       <span v-else>Prune</span>
     </Button>
     <ConfirmModal
