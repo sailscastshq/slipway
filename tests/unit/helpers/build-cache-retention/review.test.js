@@ -5,10 +5,12 @@ const os = require('node:os')
 const path = require('node:path')
 const review =
   require('../../../../api/helpers/build-cache-retention/get-review').fn
+const guard = require('../../../../api/lib/image-operation-guard')
 
 test('read-only cleanup review detects maintenance ownership and interrupted updates without admitting a run', async (t) => {
   const oldSails = global.sails
   const oldJobs = global.DeploymentJob
+  const inspect = guard.inspect
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'slipway-prune-review-'))
   let update = { phase: 'idle' }
   let deployments = 0
@@ -44,6 +46,7 @@ test('read-only cleanup review detects maintenance ownership and interrupted upd
   t.after(async () => {
     global.sails = oldSails
     global.DeploymentJob = oldJobs
+    guard.inspect = inspect
     await fs.rm(root, { recursive: true, force: true })
   })
   assert.equal((await review()).available, true)
@@ -62,8 +65,41 @@ test('read-only cleanup review detects maintenance ownership and interrupted upd
   const held = await review()
   assert.equal(held.available, false)
   assert.ok(
-    held.holds.some((reason) => reason.includes('maintenance operation'))
+    held.holds.some((reason) => reason.includes('maintenance cleanup guard'))
   )
+  assert.equal(
+    await fs.readFile(path.join(directory, 'cleanup'), 'utf8'),
+    'fixture retained guard'
+  )
+  guard.inspect = async () => ({ state: 'unverified', count: 6 })
+  const unknown = await review()
+  assert.equal(unknown.available, false)
+  assert.ok(unknown.holds.some((reason) => reason.includes('host processes')))
+  assert.equal(
+    unknown.holds.some((reason) => reason.includes('operation holds')),
+    false
+  )
+  guard.inspect = async () => ({ state: 'active', count: 1 })
+  assert.ok(
+    (await review()).holds.some((reason) => reason.includes('live process'))
+  )
+  guard.inspect = async () => ({ state: 'recoverable', count: 2 })
+  sails.models = Object.fromEntries(
+    [
+      'deploymentjob',
+      'deployment',
+      'deploymentlease',
+      'cleanupoperation',
+      'setting'
+    ].map((name) => [name, { count: async () => 0 }])
+  )
+  assert.equal((await review()).available, true)
+  update = { phase: 'success', maintenanceBusy: true }
+  assert.equal((await review()).available, false)
+  update = { phase: 'idle' }
+  sails.models.deploymentlease.count = async () => 1
+  assert.equal((await review()).available, false)
+  // Review never acquires, quarantines or removes the original fixture guard.
   assert.equal(
     await fs.readFile(path.join(directory, 'cleanup'), 'utf8'),
     'fixture retained guard'

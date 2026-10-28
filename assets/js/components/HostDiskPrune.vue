@@ -237,6 +237,22 @@ onBeforeUnmount(() => {
           >
             {{ hold }}
           </p>
+          <p
+            v-if="review.ownership?.state === 'recoverable'"
+            class="text-sm text-gray-500 dark:text-gray-400"
+          >
+            Verified stopped owners will be quarantined before cleanup. Current
+            work is checked again before anything changes.
+          </p>
+          <Button
+            v-if="review.holds.length"
+            type="button"
+            class="border border-gray-200 bg-transparent text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-transparent dark:text-gray-200 dark:hover:bg-gray-800"
+            :disabled="loading || submitting"
+            @click="ask"
+          >
+            Review again
+          </Button>
           <div
             v-if="run"
             class="space-y-2 text-sm text-gray-600 dark:text-gray-300"

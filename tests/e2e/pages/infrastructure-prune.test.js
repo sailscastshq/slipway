@@ -1,6 +1,7 @@
 const { test } = require('sounding')
 const fs = require('node:fs')
 const path = require('node:path')
+const guard = require('../../../api/lib/image-operation-guard')
 
 for (const browser of ['desktop', 'mobile']) {
   test(
@@ -14,6 +15,7 @@ for (const browser of ['desktop', 'mobile']) {
         disk: sails.helpers.lookout.getDiskSpace,
         health: sails.helpers.lookout.getObservabilityHealth
       }
+      const originalInspect = guard.inspect
       sails.helpers.buildCacheRetention.getUpdateStatus = async () => ({
         phase: 'idle'
       })
@@ -302,6 +304,41 @@ for (const browser of ['desktop', 'mobile']) {
           .getByRole('dialog')
           .getByRole('button', { name: 'Cancel', exact: true })
           .click()
+        let reviews = 0
+        guard.inspect = async () => {
+          reviews++
+          return { state: 'unverified', count: 6 }
+        }
+        run = null
+        await page.goto('/lookout')
+        await page.raw
+          .locator('[data-test="host-disk-prune"]')
+          .getByRole('button', { name: 'Prune', exact: true })
+          .click()
+        await expect(
+          dialog.getByText(/Disk guard ownership could not be verified/)
+        ).toBeVisible()
+        await expect(
+          dialog.getByRole('button', { name: 'Prune cache', exact: true })
+        ).toBeDisabled()
+        await dialog
+          .getByRole('button', { name: 'Review again', exact: true })
+          .click()
+        await expect(
+          dialog.getByText(
+            /An administrator must inspect retained guards and host processes/
+          )
+        ).toBeVisible()
+        expect(reviews >= 2).toBe(true)
+        expect(calls).toBe(2)
+        await capture(path.join(output, `${browser}-dark-unknown-owner.png`))
+        await page.raw.evaluate(() =>
+          document.documentElement.classList.remove('dark')
+        )
+        await capture(path.join(output, `${browser}-light-unknown-owner.png`))
+        await dialog
+          .getByRole('button', { name: 'Cancel', exact: true })
+          .click()
         await sails.models.user
           .updateOne({ id: world.current.users.genesisUser.id })
           .set({ isGenesisUser: false })
@@ -316,6 +353,7 @@ for (const browser of ['desktop', 'mobile']) {
         ).toBe(true)
         expect(page).toHaveNoJavascriptErrors()
       } finally {
+        guard.inspect = originalInspect
         sails.helpers.buildCacheRetention.getUpdateStatus = original.update
         sails.instanceQuest = original.quest
         sails.helpers.buildCacheRetention.getInventory = original.inventory

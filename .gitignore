@@ -159,6 +159,7 @@ data/
 # Bounded instance Quest history and conservative image-operation holds
 db/instance-quest/
 db/image-operation-guard/
+db/image-guard-retired/
 db/image-retention.lock
 output/bosun-quest/
 output/rollback-recovery/

@@ -73,8 +73,10 @@ jobs:
         run: npm run local
       - name: Verify the historical 0.0.86 database upgrade
         run: npm run local:upgrade-check -- 0.0.86
-      - name: Verify the current public 0.0.124 database upgrade
+      - name: Verify the retained 0.0.124 database upgrade
         run: npm run local:upgrade-check -- 0.0.124
+      - name: Verify the current public 0.0.127 database upgrade
+        run: npm run local:upgrade-check -- 0.0.127
       - name: Remove only the disposable local installation
         if: always()
         run: npm run local:destroy

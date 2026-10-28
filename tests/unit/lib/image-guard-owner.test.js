@@ -195,3 +195,104 @@ test('a partial quarantine failure restores earlier moves and keeps every origin
   }
   assert.deepEqual((await fs.readdir(directory)).sort(), original.sort())
 })
+
+test('read-only guard inspection shares dead-owner classification without creating or retiring files', async (t) => {
+  let classification = 'dead'
+  const { root, directory, api } = await fixture(t, async () => classification)
+  const original = await fs.readdir(directory)
+  assert.deepEqual(await api.inspect(root), { state: 'recoverable', count: 2 })
+  classification = 'live'
+  assert.deepEqual(await api.inspect(root), { state: 'active', count: 2 })
+  classification = 'unknown'
+  assert.deepEqual(await api.inspect(root), { state: 'unverified', count: 2 })
+  assert.deepEqual(await fs.readdir(directory), original)
+  await assert.rejects(fs.stat(path.join(root, 'db/image-guard-retired')), {
+    code: 'ENOENT'
+  })
+})
+
+test('owner becoming live during recovery preparation preserves exact original records', async (t) => {
+  let classification = 'dead'
+  const { root, directory, api } = await fixture(t, async () => classification)
+  const original = await fs.readdir(directory)
+  await assert.rejects(
+    api.acquire(root, 'cleanup', {
+      recovery: {
+        prepare: async () => {
+          classification = 'live'
+          return true
+        },
+        verify: async () => true
+      }
+    }),
+    { code: 'E_IMAGE_OPERATIONS_BUSY' }
+  )
+  assert.deepEqual(await fs.readdir(directory), original)
+})
+
+test('concurrent recovery admits exactly one cleanup and retires each record only once', async (t) => {
+  const { root, directory, api } = await fixture(t)
+  const attempts = await Promise.allSettled([
+    api.acquire(root, 'cleanup', { recovery: idle() }),
+    api.acquire(root, 'cleanup', { recovery: idle() })
+  ])
+  assert.equal(
+    attempts.filter((result) => result.status === 'fulfilled').length,
+    1
+  )
+  assert.equal(
+    attempts.find((result) => result.status === 'rejected').reason.code,
+    'E_IMAGE_OPERATIONS_BUSY'
+  )
+  assert.deepEqual(await fs.readdir(directory), ['cleanup'])
+  assert.equal(
+    (await fs.readdir(path.join(root, 'db/image-guard-retired'))).length,
+    1
+  )
+  await attempts.find((result) => result.status === 'fulfilled').value()
+})
+
+test('versioned container ownership is required for cross-namespace proof, never inferred for legacy records', async () => {
+  const value = record()
+  const other = { ...owner, namespace: 'pid:[42]' }
+  let calls = 0
+  const containers = {
+    valid: (value) => value?.id === 'immutable',
+    state: async () => {
+      calls++
+      return 'dead'
+    }
+  }
+  assert.equal(await ownerState(value, other, null, containers), 'unknown')
+  assert.equal(calls, 0)
+  value.version = 3
+  assert.equal(await ownerState(value, other, null, containers), 'unknown')
+  value.owner = { ...owner, container: { id: 'immutable' } }
+  assert.equal(await ownerState(value, other, null, containers), 'dead')
+  assert.equal(calls, 1)
+})
+
+test('malformed, symlinked and oversized records remain unverifiable without retirement', async (t) => {
+  for (const kind of ['malformed', 'symlink', 'oversized']) {
+    const { root, directory, api } = await fixture(t)
+    const [name] = await fs.readdir(directory)
+    const file = path.join(directory, name)
+    if (kind === 'malformed') await fs.writeFile(file, '{broken')
+    if (kind === 'oversized') await fs.writeFile(file, ' '.repeat(4097))
+    if (kind === 'symlink') {
+      await fs.unlink(file)
+      await fs.symlink(
+        path.join(directory, (await fs.readdir(directory))[0]),
+        file
+      )
+    }
+    assert.equal((await api.inspect(root)).state, 'unverified')
+    await assert.rejects(api.acquire(root, 'cleanup', { recovery: idle() }), {
+      code: 'E_IMAGE_OPERATIONS_BUSY'
+    })
+    assert.equal((await fs.readdir(directory)).length, 2)
+    await assert.rejects(fs.stat(path.join(root, 'db/image-guard-retired')), {
+      code: 'ENOENT'
+    })
+  }
+})

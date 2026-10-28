@@ -1,9 +1,10 @@
 const fs = require('node:fs/promises')
 const path = require('node:path')
 const { randomUUID } = require('node:crypto')
+const containerProof = require('./image-guard-container')
 
-// No age-based expiry. Legacy, cross-namespace and uncertain cleanup holds stay
-// closed. Only a proved-dead versioned use owner can enter verified recovery.
+// No age-based expiry. Unverifiable owners and cleanup holds stay closed.
+// Container receipts extend process proof across container replacement.
 function create({ identity = selfIdentity, state = ownerState } = {}) {
   async function acquire(appPath, mode = 'use', { recovery } = {}) {
     if (!['use', 'cleanup'].includes(mode))
@@ -12,7 +13,7 @@ function create({ identity = selfIdentity, state = ownerState } = {}) {
     await fs.mkdir(root, { recursive: true, mode: 0o700 })
     const owner = await identity()
     const record = {
-      version: 2,
+      version: owner?.container ? 3 : 2,
       token: randomUUID(),
       mode,
       pid: process.pid,
@@ -79,7 +80,7 @@ function create({ identity = selfIdentity, state = ownerState } = {}) {
     release.recoveredCount = recoveredCount
     return release
   }
-  async function deadUses(root, owner) {
+  async function readUses(root, owner) {
     const names = (await fs.readdir(root)).filter(
       (name) => name !== 'admission'
     )
@@ -90,24 +91,64 @@ function create({ identity = selfIdentity, state = ownerState } = {}) {
     )
       return null
     const result = []
+    const deadline = Date.now() + 5000
     for (const name of names.sort()) {
       try {
+        if (Date.now() >= deadline) return null
         const file = path.join(root, name)
         const stat = await fs.lstat(file)
         if (!stat.isFile() || stat.size > 4096) return null
         const raw = await fs.readFile(file, 'utf8')
         const record = JSON.parse(raw)
-        if (
-          record.token !== name.slice(4) ||
-          (await state(record, owner)) !== 'dead'
-        )
-          return null
-        result.push({ name, raw })
+        if (record.token !== name.slice(4)) return null
+        let timer
+        let classification
+        try {
+          classification = await Promise.race([
+            state(record, owner),
+            new Promise((resolve) => {
+              timer = setTimeout(
+                () => resolve('unknown'),
+                Math.max(1, deadline - Date.now())
+              )
+            })
+          ])
+        } finally {
+          clearTimeout(timer)
+        }
+        result.push({ name, raw, state: classification })
       } catch {
         return null
       }
     }
     return result
+  }
+  async function deadUses(root, owner) {
+    const records = await readUses(root, owner)
+    return records?.every((record) => record.state === 'dead')
+      ? records.map(({ name, raw }) => ({ name, raw }))
+      : null
+  }
+  async function inspect(appPath) {
+    const root = path.join(appPath, 'db', 'image-operation-guard')
+    try {
+      const names = await fs.readdir(root)
+      if (!names.length) return { state: 'clear', count: 0 }
+      if (names.includes('admission'))
+        return { state: 'busy', count: names.length }
+      if (names.includes('cleanup'))
+        return { state: 'cleanup', count: names.length }
+      const owner = await identity()
+      const records = await readUses(root, owner)
+      if (records?.every((record) => record.state === 'dead'))
+        return { state: 'recoverable', count: records.length }
+      if (records?.every((record) => ['dead', 'live'].includes(record.state)))
+        return { state: 'active', count: records.length }
+      return { state: 'unverified', count: names.length }
+    } catch (error) {
+      if (error.code === 'ENOENT') return { state: 'clear', count: 0 }
+      return { state: 'unverified', count: null }
+    }
   }
   function guard(fn) {
     return async function (...args) {
@@ -119,7 +160,7 @@ function create({ identity = selfIdentity, state = ownerState } = {}) {
       }
     }
   }
-  return { acquire, guard }
+  return { acquire, guard, inspect }
 }
 
 async function admitted(root, fn) {
@@ -227,7 +268,7 @@ async function boundedVerify(verify) {
       (await Promise.race([
         verify(),
         new Promise((resolve) => {
-          timer = setTimeout(() => resolve(false), 250)
+          timer = setTimeout(() => resolve(false), 2000)
         })
       ])) === true
     )
@@ -237,15 +278,20 @@ async function boundedVerify(verify) {
     clearTimeout(timer)
   }
 }
+let containerIdentity
 async function selfIdentity() {
   try {
-    return {
+    const identity = {
       bootId: (
         await fs.readFile('/proc/sys/kernel/random/boot_id', 'utf8')
       ).trim(),
       namespace: await fs.readlink('/proc/self/ns/pid'),
       startTicks: startTicks(await fs.readFile('/proc/self/stat', 'utf8'))
     }
+    containerIdentity ||= containerProof.identify(identity, process.pid)
+    const container = await containerIdentity
+    if (container) identity.container = container
+    return identity
   } catch {
     return null
   }
@@ -259,11 +305,13 @@ function startTicks(stat) {
 async function ownerState(
   record,
   current,
-  readProcess = (pid) => fs.readFile(`/proc/${pid}/stat`, 'utf8')
+  readProcess = (pid) => fs.readFile(`/proc/${pid}/stat`, 'utf8'),
+  containers = containerProof
 ) {
   const owner = record?.owner
   if (
-    record?.version !== 2 ||
+    ![2, 3].includes(record?.version) ||
+    (record.version === 3 && !containers.valid(record.owner?.container)) ||
     record.mode !== 'use' ||
     !/^[a-f0-9-]{36}$/.test(record.token || '') ||
     !Number.isSafeInteger(record.pid) ||
@@ -274,11 +322,18 @@ async function ownerState(
     !current ||
     !/^[a-f0-9-]{36}$/.test(owner.bootId || '') ||
     !/^pid:\[[0-9]+\]$/.test(owner.namespace || '') ||
-    !/^[0-9]+$/.test(owner.startTicks || '') ||
-    owner.bootId !== current.bootId ||
-    owner.namespace !== current.namespace
+    !/^[0-9]+$/.test(owner.startTicks || '')
   )
     return 'unknown'
+  if (
+    owner.bootId !== current.bootId ||
+    owner.namespace !== current.namespace ||
+    (record.version === 3 &&
+      (owner.container.id !== current.container?.id ||
+        owner.container.startedAt !== current.container?.startedAt ||
+        owner.container.daemonId !== current.container?.daemonId))
+  )
+    return record.version === 3 ? containers.state(record, current) : 'unknown'
   try {
     const ticks = startTicks(await readProcess(record.pid))
     if (!/^[0-9]+$/.test(ticks || '')) return 'unknown'

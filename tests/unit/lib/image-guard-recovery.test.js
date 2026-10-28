@@ -2,7 +2,11 @@ const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const create = require('../../../api/lib/image-guard-recovery')
 function fixture() {
-  const state = { counts: [0, 0, 0, 0, 0], active: 0 }
+  const state = {
+    counts: [0, 0, 0, 0, 0],
+    active: 0,
+    update: { phase: 'idle' }
+  }
   const models = {}
   for (const [index, name] of [
     'deploymentjob',
@@ -16,6 +20,7 @@ function fixture() {
     models,
     helpers: {
       buildCacheRetention: {
+        getUpdateStatus: async () => state.update,
         getInventory: async () => ({ active: state.active })
       }
     }
@@ -49,4 +54,17 @@ test('unavailable or stale inventory cannot authorize guard retirement', async (
   } finally {
     Date.now = now
   }
+})
+
+test('recovery rechecks updater ownership and clears failed preparation evidence', async () => {
+  const { state, recovery } = fixture()
+  assert.equal(await recovery.prepare(), true)
+  state.update = { phase: 'success', maintenanceBusy: true }
+  assert.equal(await recovery.verify(), false)
+  assert.equal(await recovery.prepare(), false)
+  state.update = { phase: 'idle' }
+  assert.equal(await recovery.verify(), false)
+  assert.equal(await recovery.prepare(), true)
+  state.update = { phase: 'interrupted' }
+  assert.equal(await recovery.verify(), false)
 })

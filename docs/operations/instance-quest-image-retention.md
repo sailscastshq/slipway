@@ -130,18 +130,35 @@ web/console worker or deployment owns the marker before removing a stale hold.
 Do not delete holds merely because a timestamp looks old. Version 2 use guards
 record a random ownership token plus Linux boot identity, PID namespace and kernel
 process-start ticks. A reused PID is not the original owner. During removal runs,
-only use records proved dead in the same boot/namespace can be quarantined
+only use records proved dead can be quarantined
 automatically, after complete idle cache/durable-work checks and a fresh bounded
 recheck under admission. The exclusive cleanup marker exists before any use
 record is moved. Quarantine and its manifest persist under
 `db/image-guard-retired/`; outcomes report `recoveredGuards`. Preview/opt-out
-runs do not attempt this recovery. Live, legacy, malformed, cross-namespace,
-reboot, admission and cleanup holds require operator inspection; an uncertain
+runs do not attempt this recovery. Version 3 adds an immutable Docker container
+ID, its start incarnation and daemon identity after proving that Docker sees the
+same local kernel namespace and exact Slipway process. This allows recovery when
+that original container is definitively stopped, removed or restarted, or its
+exact process is gone. Container names, timestamps alone and PID numbers alone
+are never sufficient. Inspection failures, daemon changes, shared PID modes and
+uncertain container receipts stay held. Native or unverified installations keep
+version 2 process ownership; older cross-namespace records are not upgraded by
+guessing their former container. Live, legacy, malformed, unverifiable,
+admission and cleanup holds require operator inspection; an uncertain
 daemon operation is never released based on process death alone. Exact owned
 content is checked again during release, preventing an old owner from deleting a
 replacement owner's marker. There is no PID-only or age-based stale timeout. These internal files
 are not committed and must remain on the same instance db volume across console
 children. This feature assumes Slipway's existing single web scheduler instance.
+
+Infrastructure review uses the same owner classification without acquiring a
+guard or moving any file. Verified-dead use owners are eligible only after idle
+durable work, cache and updater checks. Confirmation repeats owner proof and
+durable/updater checks under admission before quarantine. Unknown ownership is
+reported as unverified, not as proof of an active deployment. **Review again**
+refreshes those read-only checks; it neither queues cleanup nor unlocks a guard.
+There is no force-unlock control. Existing legacy records may still require a
+separately reviewed host-process diagnostic and exact-record quarantine.
 
 The explicit local installer destroy command can recover ownership of private
 container-created state before deleting its local fixture directory. Its recovery

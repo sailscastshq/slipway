@@ -8,7 +8,7 @@ test('cleanup holds retain specific reasons without implying automatic retry', (
   )
   assert.match(
     holdDescription(['image-use-guard-present']),
-    /deployment or update/
+    /review current ownership/
   )
   assert.match(
     holdDescription(['active-build-or-deployment', 'policy-changed']),
