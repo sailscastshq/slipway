@@ -4,6 +4,8 @@ const fs = require('node:fs/promises')
 const path = require('node:path')
 const os = require('node:os')
 const run = require('../../../../api/helpers/build-cache-retention/run').fn
+const getCapabilities =
+  require('../../../../api/helpers/build-cache-retention/get-capabilities').fn
 const getPolicy =
   require('../../../../api/helpers/build-cache-retention/get-policy').fn
 const { parse } =
@@ -31,7 +33,7 @@ async function fixture(t, config = {}) {
   const binary = path.join(root, 'docker')
   await fs.writeFile(
     binary,
-    `#!${process.execPath}\nconst fs=require('node:fs');const p=require('node:path');const root=p.dirname(process.argv[1]);const args=process.argv.slice(2);fs.appendFileSync(p.join(root,'commands'),JSON.stringify(args)+'\\n');const mode=JSON.parse(fs.readFileSync(p.join(root,'mode.json'),'utf8'));if(args.includes('--help')){console.log(mode.unsupported?'--all --force':'--all --filter --keep-storage --force');}else if(mode.fail){process.exitCode=1;}else if(mode.timeout){setTimeout(()=>{},100000);}else{console.log('Total reclaimed space: 74.75GB');}\n`,
+    `#!${process.execPath}\nconst fs=require('node:fs');const p=require('node:path');const root=p.dirname(process.argv[1]);const args=process.argv.slice(2);fs.appendFileSync(p.join(root,'commands'),JSON.stringify(args)+'\\n');const mode=JSON.parse(fs.readFileSync(p.join(root,'mode.json'),'utf8'));if(args.includes('--help')){console.log(mode.help || (mode.unsupported?'  --all\\n  --force':'  --all\\n  --filter filter\\n  --keep-storage bytes\\n  --force'));}else if(mode.fail){process.exitCode=1;}else if(mode.timeout){setTimeout(()=>{},100000);}else{console.log('Total reclaimed space: 74.75GB');}\n`,
     { mode: 0o755 }
   )
   await fs.writeFile(path.join(root, 'mode.json'), '{}')
@@ -60,6 +62,7 @@ async function fixture(t, config = {}) {
     helpers: {
       buildCacheRetention: {
         getUpdateStatus: async () => state.update,
+        getCapabilities,
         getPolicy,
         getInventory: async () =>
           structuredClone(state.inventories.shift() || cache())
@@ -193,6 +196,43 @@ test('unsupported bounded cache flags prevent mutation', async (t) => {
   await mode({ unsupported: true })
   assert.deepEqual((await run()).holds, ['bounded-cache-prune-unsupported'])
   assert.equal((await commands()).length, 1)
+})
+
+test('Docker builder aliasing modern Buildx retains seven days and20GiB using the equivalent reserved-space option', async (t) => {
+  const { mode, commands } = await fixture(t)
+  const help = await fs.readFile(
+    path.resolve(
+      __dirname,
+      '../../../fixtures/docker-build-cache-help/buildx-0.38.1.txt'
+    ),
+    'utf8'
+  )
+  await mode({ help })
+  const result = await run()
+  assert.equal(result.status, 'complete')
+  assert.equal(result.storageFlag, '--reserved-space')
+  assert.deepEqual(await commands(), [
+    ['builder', 'prune', '--help'],
+    [
+      'builder',
+      'prune',
+      '--all',
+      '--filter',
+      'until=168h',
+      '--reserved-space',
+      String(20 * 1024 ** 3),
+      '--force'
+    ]
+  ])
+})
+
+test('an engine advertising only maximum-used/free-space controls cannot silently change retention policy', async (t) => {
+  const { mode, commands } = await fixture(t)
+  await mode({
+    help: '  --all\n  --filter filter\n  --force\n  --max-used-space bytes\n  --min-free-space bytes\n'
+  })
+  assert.deepEqual((await run()).holds, ['bounded-cache-prune-unsupported'])
+  assert.deepEqual(await commands(), [['builder', 'prune', '--help']])
 })
 
 test('failed audit prevents any cache mutation', async (t) => {

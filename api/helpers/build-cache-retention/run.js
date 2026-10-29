@@ -63,17 +63,11 @@ module.exports = {
         result.status = 'dry-run'
         return await finish()
       }
-      const { stdout: help } = await command(
-        docker,
-        ['builder', 'prune', '--help'],
-        { timeout: 15000, maxBuffer: 65536 }
-      )
-      if (
-        ['--all', '--filter', '--keep-storage', '--force'].some(
-          (flag) => !help.includes(flag)
-        )
-      )
+      const capabilities =
+        await sails.helpers.buildCacheRetention.getCapabilities()
+      if (!capabilities.supported)
         return await held('bounded-cache-prune-unsupported')
+      result.storageFlag = capabilities.storageFlag
       const current = await sails.helpers.buildCacheRetention.getPolicy()
       if (JSON.stringify(current) !== JSON.stringify(policy))
         return await held('policy-changed')
@@ -89,7 +83,7 @@ module.exports = {
         '--all',
         '--filter',
         `until=${policy.minimumUnusedHours}h`,
-        '--keep-storage',
+        capabilities.storageFlag,
         String(policy.keepStorageBytes),
         '--force'
       ]
@@ -188,6 +182,7 @@ module.exports = {
         mode: result.mode,
         holds: result.holds,
         recoveredGuards: result.recoveredGuards || 0,
+        storageFlag: result.storageFlag || null,
         minimumUnusedHours: policy.minimumUnusedHours,
         keepStorageBytes: policy.keepStorageBytes,
         cacheBefore: result.before?.cache || null,

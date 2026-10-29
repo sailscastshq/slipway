@@ -27,7 +27,11 @@ Unsupported bounded prune flags, changed policy, missing disk metrics or incompl
 inventory also stop cleanup. External Docker builders must cooperate with the same
 maintenance exclusion; Docker's unused-cache protection remains in effect.
 
-The only removal command is `docker builder prune --all --filter until=168h --keep-storage 21474836480 --force`. `--force` suppresses confirmation for this cache command;
+The only removal command is `docker builder prune --all --filter until=168h --reserved-space 21474836480 --force` when the installed builder advertises `--reserved-space`, or the equivalent `--keep-storage` option on older builders. Buildx binds the deprecated `--keep-storage` and current `--reserved-space` flags to the same retention setting; it hides the deprecated flag from help. The seven-day and 20 GiB policy is unchanged. Do not substitute `--max-used-space` or `--min-free-space`, which have different semantics. Both review and execution inspect help only and hold if required options are absent or unverifiable.
+
+See the [Buildx prune options](https://docs.docker.com/reference/cli/docker/buildx/prune/) and [the flag binding in Buildx](https://github.com/docker/buildx/blob/0dbe87f36ed472fe36b6796c3f70b4210a731fc5/commands/prune.go#L175-L182).
+
+`--force` suppresses confirmation for this cache command;
 it does not force deletion of images. No image, container, volume or system-prune
 command is run. Builds may become slower when they need discarded cache again.
 
