@@ -10,12 +10,18 @@ for (const browser of ['desktop', 'mobile']) {
     async ({ sails, world, page, login, expect }) => {
       const original = {
         update: sails.helpers.buildCacheRetention.getUpdateStatus,
+        capabilities: sails.helpers.buildCacheRetention.getCapabilities,
         quest: sails.instanceQuest,
         inventory: sails.helpers.buildCacheRetention.getInventory,
         disk: sails.helpers.lookout.getDiskSpace,
         health: sails.helpers.lookout.getObservabilityHealth
       }
       const originalInspect = guard.inspect
+      let capabilitiesSupported = true
+      sails.helpers.buildCacheRetention.getCapabilities = async () => ({
+        supported: capabilitiesSupported,
+        storageFlag: capabilitiesSupported ? '--reserved-space' : null
+      })
       sails.helpers.buildCacheRetention.getUpdateStatus = async () => ({
         phase: 'idle'
       })
@@ -336,6 +342,33 @@ for (const browser of ['desktop', 'mobile']) {
           document.documentElement.classList.remove('dark')
         )
         await capture(path.join(output, `${browser}-light-unknown-owner.png`))
+        guard.inspect = async () => ({ state: 'clear', count: 0 })
+        capabilitiesSupported = false
+        await dialog
+          .getByRole('button', { name: 'Review again', exact: true })
+          .click()
+        await expect(
+          dialog.getByText(
+            'Installed Docker does not advertise the required bounded cache cleanup options.'
+          )
+        ).toBeVisible()
+        await expect(
+          dialog.getByRole('button', { name: 'Prune cache', exact: true })
+        ).toBeDisabled()
+        await capture(
+          path.join(output, `${browser}-light-unsupported-capability.png`)
+        )
+        capabilitiesSupported = true
+        await dialog
+          .getByRole('button', { name: 'Review again', exact: true })
+          .click()
+        await expect(
+          dialog.getByRole('button', { name: 'Prune cache', exact: true })
+        ).toBeEnabled()
+        expect(calls).toBe(2)
+        await capture(
+          path.join(output, `${browser}-light-modern-capability.png`)
+        )
         await dialog
           .getByRole('button', { name: 'Cancel', exact: true })
           .click()
@@ -354,6 +387,8 @@ for (const browser of ['desktop', 'mobile']) {
         expect(page).toHaveNoJavascriptErrors()
       } finally {
         guard.inspect = originalInspect
+        sails.helpers.buildCacheRetention.getCapabilities =
+          original.capabilities
         sails.helpers.buildCacheRetention.getUpdateStatus = original.update
         sails.instanceQuest = original.quest
         sails.helpers.buildCacheRetention.getInventory = original.inventory

@@ -13,6 +13,7 @@ test('read-only cleanup review detects maintenance ownership and interrupted upd
   const inspect = guard.inspect
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'slipway-prune-review-'))
   let update = { phase: 'idle' }
+  let capabilities = { supported: true, storageFlag: '--reserved-space' }
   let deployments = 0
   global.sails = {
     config: { appPath: root },
@@ -25,6 +26,10 @@ test('read-only cleanup review detects maintenance ownership and interrupted upd
     helpers: {
       buildCacheRetention: {
         getUpdateStatus: async () => update,
+        getCapabilities: async () => {
+          if (capabilities instanceof Error) throw capabilities
+          return capabilities
+        },
         getPolicy: async () => ({
           remove: true,
           minimumUnusedHours: 168,
@@ -50,6 +55,21 @@ test('read-only cleanup review detects maintenance ownership and interrupted upd
     await fs.rm(root, { recursive: true, force: true })
   })
   assert.equal((await review()).available, true)
+  capabilities = { supported: false, storageFlag: null }
+  const unsupported = await review()
+  assert.equal(unsupported.available, false)
+  assert.ok(
+    unsupported.holds.some((value) =>
+      value.includes('required bounded cache cleanup options')
+    )
+  )
+  capabilities = new Error('fixture Docker unavailable')
+  assert.ok(
+    (await review()).holds.some((value) =>
+      value.includes('capabilities could not be verified')
+    )
+  )
+  capabilities = { supported: true, storageFlag: '--reserved-space' }
   await assert.rejects(fs.stat(path.join(root, 'db')), { code: 'ENOENT' })
   update = { phase: 'success', maintenanceBusy: true }
   assert.equal((await review()).available, false)

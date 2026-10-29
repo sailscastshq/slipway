@@ -1,0 +1,19 @@
+Usage:  docker buildx prune
+
+Remove build cache
+
+Options:
+  -a, --all                    Include internal/frontend images
+      --builder string         Override the configured builder instance
+                               (default "default")
+  -D, --debug                  Enable debug logging
+      --filter filter          Provide filter values
+  -f, --force                  Do not prompt for confirmation
+      --max-used-space bytes   Maximum amount of disk space allowed to
+                               keep for cache
+      --min-free-space bytes   Target amount of free disk space after pruning
+      --reserved-space bytes   Amount of disk space always allowed to
+                               keep for cache
+      --timeout duration       Override the default timeout for loading
+                               builder status (default 20s)
+      --verbose                Provide a more verbose output

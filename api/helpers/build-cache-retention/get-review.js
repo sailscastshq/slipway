@@ -27,6 +27,20 @@ module.exports = {
     }
     if (!policy.remove)
       holds.push('Build cache removal is disabled in instance configuration.')
+    let capabilities = null
+    if (policy.remove) {
+      try {
+        capabilities = await sails.helpers.buildCacheRetention.getCapabilities()
+        if (!capabilities.supported)
+          holds.push(
+            'Installed Docker does not advertise the required bounded cache cleanup options.'
+          )
+      } catch {
+        holds.push(
+          'Docker cache cleanup capabilities could not be verified. Review again when Docker is reachable.'
+        )
+      }
+    }
     if (!job?.manualAllowed)
       holds.push('The cleanup job is running, paused or unavailable.')
     if (
@@ -80,6 +94,7 @@ module.exports = {
     return {
       policy,
       cache,
+      capabilities,
       ownership,
       holds,
       available: holds.length === 0,

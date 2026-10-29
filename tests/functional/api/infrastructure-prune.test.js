@@ -9,6 +9,7 @@ test(
   async ({ sails, request, world }) => {
     const original = {
       update: sails.helpers.buildCacheRetention.getUpdateStatus,
+      capabilities: sails.helpers.buildCacheRetention.getCapabilities,
       quest: sails.instanceQuest,
       inventory: sails.helpers.buildCacheRetention.getInventory,
       disk: sails.helpers.lookout.getDiskSpace
@@ -23,6 +24,10 @@ test(
     sails.helpers.lookout.getDiskSpace = async () => ({
       totalBytes: 300 * 1024 ** 3,
       availableBytes: 113 * 1024 ** 3
+    })
+    sails.helpers.buildCacheRetention.getCapabilities = async () => ({
+      supported: true,
+      storageFlag: '--reserved-space'
     })
     sails.helpers.buildCacheRetention.getUpdateStatus = async () => ({
       phase: 'idle'
@@ -59,6 +64,24 @@ test(
       assert.equal(review.status, 200)
       assert.equal(review.data.cache.reclaimable, '18GB (45%)')
       assert.equal(review.data.policy.minimumUnusedHours, 168)
+      assert.equal(review.data.available, true)
+      sails.helpers.buildCacheRetention.getCapabilities = async () => ({
+        supported: false,
+        storageFlag: null
+      })
+      const unsupported = await browser.request.get(
+        '/api/v1/bosun/disk-cleanup'
+      )
+      assert.equal(unsupported.data.available, false)
+      assert.ok(
+        unsupported.data.holds.some((value) =>
+          value.includes('required bounded cache cleanup options')
+        )
+      )
+      sails.helpers.buildCacheRetention.getCapabilities = async () => ({
+        supported: true,
+        storageFlag: '--reserved-space'
+      })
       assert.equal(calls, 0, 'review never triggers cleanup')
       const body = {
         name: 'retain-build-cache',
@@ -101,6 +124,7 @@ test(
       assert.equal(inventories, reads)
       assert.equal(calls, 1)
     } finally {
+      sails.helpers.buildCacheRetention.getCapabilities = original.capabilities
       sails.helpers.buildCacheRetention.getUpdateStatus = original.update
       sails.instanceQuest = original.quest
       sails.helpers.buildCacheRetention.getInventory = original.inventory
@@ -115,11 +139,16 @@ test(
   async ({ sails, request, world }) => {
     const original = {
       update: sails.helpers.buildCacheRetention.getUpdateStatus,
+      capabilities: sails.helpers.buildCacheRetention.getCapabilities,
       quest: sails.instanceQuest,
       policy: sails.config.buildCacheRetention,
       inventory: sails.helpers.buildCacheRetention.getInventory,
       disk: sails.helpers.lookout.getDiskSpace
     }
+    sails.helpers.buildCacheRetention.getCapabilities = async () => ({
+      supported: true,
+      storageFlag: '--reserved-space'
+    })
     sails.helpers.buildCacheRetention.getUpdateStatus = async () => ({
       phase: 'idle'
     })
@@ -157,6 +186,7 @@ test(
         true
       )
     } finally {
+      sails.helpers.buildCacheRetention.getCapabilities = original.capabilities
       sails.helpers.buildCacheRetention.getUpdateStatus = original.update
       sails.instanceQuest = original.quest
       sails.config.buildCacheRetention = original.policy
