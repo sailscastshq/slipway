@@ -50,7 +50,7 @@ module.exports = {
     requiredRole,
     requireRunning
   }) {
-    const bridgeAccessId = req.session.bridgeAccessId
+    const bridgeAccessId = req.session?.bridgeAccessId
     if (bridgeAccessId) {
       return resolveHostSession({
         req,
@@ -62,6 +62,8 @@ module.exports = {
         requireRunning
       })
     }
+
+    if (!req.auth?.userId && !req.session?.userId) throw 'forbidden'
 
     const resolved = await sails.helpers.resolveApp
       .with({
@@ -257,7 +259,7 @@ function invalidateBridgeSession(req, app = null, mayReauthenticate = false) {
 }
 
 function requestPaths({ req, project, environment, app, appScoped }) {
-  const hostOrigin = req.session.bridgeHostOrigin === true
+  const hostOrigin = req.session?.bridgeHostOrigin === true
   const internalBasePath = internalBridgeBasePath(
     project,
     environment,
