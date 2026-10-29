@@ -7,6 +7,7 @@ const execute = require('node:util').promisify(execFile)
 const contract = require('../../lib/contracts/ci-contract')
 const { executorDigest } = require('./is-server-evidence')._private
 const cancellation = require('../../lib/deployment-cancellation')
+const retryObservation = require('../../lib/ci-datastore-retry')
 module.exports = {
   friendlyName: 'Run isolated server CI checks',
   description:
@@ -47,7 +48,9 @@ module.exports = {
         )
       return policy
     }
-    const policy = await ensureOwner()
+    const observeOwner = (deadline = Date.now() + 1500) =>
+      retryObservation(ensureOwner, { signal, deadline })
+    const policy = await observeOwner()
     const app = await App.findOne({ id: appId })
     const { stdout } = await execute(
       'git',
@@ -109,6 +112,7 @@ module.exports = {
       summary
     })
     if (!run) return { busy: true }
+    let latestSummary = summary
     let directory
     try {
       await fs.mkdir(path.join(sails.config.appPath, '.tmp'), {
@@ -197,6 +201,7 @@ module.exports = {
       await CiRun.updateOne({ id: run.id, state: 'pending' }).set({
         summary: next
       })
+      latestSummary = next
       const active = steps.find((item) => item.state === 'running')
       await stage(
         active
@@ -208,7 +213,7 @@ module.exports = {
       return next
     }
     try {
-      await ensureOwner()
+      await observeOwner(now + 1260000)
       await stage('ci_running')
       await Deployment.appendBuildLog(
         deploymentId,
@@ -269,9 +274,15 @@ module.exports = {
           if (checking) return
           checking = true
           try {
-            await ensureOwner()
-            const current = await snapshot()
-            if (current) await update(current)
+            await retryObservation(
+              async () => {
+                cancellation.throwIfCancelled(signal, deploymentId)
+                await ensureOwner()
+                const current = await snapshot()
+                if (current) await update(current)
+              },
+              { signal, deadline: now + 1260000 }
+            )
             if (Date.now() > now + 1260000)
               throw new Error('Server CI exceeded its deadline.')
           } catch (error) {
@@ -285,7 +296,7 @@ module.exports = {
       clearInterval(timer)
       while (checking) await new Promise((resolve) => setTimeout(resolve, 10))
       if (executionError) throw executionError
-      await ensureOwner()
+      await observeOwner(now + 1260000)
       report = await snapshot()
       if (
         !report ||
@@ -300,7 +311,14 @@ module.exports = {
             ? 'Server CI needs 4 GiB plus 1 GiB of available host memory. Free capacity or submit trusted local checks before retrying.'
             : 'Server CI evidence does not match its admitted source. Check Docker availability and instance storage before retrying.'
         )
-      const final = await update(report)
+      const final = await retryObservation(
+        async () => {
+          cancellation.throwIfCancelled(signal, deploymentId)
+          await ensureOwner()
+          return update(report)
+        },
+        { signal, deadline: now + 1260000 }
+      )
       const failedStep = report.steps?.find((step) => step.state === 'failed')
       if (
         failedStep &&
@@ -364,7 +382,7 @@ module.exports = {
           report.reason || 'Server CI failed; the current release is unchanged.'
         )
       }
-      const current = await ensureOwner()
+      const current = await observeOwner(now + 1260000)
       const admission = await withDatastoreTransaction(async (connection) => {
         const locked = await CiPolicy.updateOne({
           id: current.id,
@@ -391,20 +409,24 @@ module.exports = {
       )
       return { passed: true, runId }
     } catch (error) {
-      await CiRun.updateOne({ id: run.id, state: 'pending' }).set({
-        state: 'failed',
-        completedAt: Date.now(),
-        summary: {
-          ...summary,
-          state: cancellation.isCancellationError(error)
-            ? 'cancelled'
-            : 'failed',
-          reason: sails.hooks.secrets?.text
-            ? sails.hooks.secrets.text(String(error.message).slice(0, 1000))
-            : 'Server CI stopped. Inspect deployment logs before retrying.',
-          finishedAt: Date.now()
-        }
-      })
+      await retryObservation(
+        () =>
+          CiRun.updateOne({ id: run.id, state: 'pending' }).set({
+            state: 'failed',
+            completedAt: Date.now(),
+            summary: {
+              ...latestSummary,
+              state: cancellation.isCancellationError(error)
+                ? 'cancelled'
+                : 'failed',
+              reason: sails.hooks.secrets?.text
+                ? sails.hooks.secrets.text(String(error.message).slice(0, 1000))
+                : 'Server CI stopped. Inspect deployment logs before retrying.',
+              finishedAt: Date.now()
+            }
+          }),
+        { deadline: Date.now() + 1500 }
+      )
       throw error
     } finally {
       clearInterval(timer)
