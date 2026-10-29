@@ -4,6 +4,14 @@ const recovery = require('./deployment-recovery')
 // insufficient: its Docker command or resource cleanup may still be running.
 module.exports = function (sails) {
   let preparedAt = 0
+  async function updateIdle() {
+    const state = await sails.helpers.buildCacheRetention.getUpdateStatus()
+    return (
+      state &&
+      state.maintenanceBusy !== true &&
+      ['idle', 'success', 'failed', 'rolled-back'].includes(state.phase)
+    )
+  }
   async function idle() {
     const m = sails.models
     if (
@@ -29,8 +37,9 @@ module.exports = function (sails) {
   }
   return {
     prepare: async () => {
+      preparedAt = 0
       try {
-        if (!(await idle())) return false
+        if (!(await idle()) || !(await updateIdle())) return false
         const cache = await sails.helpers.buildCacheRetention.getInventory()
         if (cache.active !== 0) return false
         preparedAt = Date.now()
@@ -40,8 +49,14 @@ module.exports = function (sails) {
       }
     },
     verify: async () => {
-      const age = Date.now() - preparedAt
-      return preparedAt > 0 && age >= 0 && age <= 5000 && (await idle())
+      try {
+        if (!(await idle()) || !(await updateIdle())) return false
+        const cache = await sails.helpers.buildCacheRetention.getInventory()
+        const age = Date.now() - preparedAt
+        return preparedAt > 0 && age >= 0 && age <= 5000 && cache.active === 0
+      } catch {
+        return false
+      }
     }
   }
 }

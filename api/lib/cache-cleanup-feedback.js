@@ -1,6 +1,8 @@
 const reasons = {
-  'image-cleanup-guard-present': 'Another cleanup owns the disk guard.',
-  'image-use-guard-present': 'A deployment or update owns the disk guard.',
+  'image-cleanup-guard-present':
+    'A cleanup guard is retained; inspect its outcome.',
+  'image-use-guard-present':
+    'A disk-use guard is retained; review current ownership.',
   'image-guard-inventory-unverified':
     'Disk guard ownership could not be verified.',
   'image-admission-guard-busy': 'Another operation is checking disk ownership.',
@@ -14,9 +16,9 @@ const reasons = {
   'policy-changed': 'The cache cleanup policy changed during admission.',
   'run-time-limit': 'The cleanup admission time limit was reached.',
   'image-operation-guard-present':
-    'A deployment or maintenance operation owns the disk guard.',
+    'A disk guard is retained; review current ownership.',
   'image-operation-guard-busy':
-    'A deployment or maintenance operation owns the disk guard.'
+    'Disk guard admission is held; review current ownership.'
 }
 function holdDescription(holds) {
   const values = Array.isArray(holds)

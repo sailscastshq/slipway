@@ -1,6 +1,5 @@
-const fs = require('node:fs/promises')
-const path = require('node:path')
 const workspace = require('../../lib/instance-quest-workspace')
+const guard = require('../../lib/image-operation-guard')
 
 module.exports = {
   friendlyName: 'Review host build cache cleanup',
@@ -36,18 +35,26 @@ module.exports = {
       })
     )
       holds.push('Wait for current deployments to finish.')
-    try {
-      const entries = await fs.readdir(
-        path.join(sails.config.appPath, 'db', 'image-operation-guard')
-      )
-      if (entries.length)
+    const ownership = await guard.inspect(sails.config.appPath)
+    if (ownership.state === 'recoverable') {
+      if (!(await require('../../lib/image-guard-recovery')(sails).prepare()))
         holds.push(
-          'A deployment, update or maintenance operation holds disk cleanup.'
+          'Stopped guard owners were found, but safe recovery checks are not clear. Review deployments and maintenance before retrying.'
         )
-    } catch (error) {
-      if (error.code !== 'ENOENT')
-        holds.push('Maintenance ownership could not be verified.')
-    }
+    } else if (ownership.state === 'cleanup')
+      holds.push(
+        'A maintenance cleanup guard is retained. Inspect its outcome before retrying; no automatic unlock is performed.'
+      )
+    else if (ownership.state === 'busy')
+      holds.push('Disk operation admission is busy. Review again shortly.')
+    else if (ownership.state === 'active')
+      holds.push(
+        'A live process still owns a disk guard. Review deployments or maintenance before retrying.'
+      )
+    else if (ownership.state !== 'clear')
+      holds.push(
+        'Disk guard ownership could not be verified. An administrator must inspect retained guards and host processes; no automatic unlock is performed.'
+      )
     try {
       const update = await sails.helpers.buildCacheRetention.getUpdateStatus()
       if (
@@ -73,6 +80,7 @@ module.exports = {
     return {
       policy,
       cache,
+      ownership,
       holds,
       available: holds.length === 0,
       cleanupProgress: source
