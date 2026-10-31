@@ -2,7 +2,7 @@
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import { computed, inject } from 'vue'
-import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
+import Breadcrumb from '@/components/ContextBreadcrumb.vue'
 
 const props = defineProps({
   project: Object,

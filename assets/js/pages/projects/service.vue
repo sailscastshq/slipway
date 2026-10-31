@@ -32,7 +32,7 @@ import {
 } from 'vue'
 import { useEventSource } from '@/composables/sse'
 import AppLayout from '@/layouts/AppLayout.vue'
-import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
+import Breadcrumb from '@/components/ContextBreadcrumb.vue'
 import { useToast } from '@/composables/toast'
 import { useServiceActions } from '@/composables/service-actions'
 import LogViewer from '@/components/LogViewer.vue'

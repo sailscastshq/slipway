@@ -11,7 +11,7 @@ import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, onMounted, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
-import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
+import Breadcrumb from '@/components/ContextBreadcrumb.vue'
 import ErrorState from '@/components/ui/error-state/ErrorState.vue'
 import { usePrecognitionValidation } from '@/composables/precognition'
 

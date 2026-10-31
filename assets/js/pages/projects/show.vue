@@ -1,4 +1,5 @@
 <script setup>
+import Breadcrumb from '@/components/ContextBreadcrumb.vue'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
@@ -76,7 +77,7 @@ function timeAgo(date) {
     <div
       class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8"
     >
-      <div class="flex items-center space-x-3">
+      <div class="flex min-w-0 flex-1 items-center space-x-3">
         <button
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
@@ -95,22 +96,14 @@ function timeAgo(date) {
           />
           <SidebarClose v-else class="h-5 w-5" stroke-width="1" />
         </button>
-        <nav class="flex items-center space-x-2 text-sm">
-          <Link
-            prefetch
-            cache-for="5s"
-            href="/"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            projects
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="font-medium text-gray-900 dark:text-white">{{
-            project.name.toLowerCase()
-          }}</span>
-        </nav>
+        <Breadcrumb
+          :items="[
+            { label: 'projects', href: '/' },
+            { label: project.name.toLowerCase() }
+          ]"
+        />
       </div>
-      <div class="flex items-center space-x-4">
+      <div class="flex shrink-0 items-center space-x-4">
         <a
           href="https://docs.sailscasts.com/slipway"
           target="_blank"

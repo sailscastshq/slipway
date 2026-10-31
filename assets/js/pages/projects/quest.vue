@@ -10,7 +10,7 @@ import {
 } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
-import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
+import Breadcrumb from '@/components/ContextBreadcrumb.vue'
 import Tabs from '@/components/ui/tabs/Tabs.vue'
 import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/input/Input.vue'

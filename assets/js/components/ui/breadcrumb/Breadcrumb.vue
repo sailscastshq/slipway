@@ -1,6 +1,6 @@
 <script setup>
 import { Link } from '@inertiajs/vue3'
-import { computed, useAttrs } from 'vue'
+import { computed, useAttrs, useSlots } from 'vue'
 import { twMerge } from 'tailwind-merge'
 
 defineOptions({ inheritAttrs: false })
@@ -13,6 +13,7 @@ const props = defineProps({
 })
 
 const attrs = useAttrs()
+const slots = useSlots()
 const crumbs = computed(() => props.items ?? [])
 const lastIndex = computed(() => crumbs.value.length - 1)
 const collapses = computed(() => crumbs.value.length > 3)
@@ -45,6 +46,7 @@ function itemClass(index) {
       ? 'hidden sm:flex'
       : undefined,
     index === 0 ? 'shrink-0' : undefined,
+    slots.item && index === lastIndex.value - 1 ? 'min-w-14' : undefined,
     index === lastIndex.value && index > 0 ? 'max-w-[50%] shrink-0' : undefined
   )
 }
@@ -81,7 +83,9 @@ function separatorClass(index) {
           data-slot="ellipsis"
           :class="
             twMerge(
-              'hidden shrink-0 items-center gap-1.5 sm:flex',
+              $slots.ellipsis
+                ? 'flex shrink-0 items-center gap-1.5'
+                : 'hidden shrink-0 items-center gap-1.5 sm:flex',
               props.currentOnlyOnMobile ? 'hidden sm:flex' : undefined
             )
           "
@@ -89,7 +93,10 @@ function separatorClass(index) {
           <svg
             data-slot="separator"
             aria-hidden="true"
-            class="size-3.5 shrink-0 text-gray-400 dark:text-gray-600"
+            :class="[
+              'size-3.5 shrink-0 text-gray-400 dark:text-gray-600',
+              $slots.ellipsis ? 'hidden sm:block' : undefined
+            ]"
             viewBox="0 0 16 16"
             fill="none"
           >
@@ -101,12 +108,14 @@ function separatorClass(index) {
               stroke-linejoin="round"
             />
           </svg>
-          <span
-            class="min-h-11 inline-flex items-center px-1 text-gray-400 dark:text-gray-500"
-          >
-            <span aria-hidden="true">…</span>
-            <span class="sr-only">Collapsed breadcrumb items</span>
-          </span>
+          <slot name="ellipsis">
+            <span
+              class="min-h-11 inline-flex items-center px-1 text-gray-400 dark:text-gray-500"
+            >
+              <span aria-hidden="true">…</span>
+              <span class="sr-only">Collapsed breadcrumb items</span>
+            </span>
+          </slot>
         </li>
 
         <li
@@ -133,32 +142,34 @@ function separatorClass(index) {
             />
           </svg>
 
-          <span
-            v-if="index === lastIndex"
-            data-slot="current"
-            aria-current="page"
-            :title="item.title"
-            :class="CURRENT_CLASSES"
-          >
-            <span class="truncate">{{ item.label }}</span>
-          </span>
-          <Link
-            v-else-if="item.href"
-            :href="item.href"
-            data-slot="link"
-            :title="item.title"
-            :class="LINK_CLASSES"
-          >
-            <span class="truncate">{{ item.label }}</span>
-          </Link>
-          <span
-            v-else
-            data-slot="label"
-            :title="item.title"
-            :class="LABEL_CLASSES"
-          >
-            <span class="truncate">{{ item.label }}</span>
-          </span>
+          <slot name="item" :item="item" :current="index === lastIndex">
+            <span
+              v-if="index === lastIndex"
+              data-slot="current"
+              aria-current="page"
+              :title="item.title"
+              :class="CURRENT_CLASSES"
+            >
+              <span class="truncate">{{ item.label }}</span>
+            </span>
+            <Link
+              v-else-if="item.href"
+              :href="item.href"
+              data-slot="link"
+              :title="item.title"
+              :class="LINK_CLASSES"
+            >
+              <span class="truncate">{{ item.label }}</span>
+            </Link>
+            <span
+              v-else
+              data-slot="label"
+              :title="item.title"
+              :class="LABEL_CLASSES"
+            >
+              <span class="truncate">{{ item.label }}</span>
+            </span>
+          </slot>
         </li>
       </template>
     </ol>
