@@ -277,3 +277,108 @@ test(
     expect(page).toHaveNoJavascriptErrors()
   }
 )
+
+test(
+  'CI PR controls send reviewed policy changes and show accurate confirmation and toast feedback',
+  {
+    browser: true,
+    world: {
+      name: 'configured-slipway',
+      context: { deploymentTarget: { slug: 'ci-pr-controls' } }
+    }
+  },
+  async ({ sails, world, page, login, expect }) => {
+    const assert = require('node:assert/strict')
+    const app = world.current.apps.web
+    const policy = await sails.models.cipolicy
+      .create({
+        app: app.id,
+        revision: 'pr-controls',
+        repositoryId: '123',
+        branch: 'main',
+        createdBy: world.current.users.genesisUser.id,
+        enabled: true,
+        configuration: {
+          automatic: true,
+          execution: {
+            platform: 'linux/amd64',
+            scripts: ['lint', 'test', 'build'].map((name) => ({
+              name,
+              script: `npm run ${name}`
+            }))
+          }
+        }
+      })
+      .fetch()
+    const previous = sails.helpers.ci.configurePrWebhook
+    let configured = 0
+    const configure = async ({ app: target }) => {
+      assert.equal(target.id, app.id)
+      configured++
+      return { configured: true }
+    }
+    configure.with = configure
+    sails.helpers.ci.configurePrWebhook = configure
+    try {
+      await login.withPassword('genesisUser', page, {
+        password: world.current.auth.genesisUserPassword
+      })
+      await page.raw.waitForURL((url) => !url.pathname.startsWith('/login'))
+      await page.goto(
+        `/projects/${world.current.projects.deploymentTarget.slug}/ci?view=configuration`
+      )
+      await page.raw
+        .getByRole('button', { name: 'Enable PR checks', exact: true })
+        .click()
+      await expect(
+        page.raw.getByRole('heading', { name: 'Enable pull request checks?' })
+      ).toBeVisible()
+      await expect(page.raw.getByRole('dialog')).toContainText(
+        'existing GitHub webhook'
+      )
+      const sent = page.raw.waitForRequest(
+        (req) => req.url().endsWith('/policy') && req.method() === 'POST'
+      )
+      await page.raw
+        .getByRole('dialog')
+        .getByRole('button', { name: 'Enable PR checks', exact: true })
+        .click()
+      const body = (await sent).postDataJSON()
+      assert.equal(body.pullRequests, true)
+      assert.equal(body.approvePolicy, true)
+      assert.equal(body.policyRevision, policy.revision)
+      assert.equal(body.automatic, undefined)
+      await expect(
+        page.raw.getByText('Pull request checks enabled.', { exact: true })
+      ).toBeVisible()
+      assert.equal(configured, 1)
+      assert.equal(
+        (await sails.models.cipolicy.findOne({ id: policy.id })).configuration
+          .automatic,
+        true
+      )
+      await page.raw
+        .getByRole('button', { name: 'Disable PR checks', exact: true })
+        .click()
+      await expect(
+        page.raw.getByRole('heading', { name: 'Disable pull request checks?' })
+      ).toBeVisible()
+      await page.raw
+        .getByRole('dialog')
+        .getByRole('button', { name: 'Disable PR checks', exact: true })
+        .click()
+      await expect(
+        page.raw.getByText('Pull request checks disabled.', { exact: true })
+      ).toBeVisible()
+      assert.equal(
+        (await sails.models.cipolicy.findOne({ id: policy.id })).configuration
+          .pullRequests,
+        false
+      )
+      assert.equal(configured, 1)
+      expect(page).toHaveNoJavascriptErrors()
+    } finally {
+      sails.helpers.ci.configurePrWebhook = previous
+    }
+  }
+)

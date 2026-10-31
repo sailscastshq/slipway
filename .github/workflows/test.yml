@@ -38,6 +38,9 @@ jobs:
           node-version: '22'
       - name: Verify exact-source checks and sandbox cleanup with real Docker
         run: CI_SERVER_DOCKER=1 node --test tests/prelift/ci-server-executor.test.cjs
+      - run: npm ci
+      - name: Verify checks-only queue, worker ownership and retained source evidence
+        run: CI_CHECKS_ONLY_DOCKER=1 npx sounding test --file tests/functional/api/ci-checks-only-docker.test.js --test-concurrency=1
 
   docker-port-allocation:
     name: Docker host port allocation

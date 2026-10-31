@@ -335,7 +335,9 @@ test(
     ])
     assert.equal(outcomes.filter(Boolean).length, 1)
     assert.equal(
-      await sails.models.cirun.count({ runner: null, state: 'pending' }),
+      (await sails.models.cirun.find({ state: 'pending' })).filter(
+        (run) => run.runner == null
+      ).length,
       1
     )
     await sails.models.cipolicy

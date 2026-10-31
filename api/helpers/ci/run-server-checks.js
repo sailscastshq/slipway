@@ -15,7 +15,8 @@ module.exports = {
   inputs: {
     appId: { type: 'string', required: true },
     contextPath: { type: 'string', required: true },
-    deploymentId: { type: 'string', required: true },
+    deploymentId: { type: 'string' },
+    jobId: { type: 'string' },
     leaseToken: { type: 'string' },
     policyRevision: { type: 'string', required: true },
     signal: { type: 'ref' }
@@ -25,23 +26,39 @@ module.exports = {
     appId,
     contextPath,
     deploymentId,
+    jobId,
     leaseToken,
     policyRevision,
     signal
   }) {
+    const checksOnly = !!jobId
+    if (checksOnly === !!deploymentId)
+      throw new Error('Select exactly one CI execution owner.')
+    let job
     const ensureOwner = async () => {
       cancellation.throwIfCancelled(signal, deploymentId)
-      const lease = await sails.helpers.deploy.assertDeploymentLease.with({
-        deploymentId,
-        leaseToken
-      })
-      if (!lease.valid)
-        throw new Error('The deployment no longer owns CI execution.')
+      if (checksOnly) {
+        job = await sails.helpers.ci.assertJobLease.with({
+          jobId,
+          token: leaseToken,
+          appId,
+          policyRevision
+        })
+      } else {
+        const lease = await sails.helpers.deploy.assertDeploymentLease.with({
+          deploymentId,
+          leaseToken
+        })
+        if (!lease.valid)
+          throw new Error('The deployment no longer owns CI execution.')
+      }
       const policy = await CiPolicy.findOne({ app: appId })
       if (
         !policy?.enabled ||
         policy.revision !== policyRevision ||
-        policy.configuration.automatic !== true
+        (checksOnly
+          ? policy.configuration.pullRequests !== true
+          : policy.configuration.automatic !== true)
       )
         throw new Error(
           'The automatic CI policy changed. The current release is unchanged.'
@@ -60,7 +77,7 @@ module.exports = {
     const source = await sails.helpers.ci.resolveSource.with({
       app,
       commit: stdout.trim(),
-      branch: policy.branch
+      branch: checksOnly ? job.branch : policy.branch
     })
     if (
       source.repositoryId !== policy.repositoryId ||
@@ -89,6 +106,8 @@ module.exports = {
       { timeout: 15000, maxBuffer: 65536 }
     )
     if (inventory.stdout.trim()) return { busy: true }
+    if (checksOnly && source.commit !== job.commit)
+      throw new Error('The CI checkout differs from the queued commit.')
     const runId = crypto.randomUUID(),
       now = Date.now()
     const summary = {
@@ -97,6 +116,9 @@ module.exports = {
       origin: 'server',
       state: 'preparing',
       sourceRevision: source.commit,
+      ...(checksOnly
+        ? { pullRequest: job.pullRequest, branch: job.branch, jobId }
+        : {}),
       scope: 'source-checks-only',
       deployable: false,
       steps: [],
@@ -109,6 +131,8 @@ module.exports = {
       source,
       runId,
       deploymentId,
+      jobId,
+      leaseToken,
       summary
     })
     if (!run) return { busy: true }
@@ -149,7 +173,7 @@ module.exports = {
       killTimer,
       setupDiagnostic = ''
     const stage = async (name) => {
-      if (name === lastStage) return
+      if (name === lastStage || checksOnly) return
       const result = await sails.helpers.deploy.recordDeploymentStage.with({
         deploymentId,
         leaseToken,
@@ -187,6 +211,7 @@ module.exports = {
         durationSeconds: data.durationSeconds,
         resources: data.resources,
         cache: data.cache,
+        failureClass: data.failureClass,
         steps,
         runtime: data.runtime
           ? {
@@ -215,10 +240,11 @@ module.exports = {
     try {
       await observeOwner(now + 1260000)
       await stage('ci_running')
-      await Deployment.appendBuildLog(
-        deploymentId,
-        'CI: no reusable local result; starting bounded server checks.\n'
-      )
+      if (!checksOnly)
+        await Deployment.appendBuildLog(
+          deploymentId,
+          'CI: no reusable local result; starting bounded server checks.\n'
+        )
       const code = await new Promise((resolve, reject) => {
         child = spawn(
           process.execPath,
@@ -233,7 +259,7 @@ module.exports = {
                 JSON.stringify([
                   appId,
                   policy.repositoryId,
-                  policy.branch,
+                  source.branch,
                   policy.revision
                 ])
               )
@@ -367,7 +393,11 @@ module.exports = {
       }
       if (
         code !== 0 ||
-        !sails.helpers.ci.isServerEvidence.with({ run: candidate, policy })
+        !sails.helpers.ci.isServerEvidence.with({
+          run: candidate,
+          policy,
+          checksOnly
+        })
       ) {
         await CiRun.updateOne({ id: run.id, state: 'pending' }).set({
           state: 'failed',
@@ -383,6 +413,13 @@ module.exports = {
         )
       }
       const current = await observeOwner(now + 1260000)
+      if (checksOnly)
+        await sails.helpers.ci.resolvePullRequest.with({
+          app,
+          policy: current,
+          pullRequest: job.pullRequest,
+          expectedCommit: job.commit
+        })
       const admission = await withDatastoreTransaction(async (connection) => {
         const locked = await CiPolicy.updateOne({
           id: current.id,
@@ -393,6 +430,18 @@ module.exports = {
           .usingConnection(connection)
         if (!locked)
           throw new Error('CI policy changed before result admission.')
+        if (checksOnly) {
+          const owned = await CiJob.findOne({
+            jobId,
+            app: appId,
+            state: 'running',
+            leaseToken,
+            leaseExpires: { '>': Date.now() },
+            deadline: { '>': Date.now() }
+          }).usingConnection(connection)
+          if (!owned || owned.run !== run.id)
+            throw new Error('CI job lost result admission ownership.')
+        }
         return CiRun.updateOne({ id: run.id, state: 'pending' })
           .set({
             state: 'passed',
@@ -403,10 +452,11 @@ module.exports = {
           .usingConnection(connection)
       })
       if (!admission) throw new Error('Server result lost its admission fence.')
-      await Deployment.appendBuildLog(
-        deploymentId,
-        'CI: install, lint, tests and asset build passed; cleanup completed.\n'
-      )
+      if (!checksOnly)
+        await Deployment.appendBuildLog(
+          deploymentId,
+          'CI: install, lint, tests and asset build passed; cleanup completed.\n'
+        )
       return { passed: true, runId }
     } catch (error) {
       await retryObservation(

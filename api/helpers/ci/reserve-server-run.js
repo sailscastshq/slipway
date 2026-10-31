@@ -7,11 +7,22 @@ module.exports = {
     policy: { type: 'ref', required: true },
     source: { type: 'ref', required: true },
     runId: { type: 'string', required: true },
-    deploymentId: { type: 'string', required: true },
+    deploymentId: { type: 'string' },
+    jobId: { type: 'string' },
+    leaseToken: { type: 'string' },
     summary: { type: 'ref', required: true }
   },
   exits: { success: { outputType: 'ref' } },
-  fn: async function ({ appId, policy, source, runId, deploymentId, summary }) {
+  fn: async function ({
+    appId,
+    policy,
+    source,
+    runId,
+    deploymentId,
+    jobId,
+    leaseToken,
+    summary
+  }) {
     return withDatastoreTransaction(async (connection) => {
       const now = Date.now()
       const locked = await CiPolicy.updateOne({
@@ -22,15 +33,23 @@ module.exports = {
       })
         .set({ revision: policy.revision })
         .usingConnection(connection)
-      if (!locked || locked.configuration.automatic !== true)
-        throw new Error('CI policy changed before server admission.')
       if (
-        await CiRun.count({
-          runner: null,
-          state: 'pending',
-          expiresAt: { '>': now }
-        }).usingConnection(connection)
+        !locked ||
+        (jobId
+          ? locked.configuration.pullRequests !== true
+          : locked.configuration.automatic !== true)
       )
+        throw new Error('CI policy changed before server admission.')
+      // Nullable association criteria do not reliably match unassigned runners
+      // in the supported SQLite adapter. Inspect bounded active records instead.
+      const active = await CiRun.find({
+        state: 'pending',
+        expiresAt: { '>': now }
+      })
+        .select(['runner'])
+        .limit(1001)
+        .usingConnection(connection)
+      if (active.length > 1000 || active.some((run) => run.runner == null))
         return null
       if (
         (await CiRun.count({
@@ -41,14 +60,31 @@ module.exports = {
         throw new Error(
           'CI admission limit reached. Retry after current work completes.'
         )
-      return CiRun.create({
+      if (jobId) {
+        const owner = await CiJob.findOne({
+          jobId,
+          app: appId,
+          state: 'running',
+          leaseToken,
+          leaseExpires: { '>': now },
+          deadline: { '>': now }
+        }).usingConnection(connection)
+        if (
+          !owner ||
+          owner.commit !== source.commit ||
+          owner.policyRevision !== policy.revision
+        )
+          throw new Error('CI job lost admission ownership.')
+      }
+      const run = await CiRun.create({
         runId,
         app: appId,
         runner: null,
         policyRevision: policy.revision,
         commit: source.commit,
         challenge: {
-          purpose: 'server-source-v1',
+          purpose: jobId ? 'checks-only-source-v1' : 'server-source-v1',
+          ...(jobId ? { jobId } : {}),
           deploymentId,
           tree: source.tree,
           manifestDigest: source.manifestDigest,
@@ -60,6 +96,11 @@ module.exports = {
       })
         .fetch()
         .usingConnection(connection)
+      if (jobId)
+        await CiJob.updateOne({ jobId, leaseToken, state: 'running' })
+          .set({ run: run.id })
+          .usingConnection(connection)
+      return run
     })
   }
 }

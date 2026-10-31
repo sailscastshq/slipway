@@ -14,15 +14,18 @@ function executorDigest() {
       .digest('hex')
   )
 }
-function verify(run, policy) {
+function verify(run, policy, checksOnly = false) {
   const summary = run?.summary
   return !!(
     policy?.enabled &&
-    policy.configuration?.automatic === true &&
+    (checksOnly
+      ? policy.configuration?.pullRequests === true
+      : policy.configuration?.automatic === true) &&
     run?.runner == null &&
     run.state === 'passed' &&
     run.policyRevision === policy.revision &&
-    run.challenge?.purpose === 'server-source-v1' &&
+    run.challenge?.purpose ===
+      (checksOnly ? 'checks-only-source-v1' : 'server-source-v1') &&
     summary?.origin === 'server' &&
     summary.state === 'passed' &&
     summary.sourceRevision === run.commit &&
@@ -54,8 +57,9 @@ module.exports = {
   sync: true,
   inputs: {
     run: { type: 'ref', required: true },
-    policy: { type: 'ref', required: true }
+    policy: { type: 'ref', required: true },
+    checksOnly: { type: 'boolean', defaultsTo: false }
   },
-  fn: ({ run, policy }) => verify(run, policy)
+  fn: ({ run, policy, checksOnly }) => verify(run, policy, checksOnly)
 }
 module.exports._private = { executorDigest, verify }

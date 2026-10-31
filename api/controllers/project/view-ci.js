@@ -44,11 +44,13 @@ module.exports = {
       : []
     const receipts = app
       ? await CiRun.find({
-          app: app.id,
-          or: [{ completedAt: { '!=': null } }, { runner: null }]
+          app: app.id
         })
           .sort('createdAt DESC')
           .limit(100)
+      : []
+    const jobs = app
+      ? await CiJob.find({ app: app.id }).sort('createdAt DESC').limit(100)
       : []
     const verifications = app
       ? await CiVerification.find({ app: app.id })
@@ -89,10 +91,21 @@ module.exports = {
           readOnly: false,
           policy: policy || null,
           runners,
-          runs: receipts.map((run) => ({
-            ...run.summary,
-            accepted: accepted(run)
-          })),
+          runs: [
+            ...receipts
+              .filter((run) => run.completedAt != null || run.runner == null)
+              .map((run) => ({
+                ...run.summary,
+                accepted: accepted(run),
+                githubStatus: jobs.find((job) => job.run === run.id)
+                  ?.githubStatus
+              })),
+            ...jobs
+              .filter((job) => job.run == null)
+              .map(require('../../lib/ci-job-summary'))
+          ]
+            .sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0))
+            .slice(0, 100),
           verifications: verifications.map((item) => ({
             runId: receipts.find((run) => run.id === item.run)?.runId,
             imageId: item.imageId,

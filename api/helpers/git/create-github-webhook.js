@@ -90,7 +90,7 @@ module.exports = {
                 },
                 body: JSON.stringify({
                   active: true,
-                  events: ['push'],
+                  events: [...new Set([...(existing.events || []), 'push'])],
                   config: {
                     url: webhookUrl,
                     content_type: 'json',
