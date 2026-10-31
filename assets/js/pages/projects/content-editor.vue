@@ -415,9 +415,9 @@ function handleKeydown(e) {
     />
     <!-- Header -->
     <div
-      class="flex items-center justify-between gap-2 border-b border-gray-200 px-3 py-2 dark:border-gray-800 sm:px-6 sm:py-3"
+      class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-3 py-2 dark:border-gray-800 sm:flex-nowrap sm:px-6 sm:py-3"
     >
-      <div class="flex min-w-0 flex-1 items-center gap-2">
+      <div class="min-w-32 flex flex-1 items-center gap-2 sm:min-w-0">
         <button
           type="button"
           aria-label="Open navigation"
@@ -454,7 +454,7 @@ function handleKeydown(e) {
         />
       </div>
 
-      <div class="flex shrink-0 items-center gap-1 sm:gap-2">
+      <div class="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
         <!-- Unsaved indicator -->
         <span
           v-if="hasChanges"

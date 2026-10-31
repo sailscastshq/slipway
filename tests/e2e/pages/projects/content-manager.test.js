@@ -130,16 +130,38 @@ test(
       expect(
         await breadcrumb.locator('[aria-current="page"]').textContent()
       ).toBe('welcome')
-      expect(await breadcrumb.locator('[data-slot="link"]').count()).toBe(4)
+      expect(await breadcrumb.locator('[data-slot="link"]').count()).toBe(2)
       expect(
         await breadcrumb.locator('[data-slot="link"]').allTextContents()
-      ).toEqual(['projects', 'content manager ui', 'production', 'content'])
+      ).toEqual(['projects', 'content'])
       expect(
         await breadcrumb.locator('[data-slot="item"]:visible').allTextContents()
       ).toEqual(['projects', 'posts', 'welcome'])
       await expect(
         breadcrumb.locator('[data-slot="ellipsis"]:visible')
       ).toHaveCount(1)
+      await breadcrumb
+        .getByRole('button', {
+          name: 'Show project and environment breadcrumbs'
+        })
+        .click()
+      await expect(
+        page.raw
+          .getByRole('button', {
+            name: 'Switch project: content manager ui',
+            exact: true
+          })
+          .filter({ visible: true })
+      ).toBeVisible()
+      await expect(
+        page.raw
+          .getByRole('button', {
+            name: 'Switch environment: production',
+            exact: true
+          })
+          .filter({ visible: true })
+      ).toBeVisible()
+      await page.raw.keyboard.press('Escape')
       await page.screenshot('.tmp/content-editor-populated-light.png', {
         fullPage: true
       })
