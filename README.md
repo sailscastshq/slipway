@@ -178,6 +178,8 @@ Slipway includes integrated tools that work with your deployed Sails apps:
 
 Full documentation at **[docs.sailscasts.com/slipway](https://docs.sailscasts.com/slipway)**
 
+Slipway CI: [CI setup](https://docs.sailscasts.com/slipway/ci), [resource budgets](https://docs.sailscasts.com/slipway/ci-resources), and [migration guidance](https://docs.sailscasts.com/slipway/ci-migration).
+
 ## Packages
 
 This repo is a monorepo containing:
