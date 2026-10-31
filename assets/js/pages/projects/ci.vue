@@ -2,7 +2,7 @@
 import { Head, router } from '@inertiajs/vue3'
 import { inject, onMounted, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
-import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
+import Breadcrumb from '@/components/ContextBreadcrumb.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import CiWorkspace from '@/components/ci/CiWorkspace.vue'

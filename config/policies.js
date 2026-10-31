@@ -42,6 +42,7 @@ module.exports.policies = {
 
   // Project pages require authentication
   'project/*': 'is-authenticated-or-setup',
+  'project/navigation-contexts': 'is-authenticated',
 
   // Lookout dashboard requires authentication
   'lookout/*': 'is-authenticated',

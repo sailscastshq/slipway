@@ -15,7 +15,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
-import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
+import Breadcrumb from '@/components/ContextBreadcrumb.vue'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({

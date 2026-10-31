@@ -9,6 +9,7 @@
  */
 
 module.exports.routes = {
+  'GET /api/v1/navigation/contexts': 'project/navigation-contexts',
   'POST /api/v1/configuration/reveal': 'api/v1/configuration/reveal',
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/services/custom/review':
     'api/v1/service/review-custom',

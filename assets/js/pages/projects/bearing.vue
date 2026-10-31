@@ -19,7 +19,7 @@ import {
   watch
 } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
-import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
+import Breadcrumb from '@/components/ContextBreadcrumb.vue'
 import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ActionMenu from '@/components/ActionMenu.vue'

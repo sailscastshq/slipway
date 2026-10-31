@@ -48,7 +48,11 @@ test(
       })
       expect(visible).toBe(true)
       await page.screenshot(path.join(root, `deployment-${width}.png`))
-      await nav.getByRole('link', { name: 'production', exact: true }).click()
+      await nav.getByRole('button', { name: /^Switch environment:/ }).click()
+      await page.raw
+        .getByRole('link', { name: 'View environment overview' })
+        .filter({ visible: true })
+        .click()
       await page.raw.waitForURL(
         `**/projects/${project.slug}/environments/production`
       )
@@ -117,11 +121,10 @@ test(
         await expect(nav.locator('[aria-current="page"]')).toContainText(
           feature
         )
-        const parent = nav.getByRole('link', {
-          name: app.name.toLowerCase(),
+        const parent = nav.getByRole('button', {
+          name: `Switch app: ${app.name.toLowerCase()}`,
           exact: true
         })
-        await expect(parent).toHaveAttribute('href', appUrl)
         await expect(parent).toBeVisible()
         const visible = await parent.evaluate((element) => {
           const box = element.getBoundingClientRect()
@@ -138,18 +141,19 @@ test(
         )
         await parent.focus()
         await page.key('Enter')
+        await page.raw
+          .getByRole('link', { name: 'View app overview' })
+          .filter({ visible: true })
+          .click()
         await page.raw.waitForURL(`**${appUrl}`)
         await expect(nav.locator('[aria-current="page"]')).toContainText(
           app.name.toLowerCase()
         )
-        const environmentLink = nav.getByRole('link', {
-          name: environment.name.toLowerCase(),
+        const environmentLink = nav.getByRole('button', {
+          name: `Switch environment: ${environment.name.toLowerCase()}`,
           exact: true
         })
-        await expect(environmentLink).toHaveAttribute(
-          'href',
-          `/projects/${project.slug}/environments/${environment.slug}`
-        )
+        await expect(environmentLink).toBeVisible()
       }
       await page.goto(
         `/projects/${project.slug}/environments/${environment.slug}/dock`
