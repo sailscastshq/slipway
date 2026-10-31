@@ -104,6 +104,9 @@ async function beforeLift({
   await migrations
     .forCatalog(require('./releases/ci-local-first-v1.json'))
     .run({ directory, preflightOnly: role === 'preflight' })
+  await migrations
+    .forCatalog(require('./releases/ci-checks-only-v1.json'))
+    .run({ directory, preflightOnly: role === 'preflight' })
   if (role !== 'preflight') return true
   // Released 0.0.87 validates slipway-next on the live mounts before its Bosun
   // sidecar stops slipway. Serve only the preflight result: no ORM, hooks, users,

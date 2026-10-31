@@ -56,7 +56,7 @@ module.exports = {
           method: 'PATCH',
           body: JSON.stringify({
             active: true,
-            events: ['push'],
+            events: [...new Set([...(hook.events || []), 'push'])],
             config: {
               url: repository.webhookUrl,
               content_type: 'json',

@@ -75,6 +75,10 @@ module.exports = {
             return await handlePush(repo, payload)
 
           case 'pull_request':
+            return await sails.helpers.ci.handlePullRequestWebhook.with({
+              repository: repo,
+              payload
+            })
           case 'delete':
             sails.log.verbose(`[webhook] Ignoring unsupported event: ${event}`)
             return {

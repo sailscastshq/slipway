@@ -72,7 +72,9 @@ async function confirmAction() {
           choice.runner
             ? { runnerId: choice.runner.runnerId }
             : {
-                ...(typeof choice.automatic === 'boolean'
+                ...(typeof choice.pullRequests === 'boolean'
+                  ? { pullRequests: choice.pullRequests }
+                  : typeof choice.automatic === 'boolean'
                   ? { automatic: choice.automatic }
                   : { enabled: false }),
                 approvePolicy: true,
@@ -88,6 +90,10 @@ async function confirmAction() {
     toast({
       message: choice.runner
         ? 'Local runner revoked.'
+        : typeof choice.pullRequests === 'boolean'
+        ? choice.pullRequests
+          ? 'Pull request checks enabled.'
+          : 'Pull request checks disabled.'
         : typeof choice.automatic === 'boolean'
         ? choice.automatic
           ? 'Automatic CI enabled.'
@@ -345,6 +351,18 @@ const tabClass = (value) => [
                 }}</span>
               </li>
             </ol>
+            <p v-if="selected.pullRequest" class="mt-3 text-xs text-gray-500">
+              Pull request #{{ selected.pullRequest }} · {{ selected.branch }} ·
+              Source checks only
+            </p>
+            <p v-if="selected.githubStatus" class="mt-2 text-xs text-gray-500">
+              {{
+                selected.githubStatus.published
+                  ? 'Result reported to GitHub.'
+                  : selected.githubStatus.error ||
+                    'GitHub reporting is pending.'
+              }}
+            </p>
             <div v-if="selected.logTail" class="mt-5">
               <div class="flex items-center justify-between gap-3">
                 <h3 class="text-sm font-medium">Failed step output</h3>
@@ -507,6 +525,36 @@ const tabClass = (value) => [
           </p>
         </div>
         <div
+          v-if="canManage && policy?.enabled"
+          class="mt-6 border-t border-gray-200 pt-5 dark:border-gray-800"
+        >
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+                Pull request checks
+              </h3>
+              <p class="mt-1 text-xs text-gray-500">
+                Run same-repository pull requests and report results to GitHub.
+                Checks do not deploy the app.
+              </p>
+            </div>
+            <Button
+              :class="action"
+              @click="
+                confirmation = {
+                  pullRequests: !policy.configuration.pullRequests
+                }
+              "
+            >
+              {{
+                policy.configuration.pullRequests
+                  ? 'Disable PR checks'
+                  : 'Enable PR checks'
+              }}
+            </Button>
+          </div>
+        </div>
+        <div
           v-if="canManage"
           class="mt-6 border-t border-gray-200 pt-5 dark:border-gray-800"
         >
@@ -599,6 +647,10 @@ const tabClass = (value) => [
         {{
           confirmation?.runner
             ? 'Revoke local runner?'
+            : typeof confirmation?.pullRequests === 'boolean'
+            ? confirmation.pullRequests
+              ? 'Enable pull request checks?'
+              : 'Disable pull request checks?'
             : typeof confirmation?.automatic === 'boolean'
             ? confirmation.automatic
               ? 'Enable automatic CI?'
@@ -610,6 +662,10 @@ const tabClass = (value) => [
         {{
           confirmation?.runner
             ? `Future deployments cannot reuse results from ${confirmation.runner.name}. The running app stays unchanged.`
+            : typeof confirmation?.pullRequests === 'boolean'
+            ? confirmation.pullRequests
+              ? 'Slipway will add pull request delivery to the existing GitHub webhook and run reviewed checks for same-repository PRs. Results are reported on the exact commit. No deployment starts, and local devices need approval for the updated policy.'
+              : 'New PR checks stop and active work loses its policy approval. Existing deployment settings stay the same.'
             : typeof confirmation?.automatic === 'boolean'
             ? confirmation.automatic
               ? 'Pushes that trigger deployment will reuse valid local evidence or run the required checks in an isolated server container. Server runs use up to 2 CPUs and 4 GiB, with one run at a time and a twenty-minute deadline. Local devices need approval for the updated policy.'
@@ -625,6 +681,10 @@ const tabClass = (value) => [
             ? 'Saving…'
             : confirmation?.runner
             ? 'Revoke runner'
+            : typeof confirmation?.pullRequests === 'boolean'
+            ? confirmation.pullRequests
+              ? 'Enable PR checks'
+              : 'Disable PR checks'
             : typeof confirmation?.automatic === 'boolean'
             ? confirmation.automatic
               ? 'Enable automatic CI'

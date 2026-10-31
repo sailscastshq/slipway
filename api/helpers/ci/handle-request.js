@@ -22,17 +22,29 @@ module.exports = {
     const appId = access.app.id
     let policy = await CiPolicy.findOne({ app: appId })
     const get = req.method === 'GET'
-    if (operation === 'runs' && get)
+    if (operation === 'runs' && get) {
+      const receipts = await CiRun.find({ app: appId })
+        .sort('createdAt DESC')
+        .limit(100)
+      const jobs = await CiJob.find({ app: appId })
+        .sort('createdAt DESC')
+        .limit(100)
       return {
-        runs: (
-          await CiRun.find({
-            app: appId,
-            or: [{ completedAt: { '!=': null } }, { runner: null }]
-          })
-            .sort('createdAt DESC')
-            .limit(100)
-        ).map((run) => run.summary)
+        runs: [
+          ...receipts
+            .filter((run) => run.completedAt != null || run.runner == null)
+            .map((run) => ({
+              ...run.summary,
+              githubStatus: jobs.find((job) => job.run === run.id)?.githubStatus
+            })),
+          ...jobs
+            .filter((job) => job.run == null)
+            .map(require('../../lib/ci-job-summary'))
+        ]
+          .sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0))
+          .slice(0, 100)
       }
+    }
     if (operation === 'policy' && get)
       return {
         policy: policy || null,
@@ -47,8 +59,72 @@ module.exports = {
           .limit(20)
       }
     if (get) throw new Error('Use the reviewed CI action to make changes.')
+    if (operation === 'checks') {
+      if (!data.requestId)
+        throw new Error(
+          'Use a stable UUID request ID for checks-only dispatch.'
+        )
+      const job = await sails.helpers.ci.queueChecks.with({
+        appId: String(appId),
+        pullRequest: data.pullRequest,
+        expectedCommit: data.commit,
+        requestId: data.requestId
+      })
+      try {
+        await sails.helpers.ci.publishJobStatus.with({ jobId: job.id })
+      } catch (error) {
+        sails.log.warn('CI GitHub reporting:', error.message)
+      }
+      setImmediate(() =>
+        sails.helpers.ci
+          .runQueuedChecks()
+          .catch((error) => sails.log.warn('CI queue:', error.message))
+      )
+      return { job }
+    }
+    if (operation === 'retry-report') {
+      if (data.approveRetry !== true || data.confirmConnectionChanged !== true)
+        throw new Error(
+          'Confirm that the existing GitHub connection was repaired before requesting one reporting retry.'
+        )
+      const job = await CiJob.findOne({ app: appId, jobId: data.jobId })
+      if (!job) throw new Error('No checks-only job exists for this app.')
+      if (await CiReport.count({ app: appId, uncertain: true }))
+        throw new Error(
+          'An uncertain external write still requires reconciliation; no retry was started.'
+        )
+      await CiReport.update({ app: appId, deniedStatus: [401, 403] }).set({
+        deniedStatus: 0
+      })
+      await CiJob.updateOne({ id: job.id }).set({ githubStatus: {} })
+      await sails.helpers.ci.publishJobStatus.with({ jobId: job.jobId })
+      return {
+        job: {
+          id: job.jobId,
+          githubStatus: (await CiJob.findOne({ id: job.id })).githubStatus
+        }
+      }
+    }
+    if (operation === 'cancel-checks') {
+      const job = await CiJob.updateOne({
+        app: appId,
+        jobId: data.jobId,
+        state: ['queued', 'running']
+      }).set({
+        state: 'cancelled',
+        reason: 'Cancelled by an app administrator.',
+        leaseToken: null,
+        leaseExpires: null
+      })
+      if (!job)
+        throw new Error('No active checks-only job exists for this app.')
+      return { job: { id: job.jobId, state: job.state, commit: job.commit } }
+    }
     if (operation === 'policy') {
-      if (typeof data.automatic === 'boolean') {
+      if (
+        typeof data.automatic === 'boolean' ||
+        typeof data.pullRequests === 'boolean'
+      ) {
         if (
           !policy?.enabled ||
           data.approvePolicy !== true ||
@@ -57,9 +133,16 @@ module.exports = {
           throw new Error(
             'Review the current policy before changing automatic execution.'
           )
+        if (data.pullRequests === true)
+          await sails.helpers.ci.configurePrWebhook.with({ app: access.app })
         const configuration = {
           ...policy.configuration,
-          automatic: data.automatic
+          ...(typeof data.automatic === 'boolean'
+            ? { automatic: data.automatic }
+            : {}),
+          ...(typeof data.pullRequests === 'boolean'
+            ? { pullRequests: data.pullRequests }
+            : {})
         }
         const revision = contract.digest({
           appId: String(appId),

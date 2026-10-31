@@ -62,6 +62,33 @@ module.exports = {
       `project:${project.id}`,
       this.req.headers['x-github-delivery'],
       async () => {
+        if (event === 'pull_request') {
+          const repositories = await GitRepository.find({
+            externalId: String(body.repository?.id || '')
+          })
+            .populate('environment')
+            .populate('app')
+          const jobs = []
+          for (const repository of repositories) {
+            const environment =
+              repository.environment &&
+              (await Environment.findOne({
+                id: repository.environment.id || repository.environment
+              }))
+            if (String(environment?.project) !== String(project.id)) continue
+            const outcome =
+              await sails.helpers.ci.handlePullRequestWebhook.with({
+                repository,
+                payload: body
+              })
+            jobs.push(...(outcome.jobs || []))
+          }
+          return {
+            received: true,
+            action: jobs.length ? 'ci_queued' : 'ignored',
+            jobs
+          }
+        }
         if (event !== 'push') {
           return {
             received: true,

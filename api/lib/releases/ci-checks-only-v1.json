@@ -1,0 +1,28 @@
+{
+  "version": "ci-checks-only-v1",
+  "datastores": {
+    "default": {
+      "ci_jobs": {
+        "create": "CREATE TABLE `ci_jobs` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `job_id` TEXT, `app` INTEGER, `pull_request` REAL, `branch` TEXT, `commit` TEXT, `policy_revision` TEXT, `dedupe_key` TEXT, `state` TEXT, `lease_token` TEXT, `lease_expires` REAL, `deadline` REAL, `run` INTEGER, `reason` TEXT, `github_status` TEXT)",
+        "accepted": [
+          "CREATE TABLE `ci_jobs` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `job_id` TEXT, `app` INTEGER, `pull_request` REAL, `branch` TEXT, `commit` TEXT, `policy_revision` TEXT, `dedupe_key` TEXT, `state` TEXT, `lease_token` TEXT, `lease_expires` REAL, `deadline` REAL, `run` INTEGER, `reason` TEXT, `github_status` TEXT)"
+        ],
+        "indexes": [
+          "CREATE UNIQUE INDEX `ci_jobs_job_id_unique` ON `ci_jobs` (`job_id`)",
+          "CREATE UNIQUE INDEX `ci_jobs_dedupe_key_unique` ON `ci_jobs` (`dedupe_key`)",
+          "CREATE INDEX `ci_jobs_queue` ON `ci_jobs` (`state`, `created_at`)",
+          "CREATE INDEX `ci_jobs_app_commit` ON `ci_jobs` (`app`, `commit`, `created_at`, `id`)"
+        ]
+      },
+      "ci_reports": {
+        "create": "CREATE TABLE `ci_reports` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `report_key` TEXT, `app` INTEGER, `commit` TEXT, `lease_token` TEXT, `lease_expires` REAL, `uncertain` TEXT, `denied_status` REAL, `last_job_id` TEXT, `last_response_id` TEXT)",
+        "accepted": [
+          "CREATE TABLE `ci_reports` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `report_key` TEXT, `app` INTEGER, `commit` TEXT, `lease_token` TEXT, `lease_expires` REAL, `uncertain` TEXT, `denied_status` REAL, `last_job_id` TEXT, `last_response_id` TEXT)"
+        ],
+        "indexes": [
+          "CREATE UNIQUE INDEX `ci_reports_report_key_unique` ON `ci_reports` (`report_key`)"
+        ]
+      }
+    }
+  }
+}
