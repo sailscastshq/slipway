@@ -83,11 +83,9 @@ module.exports = {
               })
             jobs.push(...(outcome.jobs || []))
           }
-          return {
-            received: true,
-            action: jobs.length ? 'ci_queued' : 'ignored',
-            jobs
-          }
+          return jobs.length
+            ? { received: true, action: 'ci_queued', jobs }
+            : { received: true, action: 'ignored', reason: 'unsupported_event' }
         }
         if (event !== 'push') {
           return {

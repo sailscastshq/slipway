@@ -10,7 +10,7 @@ module.exports = {
         payload.action
       )
     )
-      return { received: true, action: 'ignored' }
+      return { received: true, action: 'ignored', reason: 'unsupported_event' }
     const candidates = repository.app
       ? await App.find({ id: repository.app.id || repository.app })
       : await App.find({
@@ -32,10 +32,8 @@ module.exports = {
       })
       jobs.push(job)
     }
-    return {
-      received: true,
-      action: jobs.length ? 'ci_queued' : 'ignored',
-      jobs
-    }
+    return jobs.length
+      ? { received: true, action: 'ci_queued', jobs }
+      : { received: true, action: 'ignored', reason: 'unsupported_event' }
   }
 }

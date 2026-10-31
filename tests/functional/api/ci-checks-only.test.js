@@ -417,3 +417,98 @@ test(
     }
   }
 )
+
+test(
+  'signed PR deliveries queue checks only after reviewed opt-in through canonical and legacy intake',
+  {
+    transport: 'http',
+    world: {
+      name: 'configured-slipway',
+      context: { deploymentTarget: { slug: 'ci-pr-webhook' } }
+    }
+  },
+  async ({ sails, world, request, expect }) => {
+    const app = world.current.apps.web,
+      project = world.current.projects.deploymentTarget
+    const secret = 'ci-pr-webhook-fixture-secret'
+    await sails.models.project
+      .updateOne({ id: project.id })
+      .set({ webhookSecret: secret })
+    const provider = await world
+      .create('gitprovider')
+      .with({ team: world.current.teams.genesisTeam.id })
+    await world.create('gitrepository').with({
+      externalId: '5437',
+      webhookSecret: secret,
+      provider: provider.id,
+      environment: app.environment,
+      app: app.id
+    })
+    const policy = await sails.models.cipolicy
+      .create({
+        app: app.id,
+        createdBy: world.current.users.genesisUser.id,
+        enabled: true,
+        revision: 'reviewed-pr-webhook',
+        repositoryId: '5437',
+        branch: 'main',
+        configuration: { pullRequests: true }
+      })
+      .fetch()
+    const previous = sails.helpers.ci.resolvePullRequest
+    const resolve = async () => ({
+      commit: 'a'.repeat(40),
+      branch: 'feat/webhook-fixture'
+    })
+    resolve.with = resolve
+    sails.helpers.ci.resolvePullRequest = resolve
+    const payload = { action: 'opened', number: 42, repository: { id: 5437 } }
+    const endpoints = [
+      '/webhook/github',
+      `/api/v1/webhooks/github/${project.slug}`
+    ]
+    const baseline = await sails.models.deployment.count()
+    const queuedBaseline = await sails.models.cijob.count()
+    const send = (endpoint, delivery) =>
+      request
+        .withHeaders({
+          'x-github-event': 'pull_request',
+          'x-github-delivery': delivery,
+          'x-hub-signature-256':
+            'sha256=' +
+            crypto
+              .createHmac('sha256', secret)
+              .update(JSON.stringify(payload))
+              .digest('hex')
+        })
+        .post(endpoint, payload)
+    try {
+      let identity
+      for (const [index, endpoint] of endpoints.entries()) {
+        const result = await send(endpoint, `reviewed-pr-${index}`)
+        expect(result).toHaveStatus(200)
+        expect(result).toHaveJsonPath('action', 'ci_queued')
+        assert.equal(result.data.jobs.length, 1)
+        identity ||= result.data.jobs[0].id
+        assert.equal(result.data.jobs[0].id, identity)
+        assert.equal(await sails.models.cijob.count(), queuedBaseline + 1)
+        assert.equal(await sails.models.cijob.count({ app: app.id }), 1)
+        assert.equal(await sails.models.deployment.count(), baseline)
+      }
+      await sails.models.cipolicy
+        .updateOne({ id: policy.id })
+        .set({ enabled: false })
+      for (const [index, endpoint] of endpoints.entries()) {
+        const ignored = await send(endpoint, `disabled-pr-${index}`)
+        expect(ignored).toHaveStatus(200)
+        expect(ignored).toHaveJsonPath('action', 'ignored')
+        expect(ignored).toHaveJsonPath('reason', 'unsupported_event')
+        assert.equal(await sails.models.cijob.count(), queuedBaseline + 1)
+        assert.equal(await sails.models.cijob.count({ app: app.id }), 1)
+        assert.equal(await sails.models.deployment.count(), baseline)
+      }
+    } finally {
+      sails.helpers.ci.resolvePullRequest = previous
+    }
+  }
+)
