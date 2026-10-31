@@ -12,7 +12,7 @@ test(
     const screenshots = path.resolve('.tmp/screenshots/ci-prototype')
     fs.mkdirSync(screenshots, { recursive: true })
     await page.raw.goto(
-      pathToFileURL(path.resolve('tests/fixtures/ci/prototype.html')).href
+      pathToFileURL(path.resolve('docs/ci/prototype.html')).href
     )
     await page.resize(1440, 1000)
     await expect(
