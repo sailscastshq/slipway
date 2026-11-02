@@ -24,7 +24,8 @@ env:
 
 jobs:
   verify:
-    if: ${{ !inputs.skip_verification }}
+    # Package-scoped hook releases must not start a server image release.
+    if: ${{ !inputs.skip_verification && (github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')) }}
     uses: ./.github/workflows/test.yml
     permissions:
       contents: read
