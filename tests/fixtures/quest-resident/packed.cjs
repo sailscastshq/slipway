@@ -301,6 +301,7 @@ function proofFor(packed) {
           name,
           {
             version: record.version,
+            sourceRevision: record.sourceRevision,
             tarball: record.tarball,
             tarballSha256: record.tarballSha256,
             filesSha256: record.filesSha256,
@@ -341,6 +342,44 @@ async function packedSource(env, source) {
   })
 }
 
+async function hookSource(env, registry, candidateSha) {
+  if (!registry)
+    return {
+      directory: path.join(repository, 'packages/hook'),
+      sha: candidateSha
+    }
+  const root = env.SLIPWAY_QUEST_REGISTRY_HOOK_ROOT
+  const sha = env.SLIPWAY_QUEST_REGISTRY_HOOK_SHA
+  assert.ok(
+    root && path.isAbsolute(root),
+    'Registry hook requires an explicit source checkout'
+  )
+  assert.match(
+    sha || '',
+    /^[a-f0-9]{40}$/,
+    'Registry hook requires an immutable source SHA'
+  )
+  assert.equal(
+    await git(['rev-parse', 'HEAD'], root),
+    sha,
+    'Registry hook checkout must match its pinned SHA'
+  )
+  assert.equal(
+    await git(
+      ['status', '--porcelain', '--untracked-files=no', '--', 'packages/hook'],
+      root
+    ),
+    '',
+    'Registry hook source must be clean'
+  )
+  const directory = path.join(root, 'packages/hook')
+  assert.equal(
+    json(path.join(directory, 'package.json')).name,
+    'sails-hook-slipway'
+  )
+  return { directory, sha }
+}
+
 async function preparePacked(env = process.env) {
   assert.equal(env.CI, 'true', 'Package consumer preparation is CI-only')
   const tool = npmTool(env)
@@ -376,10 +415,11 @@ async function preparePacked(env = process.env) {
   )
   fs.mkdirSync(path.join(root, 'tarballs'), { recursive: true })
   fs.mkdirSync(path.join(root, 'consumer'))
+  const publishedHook = await hookSource(env, registry, slipwaySha)
   const packages = {}
   for (const [name, directory] of [
     [names[0], source.root],
-    [names[1], path.join(repository, 'packages/hook')]
+    [names[1], publishedHook.directory]
   ]) {
     const manifest = json(path.join(directory, 'package.json'))
     assert.equal(manifest.name, name)
@@ -437,6 +477,7 @@ async function preparePacked(env = process.env) {
     )
     packages[name] = {
       name,
+      sourceRevision: name === names[0] ? source.sha : publishedHook.sha,
       version: manifest.version,
       tarball,
       tarballSha256: hash(fs.readFileSync(archive)),
@@ -528,9 +569,11 @@ async function preparePacked(env = process.env) {
     ),
     lockedFixtureDependencies: Object.fromEntries(
       ['sails', 'machine', 'whelk'].map((name) => {
-        const manifest = require(require.resolve(`${name}/package.json`, {
-          paths: [repository]
-        }))
+        const manifest = require(
+          require.resolve(`${name}/package.json`, {
+            paths: [repository]
+          })
+        )
         return [name, { name: manifest.name, version: manifest.version }]
       })
     ),
@@ -563,6 +606,7 @@ async function preparePacked(env = process.env) {
 }
 
 module.exports = {
+  hookSource,
   PACK_NPM_VERSION,
   npmTool,
   lifecyclePolicy,

@@ -54,6 +54,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SLIPWAY_QUEST_PACKAGE_SOURCE: ${{ matrix.package-source }}
+      # Registry bytes are verified against their immutable RELEASED source.
+      # The packed matrix separately verifies this exact proposed hook source.
+      SLIPWAY_QUEST_REGISTRY_HOOK_SHA: 4ba9fbac830c5047f673daf205414fbfa7498afc
+      SLIPWAY_QUEST_REGISTRY_HOOK_ROOT: ${{ github.workspace }}/.tmp/registry-hook-source
       # Corrected child scheduler suppression contract. Never use 788d767.
       SLIPWAY_QUEST_UPSTREAM_SHA: af835bad8032cf7e054d2d41da72fb1028f6fd2e
       SLIPWAY_QUEST_UPSTREAM_ROOT: ${{ github.workspace }}/.tmp/quest-upstream
@@ -65,6 +69,13 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Check out immutable published hook source for registry comparison
+        if: matrix.package-source == 'registry'
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.SLIPWAY_QUEST_REGISTRY_HOOK_SHA }}
+          path: .tmp/registry-hook-source
           persist-credentials: false
       - name: Check out the pinned corrected Quest runtime
         uses: actions/checkout@v6
