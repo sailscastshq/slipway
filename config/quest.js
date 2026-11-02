@@ -2,7 +2,7 @@
  * Quest Configuration
  *
  * Background job scheduling for Slipway.
- * Jobs live in the `scripts/` directory and run as isolated child processes.
+ * Jobs live in the `scripts/` directory and reuse a separate loaded Sails child.
  *
  * @see https://github.com/sailscastshq/sails-hook-quest
  */
@@ -16,7 +16,7 @@ module.exports.quest = {
   // Prevent overlapping runs by default
   withoutOverlapping: true,
 
-  // Jobs run in the console environment for lightweight execution
+  // The reusable child loads the console environment without resident collectors
   environment: 'console',
 
   // Reuse Quest's owned Linux child lifecycle and bounded live-log snapshots.
