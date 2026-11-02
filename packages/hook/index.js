@@ -45,9 +45,7 @@ const {
 module.exports = function defineSlipwayHook(sails) {
   const isHelmRuntime = Boolean(process.env.SLIPWAY_HELM_EXECUTION_ID)
   const isQuestCommand =
-    /^sails(?:\.js)?$/.test(
-      require('node:path').basename(process.argv[1] || '')
-    ) && process.argv[2] === 'run'
+    require('./lib/quest-execution-context').isQuestExecutionChild()
   const isTransientRuntime = isHelmRuntime || isQuestCommand
   // Telemetry buffers
   let spanBuffer = []
@@ -1209,7 +1207,7 @@ module.exports = function defineSlipwayHook(sails) {
   }
 
   function buildRegistration() {
-    if (isHelmRuntime || isQuestCommand || !config.appId) return null
+    if (isTransientRuntime || !config.appId) return null
     return {
       appId: String(config.appId),
       deploymentId: config.deploymentId

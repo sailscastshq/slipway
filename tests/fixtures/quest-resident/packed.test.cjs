@@ -6,6 +6,7 @@ const crypto = require('node:crypto')
 const { test } = require('node:test')
 const { pipeline } = require('node:stream/promises')
 const {
+  hookSource,
   PACK_NPM_VERSION,
   npmTool,
   lifecyclePolicy,
@@ -245,4 +246,32 @@ test('runtime assembly copies both installed packages physically, preserves nest
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }
+})
+
+test('registry baseline requires pinned clean source while packed candidate keeps its own revision', async () => {
+  const root = path.resolve(__dirname, '../../..')
+  const sha = require('node:child_process')
+    .execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' })
+    .trim()
+  assert.deepEqual(await hookSource({}, false, sha), {
+    directory: path.join(root, 'packages/hook'),
+    sha
+  })
+  await assert.rejects(hookSource({}, true, sha), /explicit source checkout/)
+  const env = {
+    SLIPWAY_QUEST_REGISTRY_HOOK_ROOT: root,
+    SLIPWAY_QUEST_REGISTRY_HOOK_SHA: sha
+  }
+  assert.deepEqual(await hookSource(env, true, 'candidate-is-distinct'), {
+    directory: path.join(root, 'packages/hook'),
+    sha
+  })
+  await assert.rejects(
+    hookSource(
+      { ...env, SLIPWAY_QUEST_REGISTRY_HOOK_SHA: '0'.repeat(40) },
+      true,
+      sha
+    ),
+    /pinned SHA/
+  )
 })
