@@ -1,3 +1,4 @@
+const deploymentTransaction = require('../../lib/deployment-datastore-transaction')
 const deploymentCancellation = require('../../lib/deployment-cancellation')
 
 module.exports = {
@@ -252,9 +253,13 @@ module.exports = {
       const detectedFeatures = await sails.helpers.sails.detectFeatures(
         contextPath
       )
-      await Environment.updateOne({ id: environment.id }).set({
-        features: detectedFeatures
-      })
+      await deploymentTransaction(
+        async (db) =>
+          Environment.updateOne({ id: environment.id })
+            .set({ features: detectedFeatures })
+            .usingConnection(db),
+        { deploymentId, leaseToken }
+      )
       if (Object.keys(detectedFeatures).length > 0) {
         await Deployment.appendBuildLog(
           deploymentId,
@@ -559,7 +564,13 @@ module.exports = {
       if (existingApp) {
         stopCriteria.app = existingApp.id
       }
-      await Deployment.update(stopCriteria).set({ status: 'stopped' })
+      await deploymentTransaction(
+        async (db) =>
+          Deployment.update(stopCriteria)
+            .set({ status: 'stopped' })
+            .usingConnection(db),
+        { deploymentId: deploymentId, leaseToken }
+      )
 
       // 14. Mark this deployment as running
       await updateDeployment({ status: 'running', finishedAt: Date.now() })

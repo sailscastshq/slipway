@@ -1,3 +1,4 @@
+const deploymentTransaction = require('../../lib/deployment-datastore-transaction')
 const crypto = require('node:crypto')
 const os = require('node:os')
 const deploymentCancellation = require('../../lib/deployment-cancellation')
@@ -45,67 +46,83 @@ async function drainTarget(targetKey) {
 }
 
 async function claimNextJob(targetKey) {
-  const jobs = await DeploymentJob.find({ targetKey, stage: 'queued' }).sort([
-    'createdAt ASC',
-    'id ASC'
-  ])
+  return deploymentTransaction(async (db) => {
+    const jobs = await DeploymentJob.find({ targetKey, stage: 'queued' })
+      .usingConnection(db)
+      .sort(['createdAt ASC', 'id ASC'])
 
-  for (const job of jobs) {
-    const deployment = await Deployment.findOne({ id: job.deployment })
-    if (!deployment || deployment.status === 'cancelled') {
-      await DeploymentJob.updateOne({ id: job.id, stage: 'queued' }).set({
-        stage: 'cancelled'
+    for (const job of jobs) {
+      const deployment = await Deployment.findOne({
+        id: job.deployment
+      }).usingConnection(db)
+      if (!deployment || deployment.status === 'cancelled') {
+        await DeploymentJob.updateOne({ id: job.id, stage: 'queued' })
+          .set({
+            stage: 'cancelled'
+          })
+          .usingConnection(db)
+        continue
+      }
+
+      if (deployment.status !== 'pending') {
+        await DeploymentJob.updateOne({ id: job.id, stage: 'queued' })
+          .set({
+            stage: isSuccessfulStatus(deployment.status) ? 'complete' : 'failed'
+          })
+          .usingConnection(db)
+        continue
+      }
+
+      const now = Date.now()
+      const token = crypto.randomUUID()
+      let lease
+
+      try {
+        lease = await DeploymentLease.create({
+          targetKey,
+          deployment: deployment.id,
+          token,
+          owner: `${os.hostname()}:${process.pid}`,
+          stage: 'claimed',
+          heartbeatAt: now,
+          expiresAt: now + LEASE_TTL
+        })
+          .fetch()
+          .usingConnection(db)
+      } catch (error) {
+        if (isUniqueConflict(error)) return null
+        throw error
+      }
+
+      const claimedJob = await DeploymentJob.updateOne({
+        id: job.id,
+        stage: 'queued'
       })
-      continue
+        .set({
+          stage: 'claimed',
+          attempt: job.attempt + 1
+        })
+        .usingConnection(db)
+
+      if (!claimedJob) {
+        await DeploymentLease.destroyOne({
+          id: lease.id,
+          token
+        }).usingConnection(db)
+        continue
+      }
+
+      await Deployment.updateOne({ id: deployment.id, status: 'pending' })
+        .set({
+          startedAt: deployment.startedAt || now
+        })
+        .usingConnection(db)
+
+      return { job: claimedJob, deployment, lease }
     }
 
-    if (deployment.status !== 'pending') {
-      await DeploymentJob.updateOne({ id: job.id, stage: 'queued' }).set({
-        stage: isSuccessfulStatus(deployment.status) ? 'complete' : 'failed'
-      })
-      continue
-    }
-
-    const now = Date.now()
-    const token = crypto.randomUUID()
-    let lease
-
-    try {
-      lease = await DeploymentLease.create({
-        targetKey,
-        deployment: deployment.id,
-        token,
-        owner: `${os.hostname()}:${process.pid}`,
-        stage: 'claimed',
-        heartbeatAt: now,
-        expiresAt: now + LEASE_TTL
-      }).fetch()
-    } catch (error) {
-      if (isUniqueConflict(error)) return null
-      throw error
-    }
-
-    const claimedJob = await DeploymentJob.updateOne({
-      id: job.id,
-      stage: 'queued'
-    }).set({
-      stage: 'claimed',
-      attempt: job.attempt + 1
-    })
-
-    if (!claimedJob) {
-      await DeploymentLease.destroyOne({ id: lease.id, token })
-      continue
-    }
-
-    await Deployment.updateOne({ id: deployment.id, status: 'pending' }).set({
-      startedAt: deployment.startedAt || now
-    })
-
-    return { job: claimedJob, deployment, lease }
-  }
-
-  return null
+    return null
+  })
 }
 
 async function runClaimedJob({ job, deployment, lease }) {
@@ -114,13 +131,18 @@ async function runClaimedJob({ job, deployment, lease }) {
   const heartbeat = setInterval(async () => {
     try {
       const now = Date.now()
-      const renewed = await DeploymentLease.updateOne({
-        id: lease.id,
-        token: lease.token
-      }).set({
-        heartbeatAt: now,
-        expiresAt: now + LEASE_TTL
-      })
+      const renewed = await deploymentTransaction(async (db) =>
+        DeploymentLease.updateOne({
+          id: lease.id,
+          token: lease.token,
+          expiresAt: { '>': Date.now() }
+        })
+          .set({
+            heartbeatAt: now,
+            expiresAt: now + LEASE_TTL
+          })
+          .usingConnection(db)
+      )
       if (!renewed) clearInterval(heartbeat)
     } catch (error) {
       sails.log.warn(
@@ -185,9 +207,15 @@ async function runClaimedJob({ job, deployment, lease }) {
         'Traffic recovery requires operator inspection before deployment execution.'
       )
 
-    await DeploymentJob.updateOne({ id: job.id }).set({
-      previousContainerName: app?.containerName || null
-    })
+    await deploymentTransaction(
+      async (db) =>
+        DeploymentJob.updateOne({ id: job.id })
+          .set({
+            previousContainerName: app?.containerName || null
+          })
+          .usingConnection(db),
+      { deploymentId: deployment.id, leaseToken: lease.token }
+    )
 
     if (job.kind === 'rollback') {
       const targetDeployment = await Deployment.findOne({
@@ -268,23 +296,33 @@ async function runClaimedJob({ job, deployment, lease }) {
     clearInterval(cancellationMonitor)
 
     try {
-      const ownedLease = await DeploymentLease.findOne({
-        id: lease.id,
-        token: lease.token
+      await deploymentTransaction(async (db) => {
+        const ownedLease = await DeploymentLease.findOne({
+          id: lease.id,
+          token: lease.token,
+          expiresAt: { '>': Date.now() }
+        }).usingConnection(db)
+
+        if (ownedLease) {
+          const current = await Deployment.findOne({
+            id: deployment.id
+          }).usingConnection(db)
+          const stage =
+            current?.status === 'running'
+              ? 'complete'
+              : current?.status === 'cancelled'
+              ? 'cancelled'
+              : 'failed'
+
+          await DeploymentJob.updateOne({ id: job.id })
+            .set({ stage })
+            .usingConnection(db)
+          await DeploymentLease.destroyOne({
+            id: lease.id,
+            token: lease.token
+          }).usingConnection(db)
+        }
       })
-
-      if (ownedLease) {
-        const current = await Deployment.findOne({ id: deployment.id })
-        const stage =
-          current?.status === 'running'
-            ? 'complete'
-            : current?.status === 'cancelled'
-            ? 'cancelled'
-            : 'failed'
-
-        await DeploymentJob.updateOne({ id: job.id }).set({ stage })
-        await DeploymentLease.destroyOne({ id: lease.id, token: lease.token })
-      }
     } finally {
       cancellation.release()
     }

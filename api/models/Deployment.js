@@ -1,5 +1,7 @@
 const { appendTimestampedChunk } = require('../lib/deployment-log')
 
+const deploymentTransaction = require('../lib/deployment-datastore-transaction')
+
 const logAppendQueues = new Map()
 
 /**
@@ -193,14 +195,20 @@ async function appendLog(deploymentId, field, log) {
   const previous = logAppendQueues.get(key) || Promise.resolve()
   const pending = previous
     .catch(() => {})
-    .then(async () => {
-      const deployment = await Deployment.findOne({ id: deploymentId })
-      if (!deployment) return
+    .then(() =>
+      deploymentTransaction(async (db) => {
+        const deployment = await Deployment.findOne({
+          id: deploymentId
+        }).usingConnection(db)
+        if (!deployment) return
 
-      await Deployment.updateOne({ id: deploymentId }).set({
-        [field]: appendTimestampedChunk(deployment[field], log, occurredAt)
+        await Deployment.updateOne({ id: deploymentId })
+          .set({
+            [field]: appendTimestampedChunk(deployment[field], log, occurredAt)
+          })
+          .usingConnection(db)
       })
-    })
+    )
 
   logAppendQueues.set(key, pending)
   try {

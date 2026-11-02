@@ -1,3 +1,4 @@
+const deploymentTransaction = require('../../lib/deployment-datastore-transaction')
 module.exports = {
   friendlyName: 'Finalize current candidate',
 
@@ -109,7 +110,13 @@ module.exports = {
       status: 'running',
       id: { '<': deploymentId }
     }
-    await Deployment.update(stopCriteria).set({ status: 'stopped' })
+    await deploymentTransaction(
+      async (db) =>
+        Deployment.update(stopCriteria)
+          .set({ status: 'stopped' })
+          .usingConnection(db),
+      { deploymentId: deploymentId, leaseToken }
+    )
 
     requireValidLease(
       await sails.helpers.deploy.updateDeploymentForLease.with({

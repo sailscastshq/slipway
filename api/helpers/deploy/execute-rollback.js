@@ -1,3 +1,4 @@
+const deploymentTransaction = require('../../lib/deployment-datastore-transaction')
 const deploymentCancellation = require('../../lib/deployment-cancellation')
 
 module.exports = {
@@ -374,7 +375,13 @@ module.exports = {
         id: { '<': rollbackId }
       }
       if (existingApp) stopCriteria.app = existingApp.id
-      await Deployment.update(stopCriteria).set({ status: 'stopped' })
+      await deploymentTransaction(
+        async (db) =>
+          Deployment.update(stopCriteria)
+            .set({ status: 'stopped' })
+            .usingConnection(db),
+        { deploymentId: rollbackId, leaseToken }
+      )
 
       await updateDeployment({ status: 'running', finishedAt: Date.now() })
       await recordStage('complete')

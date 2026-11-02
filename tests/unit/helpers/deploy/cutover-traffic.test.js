@@ -1447,3 +1447,140 @@ test(
     }
   }
 )
+
+test(
+  'database contention after App update rolls back and retries without restaging traffic',
+  { world: cutoverWorld('cutover-db-contention') },
+  async ({ sails, world, expect }) => {
+    const setup = await prepareCutover({ sails, world })
+    const originalRoute = sails.helpers.caddy.updateRoute
+    const originalFinish = sails.helpers.caddy.finishRouteUpdate
+    const originalUpdate = sails.models.app.updateOne
+    let stages = 0,
+      commits = 0,
+      writes = 0
+    sails.helpers.caddy.updateRoute = machineStub(async () => {
+      stages++
+      return stagedRoute()
+    })
+    sails.helpers.caddy.finishRouteUpdate = machineStub(async ({ action }) => {
+      expect(action).toBe('commit')
+      commits++
+      return { action: 'committed' }
+    })
+    sails.models.app.updateOne = function (...args) {
+      const query = originalUpdate.apply(this, args)
+      const use = query.usingConnection.bind(query)
+      query.usingConnection = (db) =>
+        use(db).then((row) => {
+          if (++writes === 1)
+            throw Object.assign(
+              new Error('synthetic stale snapshot after DB write'),
+              { code: 'SQLITE_BUSY_SNAPSHOT' }
+            )
+          return row
+        })
+      return query
+    }
+    try {
+      const result = await sails.helpers.deploy.cutoverTraffic.with({
+        deploymentId: setup.deployment.id,
+        environmentId: setup.environment.id,
+        appId: setup.app.id,
+        candidate: setup.candidate
+      })
+      expect(writes).toBe(2)
+      expect(stages).toBe(1)
+      expect(commits).toBe(1)
+      expect(result.app.containerName).toBe('slipway-web-candidate')
+      expect(
+        (await sails.models.app.findOne(setup.app.id)).currentDeployment
+      ).toBe(setup.deployment.id)
+    } finally {
+      sails.helpers.caddy.updateRoute = originalRoute
+      sails.helpers.caddy.finishRouteUpdate = originalFinish
+      sails.models.app.updateOne = originalUpdate
+    }
+  }
+)
+
+test(
+  'uncertain App commit holds traffic recovery and preserves the original error without replay',
+  { world: cutoverWorld('cutover-uncertain-db-commit') },
+  async ({ sails, world, expect }) => {
+    const setup = await prepareCutover({ sails, world })
+    const originalRoute = sails.helpers.caddy.updateRoute
+    const originalFinish = sails.helpers.caddy.finishRouteUpdate
+    const originalUpdate = sails.models.app.updateOne
+    const driver = sails.getDatastore().driver
+    const originalCommit = driver.commitTransaction
+    let stages = 0,
+      writes = 0,
+      injected = false
+    const finish = []
+    sails.helpers.caddy.updateRoute = machineStub(async () => {
+      stages++
+      return stagedRoute()
+    })
+    sails.helpers.caddy.finishRouteUpdate = machineStub(async ({ action }) => {
+      finish.push(action)
+      return { action }
+    })
+    sails.models.app.updateOne = function (...args) {
+      const query = originalUpdate.apply(this, args)
+      const use = query.usingConnection.bind(query)
+      query.usingConnection = (db) =>
+        use(db).then((row) => {
+          writes++
+          return row
+        })
+      return query
+    }
+    driver.commitTransaction = function (inputs, done) {
+      return originalCommit.call(this, inputs, (error) => {
+        if (!error && writes && !injected) {
+          injected = true
+          return done(
+            Object.assign(
+              new Error('synthetic receipt loss after App commit'),
+              { code: 'SQLITE_BUSY' }
+            )
+          )
+        }
+        done(error)
+      })
+    }
+    try {
+      let caught
+      try {
+        await sails.helpers.deploy.cutoverTraffic.with({
+          deploymentId: setup.deployment.id,
+          environmentId: setup.environment.id,
+          appId: setup.app.id,
+          candidate: setup.candidate
+        })
+      } catch (error) {
+        caught = error
+      }
+      expect(caught.code).toBe('TRAFFIC_CUTOVER_ROLLBACK_FAILED')
+      expect(caught.cause.message).toMatch(/commiting the db transaction/)
+      expect(writes).toBe(1)
+      expect(stages).toBe(1)
+      expect(finish).toEqual(['rollback'])
+      expect(
+        (await sails.models.app.findOne(setup.app.id)).currentDeployment
+      ).toBe(setup.deployment.id)
+      const hold = await sails.models.setting.findOne({
+        key:
+          require('../../../../api/lib/deployment-recovery').HOLD_PREFIX +
+          String(setup.app.id)
+      })
+      expect(Boolean(hold)).toBe(true)
+    } finally {
+      sails.helpers.caddy.updateRoute = originalRoute
+      sails.helpers.caddy.finishRouteUpdate = originalFinish
+      sails.models.app.updateOne = originalUpdate
+      driver.commitTransaction = originalCommit
+    }
+  }
+)

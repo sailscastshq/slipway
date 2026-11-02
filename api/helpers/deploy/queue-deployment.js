@@ -1,4 +1,4 @@
-const withDatastoreTransaction = require('../../lib/with-datastore-transaction')
+const withDatastoreTransaction = require('../../lib/deployment-datastore-transaction')
 
 module.exports = {
   friendlyName: 'Queue deployment',

@@ -1,3 +1,5 @@
+const deploymentTransaction = require('../../lib/deployment-datastore-transaction')
+
 const LEASE_TTL = 30 * 1000
 
 module.exports = {
@@ -45,62 +47,84 @@ module.exports = {
     hostPort,
     buildContextPath
   }) {
-    if (leaseToken) {
-      const now = Date.now()
-      const lease = await DeploymentLease.updateOne({
-        deployment: deploymentId,
-        token: leaseToken,
-        expiresAt: { '>': now }
-      }).set({
-        stage,
-        heartbeatAt: now,
-        expiresAt: now + LEASE_TTL
-      })
+    try {
+      return await deploymentTransaction(
+        async (db) => {
+          if (leaseToken) {
+            const now = Date.now()
+            const lease = await DeploymentLease.updateOne({
+              deployment: deploymentId,
+              token: leaseToken,
+              expiresAt: { '>': now }
+            })
+              .set({
+                stage,
+                heartbeatAt: now,
+                expiresAt: now + LEASE_TTL
+              })
+              .usingConnection(db)
 
-      if (!lease) {
-        return {
-          valid: false,
-          code: 'DEPLOYMENT_LEASE_LOST',
-          message: `Deployment ${deploymentId} no longer owns its pipeline lease.`
-        }
-      }
+            if (!lease) {
+              return {
+                valid: false,
+                code: 'DEPLOYMENT_LEASE_LOST',
+                message: `Deployment ${deploymentId} no longer owns its pipeline lease.`
+              }
+            }
 
-      const deployment = await Deployment.findOne({ id: deploymentId })
-      if (deployment?.status === 'cancelled') {
-        return {
-          valid: false,
-          code: 'DEPLOYMENT_CANCELLED',
-          message: `Deployment ${deploymentId} was cancelled.`
-        }
+            const deployment = await Deployment.findOne({
+              id: deploymentId
+            }).usingConnection(db)
+            if (deployment?.status === 'cancelled') {
+              return {
+                valid: false,
+                code: 'DEPLOYMENT_CANCELLED',
+                message: `Deployment ${deploymentId} was cancelled.`
+              }
+            }
+          }
+
+          const updates = { stage }
+          if (candidateContainerName !== undefined)
+            updates.candidateContainerName = candidateContainerName
+          if (previousContainerName !== undefined)
+            updates.previousContainerName = previousContainerName
+          if (imageName !== undefined) updates.imageName = imageName
+          if (hostPort !== undefined) updates.hostPort = hostPort
+          if (buildContextPath !== undefined)
+            updates.buildContextPath = buildContextPath
+
+          const updatedJob = await DeploymentJob.updateOne({
+            deployment: deploymentId,
+            stage: { nin: ['cancel_requested', 'cancelled'] }
+          })
+            .set(updates)
+            .usingConnection(db)
+
+          if (!updatedJob) {
+            const job = await DeploymentJob.findOne({
+              deployment: deploymentId
+            }).usingConnection(db)
+            if (['cancel_requested', 'cancelled'].includes(job?.stage)) {
+              return {
+                valid: false,
+                code: 'DEPLOYMENT_CANCELLED',
+                message: `Deployment ${deploymentId} was cancelled.`
+              }
+            }
+          }
+
+          return { valid: true }
+        },
+        { deploymentId, leaseToken }
+      )
+    } catch (error) {
+      if (
+        ['DEPLOYMENT_LEASE_LOST', 'DEPLOYMENT_CANCELLED'].includes(error.code)
+      ) {
+        return { valid: false, code: error.code, message: error.message }
       }
+      throw error
     }
-
-    const updates = { stage }
-    if (candidateContainerName !== undefined)
-      updates.candidateContainerName = candidateContainerName
-    if (previousContainerName !== undefined)
-      updates.previousContainerName = previousContainerName
-    if (imageName !== undefined) updates.imageName = imageName
-    if (hostPort !== undefined) updates.hostPort = hostPort
-    if (buildContextPath !== undefined)
-      updates.buildContextPath = buildContextPath
-
-    const updatedJob = await DeploymentJob.updateOne({
-      deployment: deploymentId,
-      stage: { nin: ['cancel_requested', 'cancelled'] }
-    }).set(updates)
-
-    if (!updatedJob) {
-      const job = await DeploymentJob.findOne({ deployment: deploymentId })
-      if (['cancel_requested', 'cancelled'].includes(job?.stage)) {
-        return {
-          valid: false,
-          code: 'DEPLOYMENT_CANCELLED',
-          message: `Deployment ${deploymentId} was cancelled.`
-        }
-      }
-    }
-
-    return { valid: true }
   }
 }
