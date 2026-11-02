@@ -214,3 +214,44 @@ test(
     )
   }
 )
+
+test(
+  'an acknowledged commit followed by a driver error is not replayed',
+  { world: world('db-uncertain-commit') },
+  async ({ sails, world }) => {
+    const row = await world
+      .create('deployment')
+      .with({ environment: world.current.environments.production.id })
+    const driver = sails.getDatastore().driver
+    const original = driver.commitTransaction
+    let writes = 0,
+      commits = 0
+    driver.commitTransaction = function (inputs, done) {
+      return original.call(this, inputs, (error) => {
+        commits++
+        done(
+          error ||
+            Object.assign(new Error('synthetic receipt loss after commit'), {
+              code: 'SQLITE_BUSY'
+            })
+        )
+      })
+    }
+    try {
+      await assert.rejects(
+        transaction(async (db) => {
+          writes++
+          return Deployment.updateOne(row.id)
+            .set({ status: 'building' })
+            .usingConnection(db)
+        }),
+        /commiting the db transaction/
+      )
+      assert.equal(writes, 1)
+      assert.equal(commits, 1)
+      assert.equal((await Deployment.findOne(row.id)).status, 'building')
+    } finally {
+      driver.commitTransaction = original
+    }
+  }
+)
