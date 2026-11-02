@@ -1,5 +1,5 @@
 const recovery = require('../../lib/deployment-recovery')
-const transaction = require('../../lib/with-datastore-transaction')
+const transaction = require('../../lib/deployment-datastore-transaction')
 module.exports = {
   friendlyName: 'Cut over traffic',
 
@@ -139,108 +139,116 @@ module.exports = {
       // The route has been staged but App state has not changed yet. Recheck
       // ownership so a newer worker can never inherit this candidate.
       await assertLease(deploymentId, leaseToken)
-      await transaction(async (db) => {
-        if (appId) {
-          const ciPolicy = await CiPolicy.findOne({
-            app: appId
-          }).usingConnection(db)
-          const ciJob = await DeploymentJob.findOne({
-            deployment: deploymentId
-          }).usingConnection(db)
-          if (ciApproval || (ciPolicy?.enabled && ciJob?.kind !== 'rollback')) {
-            if (!ciApproval)
-              throw new Error(
-                'CI became required before traffic commit; this candidate has no server verification.'
-              )
-            await sails.helpers.ci.assertCutover.with({
-              approval: ciApproval,
-              appId,
-              deploymentId,
-              imageId: candidateApp.imageId,
-              connection: db
-            })
-          }
-        }
-        if (leaseToken) {
-          const owner = await DeploymentLease.findOne({
-            deployment: deploymentId,
-            token: leaseToken,
-            expiresAt: { '>': Date.now() }
-          }).usingConnection(db)
-          if (!owner)
-            throw Object.assign(
-              new Error(
-                'The deployment lease expired before App/recovery commit.'
-              ),
-              { code: 'DEPLOYMENT_LEASE_LOST' }
-            )
-        }
-        if (previousApp)
-          previousRecovery = await Setting.findOne({
-            key: recovery.key(previousApp.id)
-          }).usingConnection(db)
-        if (
-          previousRecovery &&
-          !recovery.IMAGE_ID.test(candidateApp.imageId || '')
-        )
-          throw new Error(
-            'A verified immutable image is required to advance recovery state.'
-          )
-        committedApp = previousApp
-          ? await App.updateOne({
-              id: previousApp.id,
-              currentDeployment: previousApp.currentDeployment || null
-            })
-              .set(appValues(candidateApp))
-              .usingConnection(db)
-          : await App.create(appValues(candidateApp))
-              .fetch()
-              .usingConnection(db)
-        if (
-          committedApp &&
-          recovery.IMAGE_ID.test(candidateApp.imageId || '')
-        ) {
-          if (legacyCurrentState && !previousRecovery) {
-            const release = legacyCurrentState.current
-            const source = await Deployment.findOne({
-              id: release.deploymentId,
-              app: previousApp.id,
-              environment: environmentId
+      await transaction(
+        async (db) => {
+          committedApp = null
+          previousRecovery = null
+          if (appId) {
+            const ciPolicy = await CiPolicy.findOne({
+              app: appId
+            }).usingConnection(db)
+            const ciJob = await DeploymentJob.findOne({
+              deployment: deploymentId
             }).usingConnection(db)
             if (
-              !require('../../lib/legacy-deployment-artifact').verifyBinding(
-                source,
-                release,
-                previousApp
+              ciApproval ||
+              (ciPolicy?.enabled && ciJob?.kind !== 'rollback')
+            ) {
+              if (!ciApproval)
+                throw new Error(
+                  'CI became required before traffic commit; this candidate has no server verification.'
+                )
+              await sails.helpers.ci.assertCutover.with({
+                approval: ciApproval,
+                appId,
+                deploymentId,
+                imageId: candidateApp.imageId,
+                connection: db
+              })
+            }
+          }
+          if (leaseToken) {
+            const owner = await DeploymentLease.findOne({
+              deployment: deploymentId,
+              token: leaseToken,
+              expiresAt: { '>': Date.now() }
+            }).usingConnection(db)
+            if (!owner)
+              throw Object.assign(
+                new Error(
+                  'The deployment lease expired before App/recovery commit.'
+                ),
+                { code: 'DEPLOYMENT_LEASE_LOST' }
               )
+          }
+          if (previousApp)
+            previousRecovery = await Setting.findOne({
+              key: recovery.key(previousApp.id)
+            }).usingConnection(db)
+          if (
+            previousRecovery &&
+            !recovery.IMAGE_ID.test(candidateApp.imageId || '')
+          )
+            throw new Error(
+              'A verified immutable image is required to advance recovery state.'
             )
-              throw new Error(
-                'The previous successful deployment identity changed before promotion.'
+          committedApp = previousApp
+            ? await App.updateOne({
+                id: previousApp.id,
+                currentDeployment: previousApp.currentDeployment || null
+              })
+                .set(appValues(candidateApp))
+                .usingConnection(db)
+            : await App.create(appValues(candidateApp))
+                .fetch()
+                .usingConnection(db)
+          if (
+            committedApp &&
+            recovery.IMAGE_ID.test(candidateApp.imageId || '')
+          ) {
+            if (legacyCurrentState && !previousRecovery) {
+              const release = legacyCurrentState.current
+              const source = await Deployment.findOne({
+                id: release.deploymentId,
+                app: previousApp.id,
+                environment: environmentId
+              }).usingConnection(db)
+              if (
+                !require('../../lib/legacy-deployment-artifact').verifyBinding(
+                  source,
+                  release,
+                  previousApp
+                )
               )
-            await Deployment.updateOne({ id: source.id })
-              .set({ imageId: release.imageId })
+                throw new Error(
+                  'The previous successful deployment identity changed before promotion.'
+                )
+              await Deployment.updateOne({ id: source.id })
+                .set({ imageId: release.imageId })
+                .usingConnection(db)
+            }
+            const job = await DeploymentJob.findOne({
+              deployment: deploymentId
+            }).usingConnection(db)
+            await recovery.write(
+              previousApp || committedApp,
+              {
+                deploymentId: String(deploymentId),
+                imageId: candidateApp.imageId,
+                promotedAt: candidateApp.lastDeployedAt,
+                compatibility: candidate.recoveryCompatibility || null
+              },
+              job?.kind || 'deploy',
+              db,
+              legacyCurrentState
+            )
+            await Deployment.updateOne({ id: deploymentId })
+              .set({ imageId: candidateApp.imageId, app: committedApp.id })
               .usingConnection(db)
           }
-          const job = await DeploymentJob.findOne({
-            deployment: deploymentId
-          }).usingConnection(db)
-          await recovery.write(
-            previousApp || committedApp,
-            {
-              deploymentId: String(deploymentId),
-              imageId: candidateApp.imageId,
-              promotedAt: candidateApp.lastDeployedAt,
-              compatibility: candidate.recoveryCompatibility || null
-            },
-            job?.kind || 'deploy',
-            db,
-            legacyCurrentState
-          )
-          await Deployment.updateOne({ id: deploymentId })
-            .set({ imageId: candidateApp.imageId, app: committedApp.id })
-            .usingConnection(db)
-        }
-      })
+        },
+        { deploymentId, leaseToken }
+      )
 
       if (!committedApp) {
         throw new Error(

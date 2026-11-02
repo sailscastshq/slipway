@@ -1,4 +1,4 @@
-const withDatastoreTransaction = require('../../lib/with-datastore-transaction')
+const withDatastoreTransaction = require('../../lib/deployment-datastore-transaction')
 
 module.exports = {
   friendlyName: 'Update deployment for lease',
@@ -27,52 +27,22 @@ module.exports = {
   },
 
   fn: async function ({ deploymentId, leaseToken, values }) {
-    if (!leaseToken) {
-      return {
-        valid: true,
-        deployment: await Deployment.updateOne({ id: deploymentId }).set(values)
+    try {
+      const deployment = await withDatastoreTransaction(
+        async (db) =>
+          Deployment.updateOne({ id: deploymentId })
+            .set(values)
+            .usingConnection(db),
+        { deploymentId, leaseToken }
+      )
+      return { valid: true, deployment }
+    } catch (error) {
+      if (
+        ['DEPLOYMENT_LEASE_LOST', 'DEPLOYMENT_CANCELLED'].includes(error.code)
+      ) {
+        return { valid: false, code: error.code, message: error.message }
       }
+      throw error
     }
-
-    let updated
-    await withDatastoreTransaction(async (db) => {
-      const [lease, deployment] = await Promise.all([
-        DeploymentLease.findOne({
-          deployment: deploymentId,
-          token: leaseToken,
-          expiresAt: { '>': Date.now() }
-        }).usingConnection(db),
-        Deployment.findOne({ id: deploymentId }).usingConnection(db)
-      ])
-
-      if (!lease) {
-        return
-      }
-
-      if (deployment?.status === 'cancelled') {
-        return
-      }
-
-      updated = await Deployment.updateOne({ id: deploymentId })
-        .set(values)
-        .usingConnection(db)
-    })
-
-    if (!updated) {
-      const deployment = await Deployment.findOne({ id: deploymentId })
-      return deployment?.status === 'cancelled'
-        ? {
-            valid: false,
-            code: 'DEPLOYMENT_CANCELLED',
-            message: `Deployment ${deploymentId} was cancelled.`
-          }
-        : {
-            valid: false,
-            code: 'DEPLOYMENT_LEASE_LOST',
-            message: `Deployment ${deploymentId} no longer owns its pipeline lease.`
-          }
-    }
-
-    return { valid: true, deployment: updated }
   }
 }
