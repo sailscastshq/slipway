@@ -4,7 +4,7 @@ const os = require('node:os')
 const path = require('node:path')
 const net = require('node:net')
 const { EventEmitter } = require('node:events')
-const { test } = require('sounding')
+const { test } = require('node:test')
 const {
   createQuestRuntime,
   describeJob,

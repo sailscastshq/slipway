@@ -50,8 +50,8 @@ function registerHelmRuntime({
 
   // `sails run` lifts its own Sails instance for one Quest job. It must never
   // claim to be the deployed app runtime.
-  const script = path.basename(runtime.argv[1] || '')
-  if (/^sails(?:\.js)?$/.test(script) && runtime.argv[2] === 'run') return null
+  if (require('./quest-execution-context').isQuestExecutionChild(runtime))
+    return null
 
   const ticks = startTicks(
     filesystem.readFileSync(`${procRoot}/self/stat`, 'utf8')

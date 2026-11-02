@@ -432,3 +432,15 @@ Version 0.0.10 adds the full Wake collection/goals/revenue runtime and opt-in re
 ## Quest reconnect and control (0.0.13)
 
 This release integrates Quest 0.0.8 opt-in live logs and verified cancellation, plus bounded private receipt persistence. Node 22+ and Sails ^1.5.0 are required. Upgrade both hooks, retain existing telemetry configuration and explicitly configure the Linux controls and private persistent receipt directory. See [CHANGELOG.md](CHANGELOG.md) for the complete app upgrade instructions, bounds and uncertain-outcome behavior.
+
+### Reusable Quest execution contexts
+
+New Quest releases reuse separately initialized Sails children. They mark the
+owned process with `Symbol.for('sails.quest.executionChild') === true` before
+loading hooks. Slipway treats those contexts like existing `sails run` children:
+they retain normal hook/helper behavior, but do not publish another app/Quest/
+Helm runtime, Wake client or support-view runtime. The authoritative deployed
+application remains the resident control owner. This process-local marker is not
+an environment switch, is not inherited by unrelated descendants and grants no
+application permissions. Deploy the compatible hook before adopting reusable
+Quest execution; worker-app hosting alone does not change execution semantics.

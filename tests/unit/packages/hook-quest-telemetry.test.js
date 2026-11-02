@@ -175,10 +175,11 @@ function createReceiver(t) {
   }
 }
 
-async function createHook(t, lookout = {}) {
+async function createHook(t, lookout = {}, quest = { enabled: false }) {
   const requests = []
   const intervals = []
   const logs = []
+  const readyCallbacks = []
   t.mock.method(Date, 'now', () => NOW)
   t.mock.method(global, 'setInterval', (callback, delay) => {
     const timer = { callback, delay, unref() {} }
@@ -211,7 +212,7 @@ async function createHook(t, lookout = {}) {
   Object.assign(sails, {
     config: {
       slipway: {
-        quest: { enabled: false },
+        quest,
         wake: { enabled: false },
         bridge: { enabled: false },
         bearing: { enabled: false },
@@ -244,6 +245,7 @@ async function createHook(t, lookout = {}) {
       ])
     ),
     after(event, callback) {
+      if (event === 'ready') readyCallbacks.push(callback)
       // Avoid publishing any runtime or starting a Sails application. The
       // helper-ready callback is all telemetry initialization needs.
       if (
@@ -272,6 +274,9 @@ async function createHook(t, lookout = {}) {
     requests,
     logs,
     close,
+    ready() {
+      for (const callback of readyCallbacks) callback()
+    },
     flush() {
       intervals.find((timer) => timer.delay === 60000).callback()
     },
@@ -834,4 +839,32 @@ test('durable Quest evidence acknowledges only after ledger persistence, with re
     throw new Error('disk unavailable')
   })
   assert.deepEqual((await receiver.receive(body)).questAcknowledged, [])
+})
+
+test('reusable Quest execution children do not publish an app heartbeat or duplicate the resident bridge', async (t) => {
+  const marker = Symbol.for('sails.quest.executionChild')
+  const previous = Object.getOwnPropertyDescriptor(globalThis, marker)
+  Object.defineProperty(globalThis, marker, { value: true, configurable: true })
+  t.after(() => {
+    if (previous) Object.defineProperty(globalThis, marker, previous)
+    else delete globalThis[marker]
+  })
+  t.mock.method(
+    require('../../../packages/hook/lib/quest-runtime'),
+    'createQuestRuntime',
+    () => {
+      throw Error('execution child must not open a resident Quest bridge')
+    }
+  )
+  const client = await createHook(t, {}, { enabled: true })
+  client.ready()
+  client.heartbeat()
+  client.sails.emit('quest:job:complete', event('synthetic-child-receipt'))
+  client.flush()
+  assert.ok(
+    client.requests.every(
+      (request) => !request.options.path.includes('register')
+    )
+  )
+  assert.equal(client.hook.questRuntime, undefined)
 })
