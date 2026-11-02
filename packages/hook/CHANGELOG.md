@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.14
+
+- Recognize Quest's process-local reusable Sails execution-child marker as well as legacy CLI children. Reused children keep transient behavior without duplicate Quest, Helm or app registrations; ordinary resident apps are unchanged.
+- This is the compatibility patch for Quest 0.0.10. Install both exact versions together before adopting the reusable execution default in an existing app. Existing authorization, telemetry and durable receipt safeguards remain intact.
+- Quest 0.0.10 changes its execution default despite the patch version. Review each job; use `execution: 'isolated'` for fresh-process behavior and process-wide or CLI assumptions. This hook release alone does not update or deploy any app.
+
 ## 0.0.13
 
 ### Added
