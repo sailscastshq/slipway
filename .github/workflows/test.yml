@@ -436,6 +436,16 @@ jobs:
         if: matrix.lane == 'unit'
         run: node --test tests/prelift/ci-package-cache.test.cjs
 
+      # Prove real Quest drain without unrelated host PID visibility constraints.
+      # The fixture uses the actual scheduled wrapper and a harmless helper.
+      - name: Pull the isolated Quest test runtime
+        if: matrix.lane == 'unit'
+        run: docker pull node:22-slim
+
+      - name: Run isolated Quest lifecycle trial
+        if: matrix.lane == 'unit'
+        run: npm run test:quest:container
+
       - name: Run ${{ matrix.lane }} tests
         run: npm run test:${{ matrix.lane }} -- --profile
 

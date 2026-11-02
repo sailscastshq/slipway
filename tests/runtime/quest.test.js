@@ -5,8 +5,8 @@ const os = require('node:os')
 const path = require('node:path')
 const { executeJob } = require('sails-hook-quest/lib/core/executor')
 const { createRuntime } = require('sails-hook-quest/lib/core/runtime')
-const quest = require('../../../config/quest').quest
-const consoleConfig = require('../../../config/env/console')
+const quest = require('../../config/quest').quest
+const consoleConfig = require('../../config/env/console')
 
 test('server Quest jobs reuse a loaded console child with helpers and no resident scheduler or collectors', async (t) => {
   const appPath = await fs.mkdtemp(
