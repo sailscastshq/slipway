@@ -1,4 +1,5 @@
 const { isContention } = require('./ci-datastore-retry')
+const uncertainOutcomes = new WeakSet()
 
 // DB-only callbacks, never Docker, network, logging transports or cutover.
 // Use the explicit callback: promise-style Waterline errors are cloned.
@@ -44,6 +45,8 @@ module.exports = async function deploymentTransaction(work, options = {}) {
     } catch (error) {
       lastError = error
       const safe = entered ? bodyError === error : true
+      if (!safe && error && typeof error === 'object')
+        uncertainOutcomes.add(error)
       const contention =
         isContention(error) ||
         (!entered &&
@@ -80,3 +83,6 @@ async function assertLease(db, { deploymentId, leaseToken }) {
     throw error
   }
 }
+
+// Preserve the original error object while allowing cutover to retain artifacts.
+module.exports.isUncertainOutcome = (error) => uncertainOutcomes.has(error)

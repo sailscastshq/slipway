@@ -284,7 +284,12 @@ module.exports = {
       // A staged route can be retried here even if the lower-level commit's
       // first restoration attempt failed. Only report rollback failure when
       // this final recovery attempt also fails.
-      let rollbackError = stagedRoute
+      let rollbackError = transaction.isUncertainOutcome(cutoverError)
+        ? new Error(
+            'The App database transaction outcome is uncertain. Preserve both candidates and inspect durable state before another cutover.',
+            { cause: cutoverError }
+          )
+        : stagedRoute
         ? null
         : cutoverError.rollbackError || null
 
