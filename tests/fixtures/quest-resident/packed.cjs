@@ -569,11 +569,9 @@ async function preparePacked(env = process.env) {
     ),
     lockedFixtureDependencies: Object.fromEntries(
       ['sails', 'machine', 'whelk'].map((name) => {
-        const manifest = require(
-          require.resolve(`${name}/package.json`, {
-            paths: [repository]
-          })
-        )
+        const manifest = require(require.resolve(`${name}/package.json`, {
+          paths: [repository]
+        }))
         return [name, { name: manifest.name, version: manifest.version }]
       })
     ),
