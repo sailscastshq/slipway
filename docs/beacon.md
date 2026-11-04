@@ -24,7 +24,11 @@ Only default HTTP/HTTPS ports are accepted. Credentials are rejected. Every retu
 
 ## Remaining work
 
-This slice has no scheduled checker, dashboard integration, stored monitors/history, result ingestion, alert delivery, uptime percentage or deployment correlation. Running the command on the monitored server does not provide independent uptime coverage.
+The app dashboard is available from the app actions menu at `.../apps/:appSlug/beacon`. Its real state is Unknown: no independent checker is connected and no measurements or incident history are invented. The app URL and current deployment come from the authorized app context. Team, project, environment and app access are checked server-side; Bridge sessions cannot access this surface.
+
+Choose **Explore example** to inspect explicitly simulated recovered, outage and missing-checker scenarios. Example observations use the actual availability reducer but are never stored or sent to a site. The sample target is always `https://example.com/health`; sample deployment context is labeled separately. The timeline, response chart (with gaps), recent observations and expandable incidents demonstrate the dashboard. Returning to the app removes the sample data. Both desktop and mobile use the real Vue/Inertia page.
+
+This slice has no scheduled checker, stored monitors/history, result ingestion, alert delivery, uptime percentage or live deployment correlation. Running the command on the monitored server does not provide independent uptime coverage.
 
 The next slice needs team-scoped monitor configuration, authenticated result ingestion, bounded storage, explicit checker heartbeat, and a separately operated scheduler. Decide the independent host and ownership before enabling live coverage. No production configuration or credentials are installed by this work. Reuse Slipway's team notification preferences only after durable incident and delivery deduplication are in place.
 
@@ -32,6 +36,10 @@ The next slice needs team-scoped monitor configuration, authenticated result ing
 
 ```sh
 node --test tests/unit/lib/beacon.test.js
+npx sounding test --file tests/functional/pages/beacon.test.js
+npx sounding test --file tests/e2e/pages/projects/beacon.test.js
 ```
 
 Trials cover public-address restrictions, URL normalization, mixed DNS, connection pinning, redirect refusal, deadlines, real local HTTP fixtures, confirmation/recovery, missing observations and CLI redaction. They make no requests to production sites.
+
+Dashboard trials check authentication and team/hierarchy isolation, real empty state versus explicit examples, app-menu navigation, example transitions, incident disclosure, returning to actual coverage, and mobile horizontal overflow. The browser trial captures actual local preview screenshots under `.tmp/screenshots/beacon/`.

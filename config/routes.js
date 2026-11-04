@@ -173,6 +173,8 @@ module.exports.routes = {
 
   // Lookout (infrastructure observability)
   'GET /lookout': 'lookout/view-lookout',
+  'GET /projects/:slug/environments/:envSlug/apps/:appSlug/beacon':
+    'project/view-beacon',
   'GET /projects/:slug/lookout': 'project/view-lookout',
   'GET /projects/:slug/environments/:envSlug/lookout': 'project/view-lookout',
 
