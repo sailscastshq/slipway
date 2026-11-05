@@ -73,7 +73,7 @@ test(
     page.raw.on('pageerror', (error) => errors.push(error.message))
     await page.resize(1440, 1100)
     await page.goto(`${base}/appearance`)
-    await expect(page).toSee('App appearance')
+    await expect(page).toSee('Branding & appearance')
     await page.raw.locator('#appearance-name').fill('Tembo')
     for (const palette of ['light', 'dark']) {
       await page.raw
@@ -404,6 +404,7 @@ test(
     await page.goto(
       `/projects/${project.slug}/environments/${env.slug}/apps/${app.slug}/appearance`
     )
+    await page.raw.getByRole('button', { name: 'Bearing', exact: true }).click()
     await page.raw.locator('#appearance-name').fill('TemboAI')
     await page.raw
       .locator('#appearance-logoLight')

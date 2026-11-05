@@ -339,7 +339,7 @@ function partitionWidth(card, value) {
             </div>
             <div class="h-1 rounded-full bg-gray-100 dark:bg-gray-900">
               <div
-                class="h-1 rounded-full bg-gray-800 dark:bg-gray-200"
+                class="h-1 rounded-full bg-current text-gray-800 dark:text-gray-200"
                 :style="{ width: partitionWidth(card, segment.value) }"
               ></div>
             </div>

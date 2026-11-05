@@ -1087,11 +1087,13 @@ onUnmounted(() => {
         >
           <Link
             :href="`${basePath}/appearance`"
-            class="mb-8 flex items-center justify-between border-b border-gray-200 pb-5 dark:border-gray-800"
+            class="mb-8 flex items-center justify-between gap-5 py-2"
             ><span
-              ><span class="block text-sm font-medium">App appearance</span
+              ><span class="block text-sm font-medium"
+                >Branding &amp; appearance</span
               ><span class="mt-1 block text-sm text-gray-500"
-                >Brand Bearing with your name, logos and colours.</span
+                >Shared name, logos and colours for Bridge, Bearing and
+                Beacon.</span
               ></span
             ><span aria-hidden="true">→</span></Link
           >

@@ -2,8 +2,11 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import WidgetPreview from './WidgetPreview.vue'
 import PreviewContent from './PreviewContent.vue'
+import BridgePreview from './BridgePreview.vue'
+import BeaconStatus from '@/components/beacon/BeaconStatus.vue'
 const props = defineProps({
   appearance: Object,
+  product: { type: String, default: 'bearing' },
   fallbackName: String,
   mode: String,
   surface: String,
@@ -22,7 +25,13 @@ const viewportWidth = computed(() =>
 const scale = computed(() =>
   Math.min(1, availableWidth.value / viewportWidth.value)
 )
-const height = computed(() => (props.widget ? 760 : 620))
+const height = computed(() =>
+  props.product === 'bearing' && props.widget
+    ? 760
+    : props.product === 'beacon'
+    ? 900
+    : 620
+)
 function loaded(event) {
   const doc = event.target.contentDocument
   for (const link of document.querySelectorAll('link[rel="stylesheet"],style'))
@@ -73,8 +82,23 @@ const appearance = computed(() => ({
     />
   </div>
   <Teleport v-if="target" :to="target">
+    <BridgePreview
+      v-if="product === 'bridge'"
+      :appearance="appearance"
+      :mode="mode"
+    />
+    <div
+      v-else-if="product === 'beacon'"
+      inert
+      aria-label="Beacon example status page"
+    >
+      <BeaconStatus
+        :appearance="appearance"
+        :app="{ name: appearance.displayName, homePath: '#' }"
+      />
+    </div>
     <WidgetPreview
-      v-if="widget"
+      v-else-if="widget"
       :appearance="appearance"
       :mode="mode"
       :surface="surface"

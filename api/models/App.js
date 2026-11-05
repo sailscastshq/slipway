@@ -216,7 +216,10 @@ module.exports = {
     try {
       const ids = (Array.isArray(records) ? records : [records])
         .filter(Boolean)
-        .map((record) => `app-appearance:v1:${record.id}`)
+        .flatMap((record) => [
+          `app-appearance:v1:${record.id}`,
+          `beacon.public.app:${record.id}`
+        ])
       if (ids.length) await Setting.destroy({ key: { in: ids } })
       return proceed()
     } catch (error) {

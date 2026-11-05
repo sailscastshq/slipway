@@ -1,19 +1,19 @@
-# App appearance
+# Branding & appearance
 
-An app administrator can make Bearing feel like the host product without editing CSS. One app-scoped appearance supplies the display name, logos, light and dark palettes, typography, corners and density. It applies to the Bearing launcher, widget chrome, feedback board and detail, roadmap, updates and update permalinks. Host Bridge starts with the same identity, accent and surfaces; its operational status and destructive colours retain their meaning. Slipway administration keeps its own appearance.
+An app administrator can brand Bridge, Bearing and Beacon together without editing CSS. One app-scoped appearance supplies the display name, logos, light and dark palettes, typography, corners and density. It applies to the Bearing launcher, widget chrome, feedback board and detail, roadmap, updates and update permalinks. Host Bridge starts with the same identity, accent and surfaces; its operational status and destructive colours retain their meaning. Slipway administration keeps its own appearance.
 
 ## Configure and preview
 
-1. Open the app's **Settings → Appearance**, or **Bearing → Settings → App appearance**. Only the app team's owners and administrators can edit it.
+1. Open the app's **Settings → Branding & appearance**, or the shared branding link from Bearing or Beacon. Only the app team's owners and administrators can edit it.
 2. Set the display name and upload a light logo. A dark variant is optional. PNG, JPEG and still WebP are supported, up to 256 KB and 4096 × 4096 pixels. Slipway decodes and re-encodes logos as WebP, strips metadata, and serves managed app-scoped images. A single logo uses a white backing in either mode. SVG, animated images, external image URLs and custom CSS are not accepted.
 3. Edit the light and dark palettes. Background, surface, text, secondary text, border, accent, on-accent text and focus are semantic colours. Saving requires 4.5:1 text contrast on the relevant background/surface/accent and 3:1 focus contrast. Warning, success and danger colours are separate.
 4. Choose **Follow app**, **Follow system**, **Always light** or **Always dark**. Follow app accepts the host's explicit `data-theme="light|dark"`, `data-color-scheme="light|dark"`, or `light`/`dark` root class. Configure its fallback for a host without a signal. Standalone pages and Bridge use the saved fallback. System follows the visitor's device preference.
-5. Switch the live draft preview between widget and public pages, feedback/roadmap/updates, light/dark and mobile/desktop. The widget uses the same shell markup and stylesheet as production, including its floating launcher, panel dimensions and mobile layout. Open, close, press Escape and use its surface navigation; the actual Bearing page components render inert example content inside the panel. Public-page previews remain isolated too. Draft colours and logo choices do not write app configuration or change live pages.
+5. Choose Bridge, Bearing or Beacon in the live draft preview, then light/dark and mobile/desktop. Bridge renders the actual workspace sidebar and dashboard with inert sample records. Beacon renders the same status component as the public page and truthfully shows Unknown until monitoring exists. Bearing retains its widget/public-page and feedback/roadmap/updates previews. The widget uses the same shell markup and stylesheet as production, including its floating launcher, panel dimensions and mobile layout. Open, close, press Escape and use its surface navigation; the actual Bearing page components render inert example content inside the panel. Public-page previews remain isolated too. Draft colours and logo choices do not write app configuration or change live pages.
 6. **Save appearance** applies the draft immediately to new page loads and new widget bootstraps. A redeploy is not needed for subsequent branding changes. Already-open widgets keep their fetched appearance until the host reloads.
 
 **Reset to defaults** stages the documented Slipway palette, system mode, system typography, soft corners, comfortable density, project display name and no logos. Preview it, then save to apply. Leaving without saving preserves the saved appearance. The reset API (`PATCH` with `{ "reset": true }`) removes the app override entirely.
 
-The preview shows representative content; it does not submit feedback, make votes or navigate to live pages. Bridge's initial shared branding is not a complete restyling of every editor/table/dialog.
+The previews show representative content; they do not enable products, submit feedback, make votes or navigate to live pages. Bridge and Beacon sample content is inert; the Bearing widget shell can open, close and switch its isolated sample content. A preview is not a complete audit of every operational Bridge editor.
 
 ## Rendering and compatibility
 
@@ -36,3 +36,14 @@ For Follow app, the bootstrap resolves the initial mode before assigning the ifr
 - Unsafe logo/style/font payloads and insufficient text/focus contrast are rejected.
 - Widget open, close, Escape, focus return and surface navigation remain usable on desktop and mobile.
 - Public detail, composer, filters, updates and empty states retain readable semantic colours and layouts.
+
+## Stable URL and ownership
+
+The editor remains at
+`/projects/:slug/environments/:envSlug/apps/:appSlug/appearance` on the Slipway
+control-panel origin (GET and PATCH). Existing links and saved v1 records are
+unchanged; no production migration or redeploy is needed for branding saves.
+`app.resolveManager` owns the shared owner/admin and app hierarchy checks.
+`bearing.resolveManager` remains as a compatible forwarding helper for existing
+Bearing callers. Settings labels now describe their shared scope; they do not
+introduce per-product copies or overrides.

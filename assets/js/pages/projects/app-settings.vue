@@ -381,12 +381,13 @@ async function deleteApp() {
         <Link
           v-if="canManageAppearance"
           :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/appearance`"
-          class="mb-8 flex items-center justify-between border-b border-gray-200 pb-5 dark:border-gray-800"
+          class="mb-8 flex items-center justify-between gap-5 py-2"
         >
           <span
-            ><span class="block text-sm font-medium">Appearance</span
+            ><span class="block text-sm font-medium"
+              >Branding &amp; appearance</span
             ><span class="mt-1 block text-sm text-gray-500"
-              >Name, logos, colours and a live preview</span
+              >Shared name, logos, colours and product previews</span
             ></span
           ><span aria-hidden="true">→</span>
         </Link>
