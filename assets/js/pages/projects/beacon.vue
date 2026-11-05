@@ -568,6 +568,15 @@ const deploymentLabel = computed(
               >Open public page ↗</a
             >
           </div>
+          <p class="mt-4 text-sm text-gray-500">
+            The public page uses this app’s shared logo and light/dark settings.
+            <Link
+              v-if="canManagePublic"
+              :href="base + '/appearance'"
+              class="ml-1 font-medium text-gray-950 underline underline-offset-4 dark:text-white"
+              >Edit app logo and colour mode</Link
+            >
+          </p>
           <form class="mt-5 space-y-4" @submit.prevent="savePublic">
             <label class="flex items-center gap-3 text-sm"
               ><Switch

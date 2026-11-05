@@ -27,6 +27,7 @@ module.exports = {
         hostAssetBasePath: resolved.hostAssetBasePath,
         appearance: {
           ...resolved.appearance,
+          applyDefaults: true,
           stylesheet: `${resolved.publicBasePath}/_/appearance.css`
         },
         app: {

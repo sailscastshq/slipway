@@ -2,6 +2,9 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import contract from '../../../../api/lib/app-appearance'
 const props = defineProps({ appearance: Object, previewMode: String })
+const themed = computed(
+  () => props.appearance?.configured || props.appearance?.applyDefaults
+)
 const systemDark = ref(
   typeof window !== 'undefined' &&
     window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -69,8 +72,8 @@ onUnmounted(() => {
 </script>
 <template>
   <div
-    :class="{ 'app-appearance': appearance?.configured }"
-    :data-appearance-mode="appearance?.configured ? mode : undefined"
+    :class="{ 'app-appearance': themed }"
+    :data-appearance-mode="themed ? mode : undefined"
     :data-density="appearance?.density"
     :style="style"
   >

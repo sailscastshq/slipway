@@ -193,8 +193,9 @@ function resetDraft() {
         <div>
           <h1 class="text-2xl font-semibold tracking-tight">App appearance</h1>
           <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Make feedback feel at home in
-            {{ form.appearance.displayName || project.name }}.
+            Shared branding for
+            {{ form.appearance.displayName || project.name }}
+            across Bridge, Bearing and Beacon.
           </p>
         </div>
         <div class="flex items-center gap-4">

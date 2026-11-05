@@ -95,6 +95,12 @@
 [data-appearance-mode='dark'] .app-brand-single .app-logo-light {
   display: block;
 }
+.app-brand-dark-only {
+  background: #0a0a0a;
+}
+.app-brand-dark-only .app-logo-dark {
+  display: block;
+}
 
 html[data-app-appearance] body {
   background: var(--app-canvas);

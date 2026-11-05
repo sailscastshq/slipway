@@ -40,6 +40,14 @@ This slice has no scheduled checker, stored monitors/history, result ingestion, 
 
 The next slice needs team-scoped monitor configuration, authenticated result ingestion, bounded storage, explicit checker heartbeat, and a separately operated scheduler. Decide the independent host and ownership before enabling live coverage. No production configuration or credentials are installed by this work. Reuse Slipway's team notification preferences only after durable incident and delivery deduplication are in place.
 
+## Logo and colour modes
+
+Use **Edit app logo and colour mode** in Beacon's public-page settings to open the existing shared **App appearance** editor. These are the same settings used by Bridge and Bearing, not a separate Beacon logo store. Upload a light logo (PNG, JPEG or WebP, up to 256 KB) and optionally a dark variant. Managed still WebP images are served through Beacon's namespaced logo routes. The visible app name remains alongside the logo and supplies a readable fallback when logos are absent or fail to load.
+
+**Follow system** updates with the visitor's system light/dark preference. **Always light** and **Always dark** override that preference. **Follow app** uses the existing host-mode integration when embedded; on the standalone public page it uses the configured fallback (system, light or dark). Beacon does not add an independent visitor theme preference or override the app owner's setting.
+
+The selected mode chooses the matching logo. With only a light logo, it remains visible on a white backing in dark mode. If that image fails but the dark variant works, the dark variant remains available on a dark backing; if both fail, the app name stays visible. Default branding now also uses the shared validated semantic palettes before customization, including the first page load, so its muted text remains legible in either mode.
+
 ## Validation
 
 ```sh
@@ -49,6 +57,7 @@ npx sounding test --file tests/e2e/pages/projects/beacon.test.js
 npx sounding test --file tests/functional/pages/beacon-public.test.js
 npx sounding test --file tests/unit/helpers/caddy/beacon.test.js
 npx sounding test --file tests/e2e/pages/projects/beacon-public.test.js
+npx sounding test --file tests/e2e/pages/projects/beacon-branding.test.js
 ```
 
 Trials cover public-address restrictions, URL normalization, mixed DNS, connection pinning, redirect refusal, deadlines, real local HTTP fixtures, confirmation/recovery, missing observations and CLI redaction. They make no requests to production sites.
@@ -56,3 +65,5 @@ Trials cover public-address restrictions, URL normalization, mixed DNS, connecti
 Dashboard trials check authentication and team/hierarchy isolation, real empty state versus explicit examples, app-menu navigation, example transitions, incident disclosure, returning to actual coverage, and mobile horizontal overflow. The browser trial captures actual local preview screenshots under `.tmp/screenshots/beacon/`.
 
 Public-page trials cover opt-in publishing with real CSRF-protected owner/member sessions, namespace collisions, disabled/worker/hierarchy guards, redacted public props and cleanup. The public browser trial uses production-generated JSON routes through a disposable real Caddy process, replacing only Docker upstream names and the hostname with loopback fixtures. It proves guest loading, assets, refresh, return navigation, `/beaconish` pass-through, immediate disable and root/prefixed mobile layouts. This optional trial requires `caddy` on PATH (or `SLIPWAY_CADDY_BINARY`), otherwise it is explicitly skipped. Docker-label contracts remain covered without Caddy.
+
+The branding browser trial uploads both logo variants through the actual shared editor and checks Beacon anonymously through a prefixed Caddy origin: system changes, fixed modes, standalone host fallback, loaded logo variants, one-logo backing, image failures, no-logo name fallback, mobile overflow and default/body-text contrast of at least 4.5:1. Screenshots use isolated example branding, not production data.

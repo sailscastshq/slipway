@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" <% if (page?.props?.appearance?.configured) { %>data-app-appearance="1" <% if (['light', 'dark'].includes(page.props.appearance.resolvedMode)) { %>data-appearance-mode="<%= page.props.appearance.resolvedMode %>"<% } %><% } %>>
+<html lang="en" <% if (page?.props?.appearance?.configured || page?.props?.appearance?.applyDefaults) { %>data-app-appearance="1" <% if (['light', 'dark'].includes(page.props.appearance.resolvedMode)) { %>data-appearance-mode="<%= page.props.appearance.resolvedMode %>"<% } %><% } %>>
   <%
     const hostAssetBasePath =
       page?.props?.hostAssetBasePath || page?.props?.hostBridgeAssetBasePath || ''
@@ -61,7 +61,7 @@
       href="<%= hostAssetBasePath %>/images/favicon.svg"
       data-deployment-state="idle"
     />
-    <% if (page?.props?.appearance?.configured && /^\/(?!\/)[\w/-]+\.css$/.test(page.props.appearance.stylesheet || '')) { %>
+    <% if ((page?.props?.appearance?.configured || page?.props?.appearance?.applyDefaults) && /^\/(?!\/)[\w/-]+\.css$/.test(page.props.appearance.stylesheet || '')) { %>
       <link rel="stylesheet" href="<%= page.props.appearance.stylesheet %>" />
     <% } %>
     <%- prefixHostAssets(shipwright.styles()) %>
