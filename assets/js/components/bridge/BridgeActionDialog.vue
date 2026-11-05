@@ -1,7 +1,8 @@
 <script setup>
 import Alert from '@/components/ui/alert/Alert.vue'
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
-import { useForm } from '@inertiajs/vue3'
+import { useForm, usePage } from '@inertiajs/vue3'
+import AppAppearance from '@/components/appearance/AppAppearance.vue'
 import BridgeFieldInput from '@/components/bridge/BridgeFieldInput.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import {
@@ -39,6 +40,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['cancel', 'complete'])
+const page = usePage()
 const dialog = ref(null)
 const formValues = ref({})
 const localErrors = ref({})
@@ -264,132 +266,136 @@ function handleKeydown(event) {
 
 <template>
   <Teleport to="body">
-    <Transition
-      enter-active-class="transition duration-200 ease-out"
-      enter-from-class="opacity-0"
-      enter-to-class="opacity-100"
-      leave-active-class="transition duration-150 ease-in"
-      leave-from-class="opacity-100"
-      leave-to-class="opacity-0"
+    <AppAppearance
+      :appearance="page.props.hostBridgeOrigin ? page.props.appearance : null"
     >
-      <div
-        v-if="show && action"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      <Transition
+        enter-active-class="transition duration-200 ease-out"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition duration-150 ease-in"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
       >
-        <button
-          type="button"
-          class="fixed inset-0 cursor-default bg-black/50"
-          tabindex="-1"
-          aria-label="Close action dialog"
-          @click="cancel"
-        />
-        <Transition
-          enter-active-class="transition duration-200 ease-out"
-          enter-from-class="scale-95 opacity-0"
-          enter-to-class="scale-100 opacity-100"
-          leave-active-class="transition duration-150 ease-in"
-          leave-from-class="scale-100 opacity-100"
-          leave-to-class="scale-95 opacity-0"
+        <div
+          v-if="show && action"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4"
         >
-          <form
-            ref="dialog"
-            role="dialog"
-            aria-modal="true"
-            :aria-labelledby="titleId"
-            :data-test="`bridge-action-dialog-${action.name}`"
-            class="relative flex max-h-[min(44rem,calc(100vh-2rem))] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+          <button
+            type="button"
+            class="fixed inset-0 cursor-default bg-black/50"
             tabindex="-1"
-            @submit.prevent="submit"
-            @keydown="handleKeydown"
+            aria-label="Close action dialog"
+            @click="cancel"
+          />
+          <Transition
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="scale-95 opacity-0"
+            enter-to-class="scale-100 opacity-100"
+            leave-active-class="transition duration-150 ease-in"
+            leave-from-class="scale-100 opacity-100"
+            leave-to-class="scale-95 opacity-0"
           >
-            <div class="overflow-y-auto px-6 pb-2 pt-6">
-              <h2
-                :id="titleId"
-                class="text-lg font-semibold text-gray-900 dark:text-white"
-              >
-                {{ action.label }}
-              </h2>
-              <p
-                v-if="action.description"
-                class="mt-1.5 text-sm leading-6 text-gray-500 dark:text-gray-400"
-              >
-                {{ action.description }}
-              </p>
-              <p
-                v-if="selectionLabel"
-                class="mt-2 text-xs font-medium text-gray-400 dark:text-gray-500"
-              >
-                {{ selectionLabel }}
-              </p>
-              <p
-                v-if="action.confirm"
-                class="mt-4 text-sm leading-6 text-gray-600 dark:text-gray-300"
-              >
-                {{ action.confirm }}
-              </p>
+            <form
+              ref="dialog"
+              role="dialog"
+              aria-modal="true"
+              :aria-labelledby="titleId"
+              :data-test="`bridge-action-dialog-${action.name}`"
+              class="relative flex max-h-[min(44rem,calc(100vh-2rem))] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+              tabindex="-1"
+              @submit.prevent="submit"
+              @keydown="handleKeydown"
+            >
+              <div class="overflow-y-auto px-6 pb-2 pt-6">
+                <h2
+                  :id="titleId"
+                  class="text-lg font-semibold text-gray-900 dark:text-white"
+                >
+                  {{ action.label }}
+                </h2>
+                <p
+                  v-if="action.description"
+                  class="mt-1.5 text-sm leading-6 text-gray-500 dark:text-gray-400"
+                >
+                  {{ action.description }}
+                </p>
+                <p
+                  v-if="selectionLabel"
+                  class="mt-2 text-xs font-medium text-gray-400 dark:text-gray-500"
+                >
+                  {{ selectionLabel }}
+                </p>
+                <p
+                  v-if="action.confirm"
+                  class="mt-4 text-sm leading-6 text-gray-600 dark:text-gray-300"
+                >
+                  {{ action.confirm }}
+                </p>
 
-              <div v-if="fields.length > 0" class="mt-5 space-y-5 pb-3">
-                <BridgeFieldInput
-                  v-for="field in fields"
-                  :key="field.name"
-                  :field="field"
-                  :action-options="optionsFor(field)"
-                  :is-edit="action.scope === 'record'"
-                  :record-id="recordId"
-                  :upload-url="uploadUrl(field)"
-                  :upload-values="formValues"
-                  :model-value="formValues[field.name]"
-                  :error="
-                    localErrors[field.name] || form.errors[field.name] || ''
-                  "
-                  :model-identity="`${modelIdentity}-${action.name}`"
-                  @update:model-value="updateField(field, $event)"
-                  @blur="validateAndRemember(field)"
-                  @clear-error="clearFieldError(field)"
-                  @uploading="uploadsInProgress[field.name] = $event"
-                />
+                <div v-if="fields.length > 0" class="mt-5 space-y-5 pb-3">
+                  <BridgeFieldInput
+                    v-for="field in fields"
+                    :key="field.name"
+                    :field="field"
+                    :action-options="optionsFor(field)"
+                    :is-edit="action.scope === 'record'"
+                    :record-id="recordId"
+                    :upload-url="uploadUrl(field)"
+                    :upload-values="formValues"
+                    :model-value="formValues[field.name]"
+                    :error="
+                      localErrors[field.name] || form.errors[field.name] || ''
+                    "
+                    :model-identity="`${modelIdentity}-${action.name}`"
+                    @update:model-value="updateField(field, $event)"
+                    @blur="validateAndRemember(field)"
+                    @clear-error="clearFieldError(field)"
+                    @uploading="uploadsInProgress[field.name] = $event"
+                  />
+                </div>
+                <Alert
+                  v-if="form.errors.error"
+                  role="alert"
+                  class="mt-4 border border-red-200 bg-red-50 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
+                >
+                  {{ form.errors.error }}
+                </Alert>
               </div>
-              <Alert
-                v-if="form.errors.error"
-                role="alert"
-                class="mt-4 border border-red-200 bg-red-50 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
-              >
-                {{ form.errors.error }}
-              </Alert>
-            </div>
 
-            <div class="flex justify-end gap-3 px-6 pb-6 pt-4">
-              <button
-                type="button"
-                :disabled="form.processing"
-                class="rounded-md px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50 dark:text-gray-400 dark:hover:text-white"
-                @click="cancel"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                :disabled="form.processing || !isFormReady"
-                :class="[
-                  'rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40',
-                  action.destructive
-                    ? 'bg-red-600 hover:bg-red-700'
-                    : 'bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100'
-                ]"
-              >
-                <span v-if="form.processing" class="flex items-center gap-2">
-                  <Spinner class="h-4 w-4" />
-                  {{
-                    submittedCaption?.processingLabel ||
-                    submitCaption.processingLabel
-                  }}
-                </span>
-                <span v-else>{{ submitCaption.label }}</span>
-              </button>
-            </div>
-          </form>
-        </Transition>
-      </div>
-    </Transition>
+              <div class="flex justify-end gap-3 px-6 pb-6 pt-4">
+                <button
+                  type="button"
+                  :disabled="form.processing"
+                  class="rounded-md px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50 dark:text-gray-400 dark:hover:text-white"
+                  @click="cancel"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  :disabled="form.processing || !isFormReady"
+                  :class="[
+                    'rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40',
+                    action.destructive
+                      ? 'bg-red-600 hover:bg-red-700'
+                      : 'bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100'
+                  ]"
+                >
+                  <span v-if="form.processing" class="flex items-center gap-2">
+                    <Spinner class="h-4 w-4" />
+                    {{
+                      submittedCaption?.processingLabel ||
+                      submitCaption.processingLabel
+                    }}
+                  </span>
+                  <span v-else>{{ submitCaption.label }}</span>
+                </button>
+              </div>
+            </form>
+          </Transition>
+        </div>
+      </Transition>
+    </AppAppearance>
   </Teleport>
 </template>

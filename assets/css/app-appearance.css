@@ -20,9 +20,11 @@
 .app-appearance
   :is(
     [class~='bg-gray-50'],
+    [class~='bg-gray-50/50'],
     [class~='bg-gray-100'],
     [class~='bg-gray-900'],
     [class~='dark:bg-gray-900'],
+    [class~='dark:bg-gray-900/50'],
     [class~='dark:bg-gray-800']
   ) {
   background-color: var(--app-surface);
@@ -114,6 +116,49 @@ html[data-app-appearance] body {
 
 .app-appearance :is(input, textarea) {
   caret-color: var(--app-text);
+}
+
+/* Interaction colours follow the resolved app palette, even when the OS has
+   the opposite mode. Utility names alone cannot identify the active mode. */
+.app-appearance
+  :is(
+    [class~='hover:bg-gray-50'],
+    [class~='hover:bg-gray-100'],
+    [class~='hover:bg-gray-800'],
+    [class~='hover:bg-gray-900'],
+    [class~='dark:hover:bg-gray-800'],
+    [class~='dark:hover:bg-gray-900'],
+    [class~='dark:hover:bg-gray-900/30']
+  ):hover,
+.app-appearance
+  :is(
+    [class~='focus:bg-gray-50'],
+    [class~='focus:bg-gray-100'],
+    [class~='dark:focus:bg-gray-800']
+  ):focus {
+  background-color: var(--app-surface);
+}
+.app-appearance
+  :is(
+    [class~='bg-brand'],
+    [class~='bg-brand-600'],
+    [class~='bg-gray-950'][class~='text-white'],
+    [class~='bg-gray-900'][class~='text-white']
+  ):is(:hover, :focus) {
+  background-color: var(--app-accent);
+  color: var(--app-accent-text);
+}
+.app-appearance input[data-slot='switch'] {
+  background-color: var(--app-border);
+}
+.app-appearance input[data-slot='switch']::after {
+  background-color: var(--app-canvas);
+}
+.app-appearance input[data-slot='switch']:checked {
+  background-color: var(--app-accent);
+}
+.app-appearance input[data-slot='switch']:checked::after {
+  background-color: var(--app-accent-text);
 }
 
 .appearance-logo-upload:has(+ input:focus-visible) {

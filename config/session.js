@@ -36,9 +36,17 @@ module.exports.session = {
    * https://sailsjs.com/config/session                                       *
    *                                                                          *
    ***************************************************************************/
-  // isSessionDisabled: function (req){
-  //   return !!req.path.match(req._sails.LOOKS_LIKE_ASSET_RX);
-  // },
+  isSessionDisabled: function (req) {
+    // Hosted Bridge appearance is a dynamic, authorized response, not a static
+    // asset. Caddy rewrites its app-origin URL into this app-scoped route.
+    if (
+      /^\/projects\/[^/]+\/environments\/[^/]+\/apps\/[^/]+\/bridge\/_\/appearance\.css$/.test(
+        req.path
+      )
+    )
+      return false
+    return !!req.path.match(req._sails.LOOKS_LIKE_ASSET_RX)
+  },
   adapter: '@sailscastshq/connect-sqlite',
   url: './db/session.db'
 }
