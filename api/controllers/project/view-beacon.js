@@ -42,6 +42,11 @@ module.exports = {
       environment,
       project
     })
+    const publicPage = require('../../lib/beacon/public-page')
+    const publicSetting = await Setting.findOne({ key: publicPage.key(app.id) })
+    let publicUrl = null
+    if (appUrl && !new URL(appUrl).port)
+      publicUrl = appUrl.replace(/\/$/, '') + '/beacon'
     return {
       page: 'projects/beacon',
       props: {
@@ -56,6 +61,12 @@ module.exports = {
             }
           : null,
         checker: { connected: false },
+        canManagePublic: ['owner', 'admin'].includes(user.teamRole),
+        publicPage: {
+          enabled: publicPage.enabled(publicSetting?.value),
+          path: publicPage.publicPath(app),
+          url: publicUrl
+        },
         preview: preview
           ? require('../../lib/beacon/dashboard').example(preview)
           : null

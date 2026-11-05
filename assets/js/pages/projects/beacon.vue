@@ -1,5 +1,5 @@
 <script setup>
-import { computed, inject, onMounted, onUnmounted, ref } from 'vue'
+import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Head, Link } from '@inertiajs/vue3'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/ContextBreadcrumb.vue'
@@ -10,6 +10,8 @@ import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import StatusOnline from '@/components/ui/icons/StatusOnline.vue'
 import ArrowRight from '@/components/ui/icons/ArrowRight.vue'
+import Switch from '@/components/ui/switch/Switch.vue'
+import { inertiaMutation } from '@/lib/inertia-mutation'
 
 defineOptions({ layout: AppLayout })
 const props = defineProps({
@@ -18,8 +20,34 @@ const props = defineProps({
   app: Object,
   deployment: Object,
   checker: Object,
+  publicPage: Object,
+  canManagePublic: Boolean,
   preview: Object
 })
+const publicEnabled = ref(props.publicPage?.enabled === true)
+const savingPublic = ref(false)
+const publicError = ref('')
+watch(
+  () => props.publicPage?.enabled,
+  (value) => {
+    publicEnabled.value = value === true
+  }
+)
+async function savePublic() {
+  savingPublic.value = true
+  publicError.value = ''
+  try {
+    await inertiaMutation('patch', base.value + '/beacon/public', {
+      enabled: publicEnabled.value
+    })
+  } catch (error) {
+    publicError.value =
+      error.mutationMessage ||
+      'The public page setting could not be saved. Try again.'
+  } finally {
+    savingPublic.value = false
+  }
+}
 const base = computed(
   () =>
     `/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}`
@@ -513,6 +541,64 @@ const deploymentLabel = computed(
               </div>
             </details>
           </div>
+        </section>
+
+        <section
+          v-if="!preview"
+          aria-labelledby="public-page-heading"
+          class="border-t border-gray-200 pt-6 dark:border-gray-800"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 id="public-page-heading" class="text-sm font-semibold">
+                Public status page
+              </h2>
+              <p class="mt-2 text-sm text-gray-500">
+                Available on your app’s domain at
+                <code>{{ publicPage?.path }}</code
+                >.
+              </p>
+            </div>
+            <a
+              v-if="publicPage?.enabled && publicPage?.url"
+              :href="publicPage.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-sm underline underline-offset-4"
+              >Open public page ↗</a
+            >
+          </div>
+          <form class="mt-5 space-y-4" @submit.prevent="savePublic">
+            <label class="flex items-center gap-3 text-sm"
+              ><Switch
+                v-model="publicEnabled"
+                :disabled="!canManagePublic || savingPublic"
+                aria-label="Enable public Beacon page"
+              /><span>Enable public Beacon page</span></label
+            >
+            <p class="max-w-2xl text-xs leading-6 text-gray-500">
+              Off by default. Enabling publishes the app’s display name and an
+              Unknown status; it does not start monitoring. Redeploy this app to
+              activate the route. Disabling hides the page immediately; redeploy
+              to remove its route.
+            </p>
+            <Button
+              v-if="canManagePublic"
+              :disabled="savingPublic || publicEnabled === publicPage?.enabled"
+              type="submit"
+              >{{ savingPublic ? 'Saving…' : 'Save public page' }}</Button
+            >
+            <p v-else class="text-xs text-gray-500">
+              A team owner or administrator can change this setting.
+            </p>
+            <p
+              v-if="publicError"
+              role="alert"
+              class="text-sm text-red-600 dark:text-red-400"
+            >
+              {{ publicError }}
+            </p>
+          </form>
         </section>
 
         <footer

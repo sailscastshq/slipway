@@ -22,11 +22,19 @@ Only default HTTP/HTTPS ports are accepted. Credentials are rejected. Every retu
 
 `availability.observe()` consumes strictly ordered observations, ignores duplicate/older timestamps, and returns state plus an optional incident event. It has no persistence or notification side effects. `availability.statusAt()` applies freshness at read time. Configuration rejection is Unknown, not proof of a site outage. This reducer is trusted internal logic, not an authenticated ingestion boundary; a future receiver must verify checker identity, clock skew, monitor scope and replay protection before calling it.
 
-## Remaining work
+## Dashboard and public status page
 
 The app dashboard is available from the app actions menu at `.../apps/:appSlug/beacon`. Its real state is Unknown: no independent checker is connected and no measurements or incident history are invented. The app URL and current deployment come from the authorized app context. Team, project, environment and app access are checked server-side; Bridge sessions cannot access this surface.
 
 Choose **Explore example** to inspect explicitly simulated recovered, outage and missing-checker scenarios. Example observations use the actual availability reducer but are never stored or sent to a site. The sample target is always `https://example.com/health`; sample deployment context is labeled separately. The timeline, response chart (with gaps), recent observations and expandable incidents demonstrate the dashboard. Returning to the app removes the sample data. Both desktop and mobile use the real Vue/Inertia page.
+
+Like Bridge and Bearing, Beacon also has an app-owned public product surface. Once enabled by a team owner or administrator and activated by an app redeploy, the route is **`/beacon` on the deployed app's domain**, or `/academy/beacon` for an app mounted at `/academy`. The domain is resolved from the app's actual configuration; `example.com` is illustrative, not hard-coded. The authenticated dashboard and public page are separate.
+
+The public page is off by default. Its dashboard setting explains that enabling publishes the app's display name and Unknown status. It uses the shared app appearance, with its own namespace for styles, logos and assets. Caddy forwards only the exact `/beacon` path and descendants to an anonymous renderer; unrelated paths such as `/beaconish` still reach the app. Both JSON routes and Docker Caddy labels follow this convention. Workers, reserved mounts, health-path collisions and conflicting sibling app mounts cannot enable the page. Disabling immediately makes the renderer, stylesheet and logo unavailable; redeploy to remove the old ingress route. App deletion cleans up its public-page setting.
+
+Until monitoring exists, the public page always shows Unknown, no last check/success and unavailable incident history. It does not expose dashboard examples, deployment identifiers, team/environment context or checker configuration. Example query parameters do not change its status. The page shares the app host's ingress and Slipway control plane, so it is not an independently hosted outage status page.
+
+## Remaining work
 
 This slice has no scheduled checker, stored monitors/history, result ingestion, alert delivery, uptime percentage or live deployment correlation. Running the command on the monitored server does not provide independent uptime coverage.
 
@@ -38,8 +46,13 @@ The next slice needs team-scoped monitor configuration, authenticated result ing
 node --test tests/unit/lib/beacon.test.js
 npx sounding test --file tests/functional/pages/beacon.test.js
 npx sounding test --file tests/e2e/pages/projects/beacon.test.js
+npx sounding test --file tests/functional/pages/beacon-public.test.js
+npx sounding test --file tests/unit/helpers/caddy/beacon.test.js
+npx sounding test --file tests/e2e/pages/projects/beacon-public.test.js
 ```
 
 Trials cover public-address restrictions, URL normalization, mixed DNS, connection pinning, redirect refusal, deadlines, real local HTTP fixtures, confirmation/recovery, missing observations and CLI redaction. They make no requests to production sites.
 
 Dashboard trials check authentication and team/hierarchy isolation, real empty state versus explicit examples, app-menu navigation, example transitions, incident disclosure, returning to actual coverage, and mobile horizontal overflow. The browser trial captures actual local preview screenshots under `.tmp/screenshots/beacon/`.
+
+Public-page trials cover opt-in publishing with real CSRF-protected owner/member sessions, namespace collisions, disabled/worker/hierarchy guards, redacted public props and cleanup. The public browser trial uses production-generated JSON routes through a disposable real Caddy process, replacing only Docker upstream names and the hostname with loopback fixtures. It proves guest loading, assets, refresh, return navigation, `/beaconish` pass-through, immediate disable and root/prefixed mobile layouts. This optional trial requires `caddy` on PATH (or `SLIPWAY_CADDY_BINARY`), otherwise it is explicitly skipped. Docker-label contracts remain covered without Caddy.
