@@ -39,6 +39,7 @@ test('the real scripts directory registers every scheduled job without executing
     'reconcile-deployments',
     'retain-build-cache',
     'retain-deployment-images',
+    'run-ci-checks',
     'run-scheduled-backups'
   ])
   assert.equal(
@@ -54,8 +55,46 @@ test('the real scripts directory registers every scheduled job without executing
   })
   assert.equal(jobs.get('archive-update-backups').interval, '5 minutes')
   assert.equal(jobs.get('archive-update-backups').withoutOverlapping, true)
+  assert.equal(jobs.get('run-ci-checks').interval, '1 minute')
+  assert.equal(jobs.get('run-ci-checks').withoutOverlapping, true)
   assert.equal(jobs.get('run-scheduled-backups').interval, '1 minute')
   assert.equal(jobs.get('run-scheduled-backups').withoutOverlapping, true)
+})
+
+test('CI scheduling stays inert during discovery and delegates execution and failure to the bounded queue helper', async (t) => {
+  const file = require.resolve('../../../scripts/run-ci-checks')
+  const cached = require.cache[file]
+  const previous = global.sails
+  let calls = 0
+  global.sails = {
+    helpers: {
+      ci: {
+        runQueuedChecks: async () => {
+          calls++
+        }
+      }
+    }
+  }
+  delete require.cache[file]
+  t.after(() => {
+    if (previous === undefined) delete global.sails
+    else global.sails = previous
+    if (cached) require.cache[file] = cached
+    else delete require.cache[file]
+  })
+  const ciJob = require(file)
+  assert.equal(calls, 0, 'Loading the job must not start CI')
+  assert.deepEqual(ciJob.quest, {
+    interval: '1 minute',
+    withoutOverlapping: true
+  })
+  await ciJob.fn()
+  assert.equal(calls, 1)
+  const failure = new Error('queue ownership unavailable')
+  global.sails.helpers.ci.runQueuedChecks = async () => {
+    throw failure
+  }
+  await assert.rejects(ciJob.fn(), (error) => error === failure)
 })
 
 async function fixture(t, overrides = {}) {

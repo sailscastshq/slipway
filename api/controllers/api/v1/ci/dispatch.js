@@ -12,7 +12,10 @@ module.exports = {
         'revoke-runner',
         'challenge',
         'receipt',
-        'runs'
+        'runs',
+        'checks',
+        'cancel-checks',
+        'retry-report'
       ],
       required: true
     },
@@ -23,6 +26,12 @@ module.exports = {
     approvePolicy: { type: 'boolean' },
     enabled: { type: 'boolean' },
     automatic: { type: 'boolean' },
+    pullRequests: { type: 'boolean' },
+    pullRequest: { type: 'number' },
+    requestId: { type: 'string' },
+    jobId: { type: 'string' },
+    approveRetry: { type: 'boolean' },
+    confirmConnectionChanged: { type: 'boolean' },
     trustDevice: { type: 'boolean' },
     name: { type: 'string' },
     publicKey: { type: 'string' },
