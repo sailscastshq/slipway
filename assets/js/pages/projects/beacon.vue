@@ -574,7 +574,7 @@ const deploymentLabel = computed(
               v-if="canManagePublic"
               :href="base + '/appearance'"
               class="ml-1 font-medium text-gray-950 underline underline-offset-4 dark:text-white"
-              >Edit app logo and colour mode</Link
+              >Branding &amp; appearance</Link
             >
           </p>
           <form class="mt-5 space-y-4" @submit.prevent="savePublic">

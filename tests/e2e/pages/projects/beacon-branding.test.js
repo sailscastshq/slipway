@@ -37,11 +37,9 @@ test(
       password: world.current.auth.genesisUserPassword
     })
     await page.goto(base + '/beacon')
-    await page.raw
-      .getByRole('link', { name: 'Edit app logo and colour mode' })
-      .click()
+    await page.raw.getByRole('link', { name: 'Branding & appearance' }).click()
     await expect(
-      page.raw.getByRole('heading', { name: 'App appearance' })
+      page.raw.getByRole('heading', { name: 'Branding & appearance' })
     ).toBeVisible()
     await page.raw.locator('#appearance-name').fill('Tembo')
     await page.raw

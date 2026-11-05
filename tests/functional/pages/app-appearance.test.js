@@ -76,6 +76,35 @@ test(
     })
     const forbidden = await visit.as(member)(`${base}/appearance`)
     expect(forbidden).toHaveStatus(403)
+    const memberBrowser = await withCsrfFromPage(
+      request,
+      `${base}/settings`,
+      member
+    )
+    expect(
+      await memberBrowser.request.patch(`${base}/appearance`, { reset: true })
+    ).toHaveStatus(403)
+    const admin = await create('user').with({
+      team: current.teams.genesisTeam.id,
+      teamRole: 'admin'
+    })
+    const adminBrowser = await withCsrfFromPage(
+      request,
+      `${base}/appearance`,
+      admin
+    )
+    expect(adminBrowser.page).toHaveStatus(200)
+    expect(
+      await adminBrowser.request.patch(`${base}/appearance`, {
+        appearance: { ...appearance, logoLight: 'keep' }
+      })
+    ).toHaveStatus(303)
+    const afterAdmin = await visit.as('genesisUser')(`${base}/appearance`)
+    expect(afterAdmin).toHaveInertiaProp(
+      'appearance.logoLight',
+      reloaded.data.props.appearance.logoLight
+    )
+
     const foreign = await create('project').with({
       slug: 'foreign-brand',
       team: (

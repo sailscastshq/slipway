@@ -10,10 +10,11 @@ before Beacon; Beacon now reads the same profile. Saving through any link affect
 all those surfaces for that app. Ordinary Slipway control-panel Bridge receives
 `appearance: null` and keeps Slipway's own design.
 
-The editor still offers Bearing-specific widget/public feedback previews. Its
-authorization helper also delegates to `bearing.resolveManager`, although that
-resolver checks app/team ownership and does not require a Bearing space. These
-are presentation/module coupling, rather than separate ownership of the data.
+Before the neutral editor, its previews were Bearing-specific and its
+permission resolver delegated to `bearing.resolveManager`. The shared editor
+now offers all three product previews and uses `app.resolveManager`;
+`bearing.resolveManager` forwards for compatibility. The data never belonged to
+a Bearing space.
 
 ## Reproduced locally
 
@@ -46,15 +47,19 @@ cover authenticated CSS, tables, action menus/dialogs, keyboard focus, switches,
 partition charts, media error dialogs and revoked access in both fixed modes.
 Existing functional media tests also cover authenticated video/PDF previews.
 
-## Proposed neutral home (not a migration)
+## Neutral editor (implemented without a migration)
 
-Keep the existing app Settings route and record key so bookmarks, APIs and saved
-profiles remain compatible. Present the page as **Branding & appearance**, with
-shared identity/logo and semantic colour controls, and explicit previews for
-Bridge, Bearing and Beacon. Explain that saving changes every enabled app
-surface. Move authorization into a neutral app-settings resolver, preserving
-the same owner/admin and hierarchy checks; keep a compatibility forwarding
-helper for callers during that refactor.
+The existing app Settings route and record key are retained so bookmarks,
+APIs and saved profiles remain compatible. The page is now **Branding &
+appearance**, with shared identity/logo and semantic colour controls, and
+explicit Bridge, Bearing and Beacon previews. It explains that saving changes
+every enabled app surface. Bridge reuses its production sidebar/dashboard with
+inert fixtures; Beacon reuses its public status component, including the Unknown
+state. Bearing retains the interactive widget shell and inert public samples.
+Light/dark and mobile/desktop draft previews do not enable a product or save
+settings. Authorization moved into the neutral app-settings resolver, preserving
+the same owner/admin and hierarchy checks, with the old helper forwarding for
+compatibility.
 
 Use one shared profile by default. Operational success/danger colours retain
 their meaning, and Bridge's administration layout should not be redesigned by
@@ -66,5 +71,5 @@ profiles unchanged until an explicit save; any future version conversion must
 be idempotent and preserve logos and palettes. Do not reset or migrate production
 data merely to relocate the settings UI.
 
-No settings relocation, production migration, deployment or release was made
-as part of this diagnosis.
+The editor was made neutral in place. No production migration, deployment or
+release was made.

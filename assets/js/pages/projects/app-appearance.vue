@@ -65,6 +65,7 @@ function selectPalette(choice) {
   mode.value = choice
 }
 const mode = ref('light')
+const product = ref('bridge')
 const surface = ref('feedback')
 const widget = ref(true)
 const mobile = ref(false)
@@ -143,7 +144,7 @@ function resetDraft() {
 }
 </script>
 <template>
-  <Head :title="`${app.name} appearance | Slipway`" />
+  <Head :title="`${app.name} branding & appearance | Slipway`" />
   <div
     class="flex h-full min-h-0 flex-col overflow-y-auto text-gray-950 dark:text-white"
   >
@@ -190,12 +191,15 @@ function resetDraft() {
     </header>
     <div class="mx-auto w-full max-w-[1500px] px-5 py-8 sm:px-8 lg:py-10">
       <div class="mb-8 flex flex-wrap items-start justify-between gap-5">
-        <div>
-          <h1 class="text-2xl font-semibold tracking-tight">App appearance</h1>
+        <div class="max-w-2xl">
+          <h1 class="text-2xl font-semibold tracking-tight">
+            Branding &amp; appearance
+          </h1>
           <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
             Shared branding for
             {{ form.appearance.displayName || project.name }}
-            across Bridge, Bearing and Beacon.
+            across Bridge, Bearing and Beacon. Save once to update every enabled
+            surface; previews do not enable a product or change live pages.
           </p>
         </div>
         <div class="flex items-center gap-4">
@@ -307,9 +311,7 @@ function resetDraft() {
                 />
               </div>
             </section>
-            <section
-              class="space-y-5 border-t border-gray-200 pt-6 dark:border-gray-800"
-            >
+            <section class="space-y-5 pt-2">
               <div class="flex items-center justify-between">
                 <h2 class="text-sm font-semibold">Colours</h2>
                 <div class="flex gap-3">
@@ -360,9 +362,7 @@ function resetDraft() {
                 Text and focus contrast checks pass.
               </p>
             </section>
-            <section
-              class="space-y-5 border-t border-gray-200 pt-6 dark:border-gray-800"
-            >
+            <section class="space-y-5 pt-2">
               <div>
                 <label
                   for="appearance-mode"
@@ -449,8 +449,25 @@ function resetDraft() {
           class="min-w-0 xl:sticky xl:top-6"
           aria-label="Live appearance preview"
         >
-          <div class="mb-4 flex flex-wrap items-center justify-between gap-4">
-            <div class="flex gap-4">
+          <div class="mb-5 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex gap-5" role="group" aria-label="Product preview">
+              <button
+                v-for="choice in ['bridge', 'bearing', 'beacon']"
+                :key="choice"
+                type="button"
+                :aria-pressed="product === choice"
+                class="text-sm capitalize transition-colors"
+                :class="
+                  product === choice
+                    ? 'font-semibold'
+                    : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
+                "
+                @click="product = choice"
+              >
+                {{ choice.charAt(0).toUpperCase() + choice.slice(1) }}
+              </button>
+            </div>
+            <div class="flex gap-4" v-if="product === 'bearing'">
               <button
                 type="button"
                 :aria-pressed="widget"
@@ -491,9 +508,12 @@ function resetDraft() {
             </div>
           </div>
           <div
-            class="overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 p-3 dark:border-gray-800 dark:bg-gray-900 sm:p-6"
+            class="overflow-hidden rounded-2xl bg-gray-100 p-3 dark:bg-gray-900 sm:p-5"
           >
-            <div v-if="!widget" class="mb-5 flex justify-center gap-5">
+            <div
+              v-if="product === 'bearing' && !widget"
+              class="mb-5 flex justify-center gap-5"
+            >
               <button
                 v-for="choice in ['feedback', 'roadmap', 'updates']"
                 :key="choice"
@@ -508,6 +528,7 @@ function resetDraft() {
             </div>
             <div class="overflow-hidden rounded-xl">
               <AppearancePreview
+                :product="product"
                 :appearance="form.appearance"
                 :fallback-name="project.name"
                 :mode="mode"
@@ -520,6 +541,14 @@ function resetDraft() {
           </div>
           <p class="mt-3 text-center text-xs text-gray-500">
             Live draft · example content · changes apply after saving
+            <span v-if="product === 'bridge'" class="mt-1 block"
+              >Host-app workspace only. Slipway administration keeps its own
+              appearance.</span
+            >
+            <span v-if="product === 'beacon'" class="mt-1 block"
+              >Unknown is the current status. An independent checker is not
+              connected.</span
+            >
           </p>
         </section>
       </div>
