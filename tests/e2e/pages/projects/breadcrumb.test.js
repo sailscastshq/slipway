@@ -121,8 +121,8 @@ test(
         await expect(nav.locator('[aria-current="page"]')).toContainText(
           feature
         )
-        const parent = nav.getByRole('button', {
-          name: `Switch app: ${app.name.toLowerCase()}`,
+        const parent = nav.getByRole('link', {
+          name: `Open app: ${app.name.toLowerCase()}`,
           exact: true
         })
         await expect(parent).toBeVisible()
@@ -130,21 +130,27 @@ test(
           const box = element.getBoundingClientRect()
           const nav = element.closest('nav').getBoundingClientRect()
           return (
-            box.width > 24 &&
+            box.width >= 24 &&
             box.right <= nav.right + 1 &&
             box.right <= innerWidth
           )
         })
         expect(visible).toBe(true)
+        const currentLabelVisible = await nav.evaluate((element) => {
+          const label = element.querySelector('[aria-current="page"] span')
+          const range = document.createRange()
+          range.selectNodeContents(label)
+          return (
+            range.getBoundingClientRect().right <=
+            element.getBoundingClientRect().right + 1
+          )
+        })
+        expect(currentLabelVisible).toBe(true)
         await page.screenshot(
           `.tmp/sounding/artifacts/app-breadcrumb-review/${feature}-${width}.png`
         )
         await parent.focus()
         await page.key('Enter')
-        await page.raw
-          .getByRole('link', { name: 'View app overview' })
-          .filter({ visible: true })
-          .click()
         await page.raw.waitForURL(`**${appUrl}`)
         await expect(nav.locator('[aria-current="page"]')).toContainText(
           app.name.toLowerCase()

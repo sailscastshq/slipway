@@ -16,6 +16,7 @@ const page = usePage()
 const id = `context-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
 const open = ref(false)
 const panel = ref()
+const anchor = ref()
 const searchInput = ref()
 const query = ref('')
 const data = ref(null)
@@ -23,10 +24,6 @@ const error = ref(false)
 const loading = ref(false)
 let request
 const showSearch = computed(() => (data.value?.items.length || 0) > 5)
-const showOverview = computed(() => {
-  const current = data.value?.items.find((item) => item.current)
-  return current && current.href !== props.context.href
-})
 const filtered = computed(() =>
   (data.value?.items || []).filter((item) =>
     item.name.toLowerCase().includes(query.value.trim().toLowerCase())
@@ -113,21 +110,31 @@ function move(event) {
 </script>
 
 <template>
-  <button
-    type="button"
-    :popovertarget="id"
-    :aria-label="`Switch ${context.kind}: ${label}`"
-    :aria-current="current ? 'page' : undefined"
-    :title="label"
-    class="min-h-11 max-w-48 inline-flex min-w-0 items-center gap-1 rounded-sm px-1 text-gray-500 transition-colors hover:text-gray-950 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-gray-400 dark:hover:text-white"
-    :class="current ? 'font-medium text-gray-950 dark:text-white' : ''"
-  >
-    <span class="truncate">{{ label }}</span
-    ><ChevronDown class="size-3 shrink-0 opacity-60" />
-  </button>
+  <span ref="anchor" class="max-w-48 inline-flex min-w-0 items-center">
+    <Link
+      :href="context.href"
+      :aria-label="`Open ${context.kind}: ${label}`"
+      :aria-current="current ? 'page' : undefined"
+      :title="label"
+      class="min-h-11 inline-flex min-w-0 items-center rounded-sm px-1 text-gray-500 transition-colors hover:text-gray-950 hover:underline hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-gray-400 dark:hover:text-white"
+      :class="current ? 'font-medium text-gray-950 dark:text-white' : ''"
+      @click="panel?.close({ restoreFocus: false })"
+    >
+      <span class="truncate">{{ label }}</span>
+    </Link>
+    <button
+      type="button"
+      :popovertarget="id"
+      :aria-label="`Switch ${context.kind}: ${label}`"
+      class="min-h-11 min-w-6 inline-flex shrink-0 items-center justify-center rounded-sm text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-950 focus-visible:outline-2 focus-visible:outline-offset-2 dark:hover:bg-gray-900 dark:hover:text-white"
+    >
+      <ChevronDown class="size-3" />
+    </button>
+  </span>
   <Popover
     :id="id"
     ref="panel"
+    :anchor="anchor"
     v-model:open="open"
     role="group"
     :aria-label="data?.scope || context.scope"
@@ -169,6 +176,7 @@ function move(event) {
         >
           <span class="truncate">{{ item.name }}</span
           ><Check v-if="item.current" class="size-4 text-brand shrink-0" />
+          <ArrowRight v-else class="size-3.5 shrink-0 text-gray-400" />
         </Link>
         <p
           v-if="!filtered.length"
@@ -179,14 +187,5 @@ function move(event) {
         </p>
       </div>
     </template>
-    <Link
-      v-if="showOverview"
-      :href="context.href"
-      :aria-label="`View ${context.kind} overview`"
-      class="min-h-9 pointer-coarse:min-h-11 mt-1 flex items-center justify-between border-t border-gray-100 px-2 text-sm text-gray-500 hover:text-gray-950 focus-visible:outline-2 dark:border-gray-800 dark:text-gray-400 dark:hover:text-white"
-      @click="panel.close()"
-    >
-      Overview <ArrowRight class="size-3.5" />
-    </Link>
   </Popover>
 </template>

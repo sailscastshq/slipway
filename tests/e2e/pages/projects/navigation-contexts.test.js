@@ -115,6 +115,10 @@ test(
     await page.raw
       .getByLabel('Update title', { exact: true })
       .fill('An unsaved announcement')
+    await page.raw.getByRole('link', { name: /^Open app:/ }).click()
+    await expect(page).toSee('You have unsaved update changes.')
+    await page.raw.getByRole('button', { name: /keep editing/i }).click()
+    assert.equal(new URL(page.raw.url()).pathname, second)
     await trigger().click()
     await menu().getByRole('link', { name: app.name, exact: true }).click()
     await expect(page).toSee('You have unsaved update changes.')
@@ -289,6 +293,45 @@ test(
       await page.raw.goBack()
       await page.raw.waitForURL(`**${source}`)
     }
+    for (const name of ['Development', 'Staging']) {
+      await world.create('environment').with({
+        name,
+        slug: name.toLowerCase(),
+        project: project.id
+      })
+    }
+    await page.resize(1440, 900)
+    await page.inLightMode()
+    const direct = page.raw.getByRole('link', {
+      name: 'Open environment: production',
+      exact: true
+    })
+    await expect(direct).toHaveAttribute('href', overview)
+    await direct.focus()
+    await page.raw.keyboard.press('Enter')
+    await page.raw.waitForURL(`**${overview}`)
+    await expect(trigger()).toHaveAttribute('aria-expanded', 'false')
+    await trigger().click()
+    await menu().getByRole('link', { name: 'Staging', exact: true }).waitFor()
+    await direct.hover()
+    const box = await menu().boundingBox()
+    await page.raw.screenshot({
+      path: path.join(root, 'environment-click-through.png'),
+      clip: {
+        x: Math.max(0, box.x - 32),
+        y: Math.max(0, box.y - 64),
+        width: 440,
+        height: 230
+      }
+    })
+    await menu().getByRole('link', { name: 'Staging', exact: true }).click()
+    await page.raw.waitForURL(
+      `**/projects/${project.slug}/environments/staging`
+    )
+    await page.raw.goBack()
+    await page.raw.waitForURL(`**${overview}`)
+    await page.raw.goBack()
+    await page.raw.waitForURL(`**${source}`)
     for (let index = 1; index <= 5; index++) {
       await world.create('environment').with({
         name: `Preview ${index}`,

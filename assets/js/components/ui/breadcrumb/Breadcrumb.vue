@@ -37,7 +37,7 @@ const CURRENT_CLASSES =
 
 function itemClass(index) {
   return twMerge(
-    'flex min-w-0 items-center gap-1.5',
+    'flex min-w-0 items-center gap-1 sm:gap-1.5',
     isCollapsed(index) ? 'hidden' : undefined,
     collapses.value && index === 0 ? 'hidden sm:flex' : undefined,
     props.currentOnlyOnMobile &&
@@ -46,7 +46,9 @@ function itemClass(index) {
       ? 'hidden sm:flex'
       : undefined,
     index === 0 ? 'shrink-0' : undefined,
-    slots.item && index === lastIndex.value - 1 ? 'min-w-14' : undefined,
+    slots.item && index === lastIndex.value - 1
+      ? 'min-w-16 sm:min-w-20'
+      : undefined,
     index === lastIndex.value && index > 0 ? 'max-w-[50%] shrink-0' : undefined
   )
 }
@@ -57,7 +59,7 @@ function isCollapsed(index) {
 
 function separatorClass(index) {
   return twMerge(
-    'size-3.5 shrink-0 text-gray-400 dark:text-gray-600',
+    'size-3 shrink-0 text-gray-400 sm:size-3.5 dark:text-gray-600',
     props.currentOnlyOnMobile && index === lastIndex.value
       ? 'hidden sm:block'
       : undefined
@@ -75,7 +77,7 @@ function separatorClass(index) {
   >
     <ol
       data-slot="list"
-      class="flex min-w-0 items-center gap-1.5 overflow-hidden text-sm"
+      class="flex min-w-0 items-center gap-0.5 overflow-hidden text-sm sm:gap-1.5"
     >
       <template v-for="(item, index) in crumbs" :key="`${index}-${item.label}`">
         <li
@@ -94,7 +96,7 @@ function separatorClass(index) {
             data-slot="separator"
             aria-hidden="true"
             :class="[
-              'size-3.5 shrink-0 text-gray-400 dark:text-gray-600',
+              'size-3 sm:size-3.5 shrink-0 text-gray-400 dark:text-gray-600',
               $slots.ellipsis ? 'hidden sm:block' : undefined
             ]"
             viewBox="0 0 16 16"
