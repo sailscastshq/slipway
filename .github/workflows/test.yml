@@ -442,6 +442,10 @@ jobs:
         if: matrix.lane == 'unit'
         run: docker pull node:22-slim
 
+      - name: Verify DNS-safe app names over real Docker DNS
+        if: matrix.lane == 'unit'
+        run: node --test tests/contracts/deployment-dns-names.cjs
+
       - name: Run isolated Quest lifecycle trial
         if: matrix.lane == 'unit'
         run: npm run test:quest:container

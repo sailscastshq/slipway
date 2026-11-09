@@ -427,3 +427,82 @@ async function captureError(promise) {
 
   throw new Error('Expected operation to fail.')
 }
+
+for (const legacy of [false, true]) {
+  for (const state of ['uncommitted', 'committed', 'traffic-owner']) {
+    const committed = state === 'committed'
+    const ownsTraffic = state !== 'uncommitted'
+
+    test(
+      `restart preserves ${
+        legacy ? 'legacy' : 'DNS-safe'
+      } long names for ${state} untracked deployments`,
+      {
+        world: deploymentWorld(
+          'restart-long-studio-project-'.repeat(3) + `${legacy}-${state}`
+        )
+      },
+      async ({ sails, world, expect }) => {
+        const current = world.current
+        const environment = current.environments.production
+        const app = current.apps.web
+        const deployment = await world.create('deployment').with({
+          status: 'deploying',
+          environment: environment.id,
+          app: app.id
+        })
+        const oldName = await App.generateDeployContainerName(
+          environment.id,
+          deployment.id,
+          app.slug,
+          { legacy: true }
+        )
+        const safeName = await App.generateDeployContainerName(
+          environment.id,
+          deployment.id,
+          app.slug
+        )
+        const recordedName = legacy ? oldName : safeName
+        expect(oldName.length > 63).toBe(true)
+        expect(safeName.length <= 63).toBe(true)
+        await sails.models.app.updateOne({ id: app.id }).set({
+          status: 'running',
+          containerName: ownsTraffic ? recordedName : 'legacy-live-owner',
+          currentDeployment: committed ? deployment.id : null
+        })
+        const doubles = installRecoveryDoubles(sails)
+        try {
+          const result = await sails.helpers.deploy.reconcileDeployments()
+          expect(
+            result.recovered.filter(
+              (item) => item.deploymentId === deployment.id
+            )
+          ).toEqual([
+            {
+              deploymentId: deployment.id,
+              action: committed ? 'legacy_finalized' : 'legacy_rolled_back'
+            }
+          ])
+          const persisted = await sails.models.app.findOne({ id: app.id })
+          expect(persisted.containerName).toBe(
+            ownsTraffic ? recordedName : 'legacy-live-owner'
+          )
+          expect(
+            doubles.stopped.filter((name) =>
+              [safeName, oldName, 'legacy-live-owner'].includes(name)
+            )
+          ).toEqual(
+            committed
+              ? []
+              : [safeName, oldName].filter(
+                  (name) => !ownsTraffic || name !== recordedName
+                )
+          )
+          expect(doubles.routes).toContain(environment.id)
+        } finally {
+          doubles.restore()
+        }
+      }
+    )
+  }
+}

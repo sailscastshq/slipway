@@ -6,6 +6,8 @@
  * Built from the project's Dockerfile (or a per-app Dockerfile).
  */
 
+const containerNames = require('../lib/app-container-name')
+
 module.exports = {
   tableName: 'apps',
 
@@ -297,26 +299,27 @@ module.exports = {
       'project'
     )
     if (!env) return null
-    const base = `slipway-${env.project.slug}-${env.slug}`
-    if (!appSlug || appSlug === 'app') return base
-    return `${base}-${appSlug}`
+    return containerNames.generateName(env.project.slug, env.slug, appSlug)
   },
 
   /**
-   * Generate a deploy-scoped container name (used during blue-green deployment)
+   * Generate a DNS-safe deploy-scoped name for blue-green deployment.
+   * Legacy mode is only for locating pre-existing, untracked deployment resources.
    */
   generateDeployContainerName: async function (
     environmentId,
     deploymentId,
-    appSlug
+    appSlug,
+    { legacy = false } = {}
   ) {
     const env = await Environment.findOne({ id: environmentId }).populate(
       'project'
     )
     if (!env) return null
-    const base = `slipway-${env.project.slug}-${env.slug}`
-    if (!appSlug || appSlug === 'app') return `${base}-${deploymentId}`
-    return `${base}-${appSlug}-${deploymentId}`
+    const generate = legacy
+      ? containerNames.legacyName
+      : containerNames.generateName
+    return generate(env.project.slug, env.slug, appSlug, deploymentId)
   },
 
   /**
