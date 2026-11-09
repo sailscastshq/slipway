@@ -37,10 +37,12 @@ module.exports = {
     },
     repoId: {
       type: 'string',
+      allowNull: true,
       description: 'GitHub repository ID to connect (optional)'
     },
     branch: {
       type: 'string',
+      allowNull: true,
       description: 'Branch to deploy from (defaults to repo default branch)'
     }
   },
