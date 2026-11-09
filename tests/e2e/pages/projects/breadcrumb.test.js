@@ -50,7 +50,7 @@ test(
       await page.screenshot(path.join(root, `deployment-${width}.png`))
       await nav.getByRole('button', { name: /^Switch environment:/ }).click()
       await page.raw
-        .getByRole('link', { name: 'View environment overview' })
+        .getByRole('link', { name: 'Production', exact: true })
         .filter({ visible: true })
         .click()
       await page.raw.waitForURL(
