@@ -136,6 +136,7 @@ test('generated app names resolve and serve health over real Docker DNS', async 
     const { stdout: discovered } = await docker([
       'ps',
       '-aq',
+      '--no-trunc',
       '--filter',
       `label=${label}`
     ])
