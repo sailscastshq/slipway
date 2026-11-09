@@ -249,11 +249,22 @@ async function recoverLegacyDeployment(deployment) {
         environment: deployment.environment,
         isDefault: true
       })
-  const candidateContainerName = await App.generateDeployContainerName(
-    deployment.environment,
-    deployment.id,
-    app?.slug
-  )
+  // Untracked deployments may predate DNS-safe names. Locate both formats,
+  // but never rename a recorded live resource or remove the traffic owner.
+  const candidateNames = [
+    ...new Set(
+      await Promise.all(
+        [false, true].map((legacy) =>
+          App.generateDeployContainerName(
+            deployment.environment,
+            deployment.id,
+            app?.slug,
+            { legacy }
+          )
+        )
+      )
+    )
+  ].filter(Boolean)
   if (
     app &&
     (await Setting.findOne({
@@ -266,7 +277,7 @@ async function recoverLegacyDeployment(deployment) {
   const candidateIsCurrent = Boolean(
     app &&
       app.currentDeployment === deployment.id &&
-      app.containerName === candidateContainerName
+      candidateNames.includes(app.containerName)
   )
 
   if (candidateIsCurrent) {
@@ -292,7 +303,9 @@ async function recoverLegacyDeployment(deployment) {
   }
 
   await restoreRouteFromAppState(deployment.environment, deployment.id)
-  await stopContainer(candidateContainerName, app?.containerName)
+  for (const candidateName of candidateNames) {
+    await stopContainer(candidateName, app?.containerName)
+  }
   await releasePort(deployment.id)
   if (deployment.imageName?.endsWith(`:${deployment.id}`)) {
     await removeImage(deployment.imageName)

@@ -577,7 +577,7 @@ test(
 
 test(
   'cancellation before cutover removes the candidate release and preserves the live app',
-  { world: cutoverWorld('cancel-before-cutover') },
+  { world: cutoverWorld('cancel-before-cutover-studio'.repeat(3)) },
   async ({ sails, world, expect }) => {
     const setup = await prepareCutover({ sails, world })
     const originals = {
@@ -629,6 +629,8 @@ test(
     sails.helpers.docker.allocatePort = machineStub(async () => 1405)
     sails.helpers.docker.runContainer = machineStub(async (inputs) => {
       candidateName = inputs.containerName
+      expect(candidateName.length <= 63).toBe(true)
+      expect(candidateName.endsWith(`-${setup.deployment.id}`)).toBe(true)
       sequence.push(`started:${candidateName}`)
       return {
         containerId: 'cancelled-candidate-id',
@@ -637,16 +639,21 @@ test(
         portBinding: { diagnostic: 'verified' }
       }
     })
-    sails.helpers.docker.healthCheck = machineStub(async ({ signal }) => {
-      sequence.push('health-check-started')
-      await sails.models.deployment.updateOne({ id: setup.deployment.id }).set({
-        status: 'cancelled',
-        errorMessage: cancellation.message,
-        finishedAt: Date.now()
-      })
-      controller.abort(cancellation)
-      throw signal.reason
-    })
+    sails.helpers.docker.healthCheck = machineStub(
+      async ({ signal, containerName }) => {
+        expect(containerName).toBe(candidateName)
+        sequence.push('health-check-started')
+        await sails.models.deployment
+          .updateOne({ id: setup.deployment.id })
+          .set({
+            status: 'cancelled',
+            errorMessage: cancellation.message,
+            finishedAt: Date.now()
+          })
+        controller.abort(cancellation)
+        throw signal.reason
+      }
+    )
     sails.helpers.deploy.cutoverTraffic = machineStub(async () => {
       sequence.push('cutover')
     })
@@ -717,7 +724,7 @@ test(
 
 test(
   'rollback uses a deployment-scoped candidate and retires the old container only after cutover',
-  { world: cutoverWorld('transactional-rollback') },
+  { world: cutoverWorld('transactional-rollback-studio'.repeat(3)) },
   async ({ sails, world, expect }) => {
     const setup = await prepareCutover({ sails, world })
     const previousDeployment = await prepareRollback({ sails, setup, world })
@@ -760,6 +767,8 @@ test(
       expect(inputs.pullPolicy).toBe('never')
       sequence.push('candidate-started')
       candidateName = inputs.containerName
+      expect(candidateName.length <= 63).toBe(true)
+      expect(candidateName.endsWith(`-${setup.deployment.id}`)).toBe(true)
       return {
         containerId: 'rollback-container-id',
         containerName: inputs.containerName,
@@ -767,9 +776,12 @@ test(
         portBinding: { diagnostic: 'verified' }
       }
     })
-    sails.helpers.docker.healthCheck = machineStub(async () => {
-      sequence.push('candidate-healthy')
-    })
+    sails.helpers.docker.healthCheck = machineStub(
+      async ({ containerName }) => {
+        expect(containerName).toBe(candidateName)
+        sequence.push('candidate-healthy')
+      }
+    )
     sails.helpers.caddy.updateRoute = machineStub(async (inputs) => {
       sequence.push('route-verified')
       const persisted = await sails.models.app.findOne({ id: setup.app.id })
@@ -857,7 +869,7 @@ test(
 
 test(
   'rollback failure removes only the candidate and keeps the previous app live',
-  { world: cutoverWorld('transactional-rollback-failure') },
+  { world: cutoverWorld('transactional-rollback-failure-studio'.repeat(3)) },
   async ({ sails, world, expect }) => {
     const setup = await prepareCutover({ sails, world })
     const previousDeployment = await prepareRollback({ sails, setup, world })
@@ -896,6 +908,8 @@ test(
     sails.helpers.docker.allocatePort = machineStub(async () => 1404)
     sails.helpers.docker.runContainer = machineStub(async (inputs) => {
       candidateName = inputs.containerName
+      expect(candidateName.length <= 63).toBe(true)
+      expect(candidateName.endsWith(`-${setup.deployment.id}`)).toBe(true)
       sequence.push(`started:${candidateName}`)
       return {
         containerId: 'failed-rollback-container-id',
@@ -904,9 +918,12 @@ test(
         portBinding: { diagnostic: 'verified' }
       }
     })
-    sails.helpers.docker.healthCheck = machineStub(async () => {
-      sequence.push('candidate-healthy')
-    })
+    sails.helpers.docker.healthCheck = machineStub(
+      async ({ containerName }) => {
+        expect(containerName).toBe(candidateName)
+        sequence.push('candidate-healthy')
+      }
+    )
     sails.helpers.caddy.updateRoute = machineStub(async () => {
       sequence.push('route-rejected')
       const failure = new Error('Caddy rejected the rollback route')

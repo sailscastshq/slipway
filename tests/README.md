@@ -101,3 +101,18 @@ This is layered evidence, not a three-running-app end-to-end test. Real Redis
 session/queue continuity, application-side PostgreSQL reads, the integrated
 three-Sails-app journey and public DNS/TLS remain operator gates. Record what ran
 and what did not in the [migration runbook](../docs/coolify-migration.md).
+
+## Deployment hostname regression
+
+`node --test tests/contracts/deployment-dns-names.cjs` verifies generated app
+container names with real Docker DNS and HTTP health requests. It requires an
+already available `node:22-slim` image and creates only uniquely labeled
+containers on a private test network, without published ports or mounts. The
+unit CI lane runs it after preparing that image.
+
+New names longer than 63 characters are shortened with a digest of the complete
+project, environment, app and deployment identity. Names already within the DNS
+label limit are unchanged. Existing App and DeploymentJob container references
+remain authoritative; untracked restart recovery recognizes both name formats.
+The lifecycle tests cover cancellation, rollback routing and preservation of a
+recorded live container, including mismatched deployment metadata.
