@@ -1302,10 +1302,7 @@ onBeforeUnmount(() => {
         <DeploymentReadiness
           :report="readiness"
           @refresh="router.reload({ only: ['readiness'] })"
-        />
-
-        <!-- Slide to Deploy -->
-        <div class="mb-10 flex justify-end">
+        >
           <div class="w-56">
             <SlideToDeploy
               ref="slideRef"
@@ -1315,7 +1312,7 @@ onBeforeUnmount(() => {
               @deploy="triggerDeploy"
             />
           </div>
-        </div>
+        </DeploymentReadiness>
 
         <!-- Accordion: Logs, App Variables, Services, Deployments -->
         <div

@@ -64,7 +64,7 @@ test(
     await page.goto(environmentPath)
 
     const checklist = page.raw.locator('[data-test="deployment-checklist"]')
-    await expect(checklist).toHaveCount(0)
+    await expect(checklist).not.toBeVisible()
     await page.raw.setViewportSize({ width: 1440, height: 1000 })
     await page.raw.emulateMedia({ colorScheme: 'light' })
 
@@ -90,7 +90,7 @@ test(
       })
 
     if (capturePhase === 'after') {
-      await expect(checklist).toHaveCount(0)
+      await expect(checklist).not.toBeVisible()
       expect(await sourceRequired.getAttribute('data-slot')).toBe('alert')
       expect(await sourceRequired.getAttribute('role')).toBe('note')
     }
