@@ -1,12 +1,14 @@
 # Deployment readiness
 
-Open an app or its environment to see **Deployment readiness**, or run:
+Open an app or its environment and select **View deployment checks** to review the current readiness report, or run:
 
 ```sh
 slipway push
 slipway readiness --env production
 slipway readiness --env production --app web --json
 ```
+
+Required blockers remain visible on the page and disable deployment. Recommendations, verified checks, and optional capabilities stay available in the on-demand checklist without a persistent warning panel. Use **Refresh checks** after source or configuration changes; refreshing keeps the checklist open.
 
 The CLI and dashboard request the same server-owned report for the available source, selected app, and effective global/environment/app configuration. `slipway init` shows the initial report; push source to inspect it before the first deployment. A connected repository is inspected again after synchronization into the deployment snapshot.
 
