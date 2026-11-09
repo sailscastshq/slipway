@@ -92,7 +92,7 @@ function act(action) {
       <div class="flex max-h-[85dvh] flex-col">
         <div class="px-6 pt-6 sm:px-8 sm:pt-8">
           <h2 :id="titleId" class="text-xl font-semibold">Deployment checks</h2>
-          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+          <p class="mt-2 break-words text-sm text-gray-500 dark:text-gray-400">
             {{ report.appName }}
             <template v-if="report.sourceRevision">
               · Source {{ report.sourceRevision.slice(0, 12) }}</template
@@ -203,7 +203,8 @@ function act(action) {
             </ul>
           </section>
           <p class="mt-7 text-xs leading-5 text-gray-500 dark:text-gray-400">
-            The candidate must pass its {{ report.healthPath }} HTTP probe
+            The candidate must pass its
+            <span class="break-all">{{ report.healthPath }}</span> HTTP probe
             before traffic switches. Redeploy after changing app configuration.
           </p>
         </div>

@@ -37,8 +37,7 @@ test(
           scripts: { start: 'node app.js' },
           dependencies: {
             sails: '^1.5.0',
-            'sails-postgresql': '^5.0.0',
-            'sails-hook-slipway': '^0.0.14'
+            'sails-postgresql': '^5.0.0'
           }
         })
       )
@@ -83,9 +82,28 @@ test(
         await trigger.focus()
         await trigger.press('Enter')
         await expect(report).toBeVisible()
+        await expect(report).toHaveAccessibleName('Deployment checks')
+        await expect(
+          report.getByRole('button', { name: 'Done', exact: true })
+        ).toBeFocused()
+        for (const key of ['Tab', 'Tab', 'Tab', 'Shift+Tab', 'Shift+Tab']) {
+          await page.raw.keyboard.press(key)
+          // Native dialogs may send Tab to browser chrome (activeElement is
+          // body), but never to an interactive control on the inert page.
+          expect(
+            await report.evaluate(
+              (el) =>
+                el.contains(document.activeElement) ||
+                document.activeElement === document.body
+            )
+          ).toBe(true)
+        }
+        await trigger.focus()
+        await expect(trigger).not.toBeFocused()
         await expect(report).toContainText('No deployment blockers.')
         await expect(report).toContainText('Recommendations')
         await expect(report).toContainText('Verified checks')
+        await expect(report).toContainText('Optional capabilities')
         await expect(report).toContainText('Bridge and Lookout')
         await expect(report).toContainText(
           'A database connection URL is configured'
@@ -113,8 +131,42 @@ test(
         await report.getByRole('button', { name: 'Done', exact: true }).click()
         await expect(report).not.toBeVisible()
         await expect(trigger).toBeFocused()
+        await trigger.click()
+        await page.raw.mouse.click(8, 8)
+        await expect(report).not.toBeVisible()
+        await expect(trigger).toBeFocused()
         expect(new URL(page.raw.url()).pathname).toBe(appUrl)
       }
+      // Configured names and health paths can contain long, unbroken segments.
+      const longName = 'S'.repeat(120)
+      await sails.models.app.updateOne({ id: current.apps.web.id }).set({
+        name: longName,
+        healthPath: `/health/${'x'.repeat(160)}`
+      })
+      await trigger.click()
+      await report
+        .getByRole('button', { name: 'Refresh checks', exact: true })
+        .click()
+      await expect(report).toContainText(`/health/${'x'.repeat(160)}`)
+      expect(
+        await report
+          .getByText(longName, { exact: false })
+          .evaluate((el) => el.scrollWidth <= el.clientWidth)
+      ).toBe(true)
+      expect(
+        await report
+          .locator('[data-test=deployment-checks-content]')
+          .evaluate((el) => el.scrollWidth <= el.clientWidth)
+      ).toBe(true)
+      await sails.models.app.updateOne({ id: current.apps.web.id }).set({
+        name: 'Studios',
+        healthPath: '/health'
+      })
+      await report
+        .getByRole('button', { name: 'Refresh checks', exact: true })
+        .click()
+      await report.getByRole('button', { name: 'Done', exact: true }).click()
+
       await page.raw.setViewportSize({ width: 1280, height: 900 })
       await page.raw.emulateMedia({ colorScheme: 'light' })
       await page.raw
