@@ -131,6 +131,9 @@ module.exports.policies = {
   'bearing/view-appearance-logo': true,
   'bearing/view-widget-config': true,
   'bearing/redirect-to-feedback': true,
+  'beacon/view-public': true,
+  'beacon/view-appearance-styles': true,
+  'beacon/view-appearance-logo': true,
 
   // Bridge pages accept either a Slipway operator session or the dedicated,
   // app-scoped host-user session created by bridge/launch.

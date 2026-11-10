@@ -15,6 +15,7 @@ import Menu from '@/components/ui/menu/Menu.vue'
 
 const props = defineProps({
   app: Object,
+  appearance: Object,
   basePath: String,
   workspace: Object
 })
@@ -22,6 +23,7 @@ const props = defineProps({
 defineEmits(['navigate'])
 
 const page = usePage()
+const branding = computed(() => props.appearance || page.props.appearance)
 const search = ref('')
 const normalizedBasePath = computed(() => props.basePath || '/bridge')
 const currentUrl = computed(() => page.url || normalizedBasePath.value)
@@ -88,8 +90,8 @@ function isResourceActive(identity) {
         class="flex w-full min-w-0 items-center space-x-2 rounded-md px-2 py-1.5 text-sm text-gray-700 dark:text-gray-200"
       >
         <AppBrand
-          v-if="page.props.appearance?.configured"
-          :appearance="page.props.appearance"
+          v-if="branding?.configured"
+          :appearance="branding"
           class="text-sm font-medium"
         />
         <span
@@ -99,7 +101,7 @@ function isResourceActive(identity) {
         >
           {{ appInitial }}
         </span>
-        <div v-if="!page.props.appearance?.configured" class="min-w-0 flex-1">
+        <div v-if="!branding?.configured" class="min-w-0 flex-1">
           <p class="truncate font-medium" :title="app?.name || 'App'">
             {{ app?.name || 'App' }}
           </p>

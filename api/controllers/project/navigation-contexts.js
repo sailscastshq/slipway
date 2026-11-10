@@ -71,9 +71,15 @@ module.exports = {
     // Only app-wide sections with a stable index. Never transfer record IDs or queries.
     const suffix =
       kind === 'app' &&
-      ['bearing', 'appearance', 'settings', 'quest', 'ci', 'wake'].includes(
-        section
-      )
+      [
+        'bearing',
+        'appearance',
+        'settings',
+        'quest',
+        'ci',
+        'wake',
+        'beacon'
+      ].includes(section)
         ? `/${section}`
         : ''
     return {

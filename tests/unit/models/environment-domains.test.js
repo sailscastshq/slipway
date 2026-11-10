@@ -145,6 +145,10 @@ test('caddy route generation matches both the custom and generated hostnames whe
           lookoutDecoys: { enabled: false, paths: [], revision: '' }
         }))
     }
+    global.sails.helpers.beacon = {
+      publicConfig: async (apps) =>
+        apps.map((app) => ({ ...app, beaconPublicEnabled: false }))
+    }
 
     global.App = {
       find: async () => [

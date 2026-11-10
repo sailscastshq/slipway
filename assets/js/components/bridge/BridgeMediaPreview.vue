@@ -1,6 +1,8 @@
 <script setup>
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Dialog from '@/components/ui/dialog/Dialog.vue'
+import AppAppearance from '@/components/appearance/AppAppearance.vue'
+import { usePage } from '@inertiajs/vue3'
 import X from '@/components/ui/icons/X.vue'
 import {
   authorizeMediaPreview,
@@ -9,6 +11,7 @@ import {
 } from '@/lib/bridge/media-preview.mjs'
 const props = defineProps({ preview: Object })
 const emit = defineEmits(['close'])
+const page = usePage()
 const dialog = ref(),
   video = ref(),
   source = ref(null),
@@ -81,66 +84,70 @@ watch(
 onBeforeUnmount(stop)
 </script>
 <template>
-  <Dialog
-    ref="dialog"
-    aria-labelledby="bridge-media-title"
-    class="w-[calc(100vw-2rem)] max-w-5xl p-0"
-    @update:open="(value) => !value && dismiss()"
-    @cancel="dismiss"
-    @close="dismiss"
+  <AppAppearance
+    :appearance="page.props.hostBridgeOrigin ? page.props.appearance : null"
   >
-    <div
-      class="flex items-center justify-between gap-4 border-b border-gray-200 px-4 py-3 dark:border-gray-700"
+    <Dialog
+      ref="dialog"
+      aria-labelledby="bridge-media-title"
+      class="w-[calc(100vw-2rem)] max-w-5xl p-0"
+      @update:open="(value) => !value && dismiss()"
+      @cancel="dismiss"
+      @close="dismiss"
     >
-      <h2 id="bridge-media-title" class="truncate text-base font-semibold">
-        {{ preview?.title }}
-      </h2>
-      <button
-        type="button"
-        class="size-9 grid shrink-0 place-items-center rounded-md text-gray-500 hover:text-gray-900 focus-visible:outline-2 dark:hover:text-white"
-        aria-label="Close preview"
-        autofocus
-        @click="dialog?.close()"
+      <div
+        class="flex items-center justify-between gap-4 border-b border-gray-200 px-4 py-3 dark:border-gray-700"
       >
-        <X class="size-5" />
-      </button>
-    </div>
-    <div class="max-h-[calc(100dvh-8rem)] overflow-auto p-4">
-      <p
-        v-if="busy"
-        role="status"
-        class="py-12 text-center text-sm text-gray-500"
-      >
-        Loading preview…
-      </p>
-      <p
-        v-else-if="error"
-        role="alert"
-        class="py-12 text-center text-sm text-gray-600 dark:text-gray-300"
-      >
-        {{ error }}
-      </p>
-      <video
-        v-else-if="source?.type === 'video'"
-        ref="video"
-        :src="source.url"
-        :aria-label="source.title"
-        controls
-        playsinline
-        preload="metadata"
-        class="max-h-[calc(100dvh-12rem)] w-full rounded bg-black"
-        @error="
-          error =
-            'This video could not be played. Check your access or try again.'
-        "
-      />
-      <iframe
-        v-else-if="source?.type === 'pdf'"
-        :src="`${source.objectUrl}#toolbar=0&navpanes=0&view=FitH`"
-        :title="source.title"
-        referrerpolicy="no-referrer"
-        class="h-[min(70dvh,48rem)] w-full rounded border border-gray-200 bg-white dark:border-gray-700"
-      />
-    </div>
-  </Dialog>
+        <h2 id="bridge-media-title" class="truncate text-base font-semibold">
+          {{ preview?.title }}
+        </h2>
+        <button
+          type="button"
+          class="size-9 grid shrink-0 place-items-center rounded-md text-gray-500 hover:text-gray-900 focus-visible:outline-2 dark:hover:text-white"
+          aria-label="Close preview"
+          autofocus
+          @click="dialog?.close()"
+        >
+          <X class="size-5" />
+        </button>
+      </div>
+      <div class="max-h-[calc(100dvh-8rem)] overflow-auto p-4">
+        <p
+          v-if="busy"
+          role="status"
+          class="py-12 text-center text-sm text-gray-500"
+        >
+          Loading preview…
+        </p>
+        <p
+          v-else-if="error"
+          role="alert"
+          class="py-12 text-center text-sm text-gray-600 dark:text-gray-300"
+        >
+          {{ error }}
+        </p>
+        <video
+          v-else-if="source?.type === 'video'"
+          ref="video"
+          :src="source.url"
+          :aria-label="source.title"
+          controls
+          playsinline
+          preload="metadata"
+          class="max-h-[calc(100dvh-12rem)] w-full rounded bg-black"
+          @error="
+            error =
+              'This video could not be played. Check your access or try again.'
+          "
+        />
+        <iframe
+          v-else-if="source?.type === 'pdf'"
+          :src="`${source.objectUrl}#toolbar=0&navpanes=0&view=FitH`"
+          :title="source.title"
+          referrerpolicy="no-referrer"
+          class="h-[min(70dvh,48rem)] w-full rounded border border-gray-200 bg-white dark:border-gray-700"
+        />
+      </div>
+    </Dialog>
+  </AppAppearance>
 </template>

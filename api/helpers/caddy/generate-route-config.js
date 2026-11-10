@@ -42,7 +42,15 @@ module.exports = {
       ? apps
       : await App.find({ environment: environmentId })
     environmentApps = await sails.helpers.lookout.decoyConfig(environmentApps)
+    environmentApps = await sails.helpers.beacon.publicConfig(environmentApps)
     for (const app of environmentApps) {
+      if (app.beaconPublicEnabled) {
+        const conflict = require('../../lib/beacon/public-page').conflict(
+          app,
+          environmentApps
+        )
+        if (conflict) throw new Error(conflict)
+      }
       const conflict = require('../lookout/decoy-config')._private.validate(
         app,
         environmentApps
@@ -83,6 +91,7 @@ module.exports = {
       routableApps[0].routePath === '/' &&
       !routableApps[0].bridgeEnabled &&
       !routableApps[0].bearingEnabled &&
+      !routableApps[0].beaconPublicEnabled &&
       !routableApps[0].lookoutDecoys?.enabled
     ) {
       const app = routableApps[0]
@@ -116,6 +125,20 @@ module.exports = {
     })
 
     const handlers = []
+
+    for (const app of sorted) {
+      if (!app.beaconPublicEnabled) continue
+      handlers.push(
+        ...require('../../lib/beacon/caddy-routes').handlers({
+          app,
+          projectSlug: environment.project.slug,
+          environmentSlug: environment.slug,
+          controlPlaneUpstream: `${
+            sails.config.custom.slipwayContainerName || 'slipway'
+          }:1337`
+        })
+      )
+    }
 
     for (const app of sorted) {
       if (!app.bearingEnabled) continue

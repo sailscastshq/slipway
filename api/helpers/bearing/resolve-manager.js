@@ -18,29 +18,17 @@ module.exports = {
   },
 
   fn: async function ({ req, projectSlug, environmentSlug, appSlug }) {
-    const user = await User.forRequest(req)
-    if (!user || !['owner', 'admin'].includes(user.teamRole)) {
-      throw 'forbidden'
+    // Compatibility entry point for existing Bearing callers.
+    try {
+      return await sails.helpers.app.resolveManager.with({
+        req,
+        projectSlug,
+        environmentSlug,
+        appSlug
+      })
+    } catch (error) {
+      if (['forbidden', 'notFound'].includes(error.code)) throw error.code
+      throw error
     }
-
-    const project = await Project.findOne({
-      slug: projectSlug,
-      team: user.team
-    })
-    if (!project) throw 'notFound'
-
-    const environment = await Environment.findOne({
-      project: project.id,
-      slug: environmentSlug
-    })
-    if (!environment) throw 'notFound'
-
-    const app = await App.findOne({
-      environment: environment.id,
-      slug: appSlug
-    })
-    if (!app) throw 'notFound'
-
-    return { user, project, environment, app }
   }
 }

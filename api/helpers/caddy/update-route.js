@@ -55,6 +55,7 @@ module.exports = {
       ? apps
       : await App.find({ environment: environmentId })
     environmentApps = await sails.helpers.lookout.decoyConfig(environmentApps)
+    environmentApps = await sails.helpers.beacon.publicConfig(environmentApps)
     for (const app of environmentApps) {
       const conflict = require('../lookout/decoy-config')._private.validate(
         app,
@@ -67,6 +68,7 @@ module.exports = {
       ? await App.find({ environment: environmentId })
       : environmentApps
     previousApps = await sails.helpers.lookout.decoyConfig(previousApps)
+    previousApps = await sails.helpers.beacon.publicConfig(previousApps)
     const decoyTokens = (values) =>
       values
         .filter((a) => a.hostPort && a.lookoutDecoys?.enabled)
@@ -295,6 +297,22 @@ function buildRouteLabels({
   })
 
   for (const app of sorted) {
+    if (!app.beaconPublicEnabled) continue
+    labels.push(
+      ...require('../../lib/beacon/caddy-routes').labels(
+        {
+          app,
+          projectSlug,
+          environmentSlug,
+          controlPlaneUpstream
+        },
+        handleIndex
+      )
+    )
+    handleIndex += 3
+  }
+
+  for (const app of sorted) {
     if (!app.bearingEnabled) continue
 
     const routePrefix = normalizeRoutePrefix(app.routePath)
@@ -429,7 +447,12 @@ function normalizeRoutePrefix(routePath) {
 
 function routeUpstreams(apps, controlPlaneUpstream) {
   const upstreams = apps.map((app) => `${app.containerName}:${app.port}`)
-  if (apps.some((app) => app.bridgeEnabled || app.bearingEnabled)) {
+  if (
+    apps.some(
+      (app) =>
+        app.bridgeEnabled || app.bearingEnabled || app.beaconPublicEnabled
+    )
+  ) {
     upstreams.push(controlPlaneUpstream)
   }
   return [...new Set(upstreams)]
