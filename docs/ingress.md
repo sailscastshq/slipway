@@ -56,41 +56,62 @@ should show `127.0.0.1` bindings.
 
 Direct `http://SERVER_IP:PORT` URLs are useful for diagnostics or deployments
 without DNS, but they bypass Caddy TLS and increase the public attack surface.
-Enable them deliberately by running the installer with:
+For a **fresh installation only**, request them deliberately:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sailscastshq/slipway/main/install.sh -o /tmp/install-slipway.sh
 sudo env SLIPWAY_APP_PORT_HOST=0.0.0.0 bash /tmp/install-slipway.sh
 ```
 
-The value is persisted in `/etc/slipway/.env`. Redeploy an app before testing
-its direct URL so Docker recreates that app with the new binding, then allow
-TCP `1338-1500` in the VPS provider firewall. Verify from another network:
+The value is persisted in `/etc/slipway/.env` and used for future app containers.
+Only allow TCP `1338-1500` in the VPS provider firewall when that public access is
+intended. Verify the effective Docker binding and test from another network:
 
 ```bash
 curl -I --connect-timeout 5 http://SERVER_IP:ALLOCATED_PORT/health
 ```
 
-Set `SLIPWAY_APP_PORT_HOST=127.0.0.1` and rerun the installer to return to
-Caddy-only ingress. Redeploy existing apps and remove the range from the VPS
-provider firewall; existing containers retain their old Docker bindings until
-they are replaced.
+For an already installed dashboard, use the constraints below. Rerunning the
+installer is not a way to enable or disable raw-port access.
 
-Older Slipway installations keep their existing public dashboard and app bind
-defaults the first time the new installer migrates them. This avoids silently
-breaking working raw URLs. Set both of these values to loopback when you are
-ready to harden an existing host:
+## Existing installations
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/sailscastshq/slipway/main/install.sh -o /tmp/install-slipway.sh
-sudo env \
-  SLIPWAY_DASHBOARD_HOST=127.0.0.1 \
-  SLIPWAY_APP_PORT_HOST=127.0.0.1 \
-  bash /tmp/install-slipway.sh
-```
+The shared updater preserves the running container's environment and Docker
+bindings, as well as the proxy and firewall. A version update does **not** harden
+an old installation, change ingress mode, or apply changes from `/etc/slipway/.env`.
+Existing app containers retain their own bindings until replaced.
 
-Then redeploy the apps and close `1337` and `1338-1500` in the provider
-firewall.
+When an existing dashboard container is detected, `install.sh` refuses explicitly
+supplied URL, ingress, host/port, Docker network and firewall configuration
+variables before starting an update. It prints the variable names, not their
+values. Even supplying the same value is a reconfiguration request; omit those
+variables for a version-only update. The installer does not compare them with
+live settings or claim that your current exposure is safe.
+
+There is currently no supported in-place ingress reconfiguration command. Do not
+use older instructions that pass `SLIPWAY_DASHBOARD_HOST=127.0.0.1` and
+`SLIPWAY_APP_PORT_HOST=127.0.0.1` to a normal update: those settings were previously
+ignored on the shared-updater path. Editing the env file alone also does not
+change a running Docker publication.
+
+Before a separately reviewed host migration:
+
+1. Record actual Docker publications, the working dashboard/app routes, host and
+   provider firewall rules, and a tested SSH or other recovery path. Keep secret
+   values out of support logs.
+2. Plan the dashboard, proxy and future-app binding changes together, including
+   how to recreate affected containers without losing their configuration,
+   mounts, secrets or recovery access. Do not remove the running dashboard just
+   to make the installer treat the host as fresh.
+3. Verify dashboard login, CLI access, application domains, webhooks and streaming
+   connections through the intended route. Verify both IPv4 and IPv6 exposure
+   from another network; a localhost check cannot prove an internet port is shut.
+4. Verify replaced app bindings, then close obsolete raw ports in the host and
+   provider firewalls. Preserve the reviewed rollback and recovery path.
+
+Loopback bindings prevent direct public access to those Docker ports. They do
+not make the dashboard private when Caddy or a tunnel still routes its public
+hostname. Access policy is a separate operator responsibility.
 
 ## Optional Cloudflare Tunnel mode
 
@@ -100,7 +121,8 @@ Cloudflare Tunnel is optional. It changes the traffic path to:
 Internet -> Cloudflare -> outbound cloudflared tunnel -> loopback Caddy -> container
 ```
 
-Install Slipway with a real dashboard hostname and tunnel ingress:
+For a **fresh installation**, use a real dashboard hostname and tunnel ingress.
+Existing hosts require the separately reviewed migration described above:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sailscastshq/slipway/main/install.sh -o /tmp/install-slipway.sh
@@ -110,7 +132,8 @@ sudo env \
   bash /tmp/install-slipway.sh
 ```
 
-This binds Caddy, the dashboard, and app ports to `127.0.0.1`. Caddy serves
+On a fresh installation, this binds Caddy, the dashboard, and app ports to
+`127.0.0.1`. Caddy serves
 plain HTTP only on the private origin connection; Cloudflare owns browser TLS.
 Point the tunnel at loopback Caddy and keep the original request hostname so
 Caddy can select the correct Slipway route:
@@ -145,6 +168,10 @@ all inbound Slipway ports and keep only the SSH access you choose. A restrictive
 egress firewall must permit Cloudflare Tunnel on TCP/UDP `7844`. See
 [Cloudflare's tunnel firewall guide](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/)
 and [ingress configuration reference](https://developers.cloudflare.com/tunnel/advanced/local-management/configuration-file/).
+
+A tunnel alone does not make a public hostname private or configure Cloudflare
+Access, WAF rules or bot protection. Verify any separately configured access
+policy without breaking required CLI, webhook and streaming traffic.
 
 Tradeoffs: Tunnel mode depends on Cloudflare for public availability and DNS,
 and every custom hostname must be routed through that tunnel. The default public

@@ -14,6 +14,18 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Capture caller intent before assigning fresh-install defaults. Updates preserve
+# the installed boundary and cannot apply these settings, even when empty.
+REQUESTED_NETWORK_SETTINGS=()
+for setting in SLIPWAY_URL SLIPWAY_INGRESS SLIPWAY_PROXY_HOST \
+    SLIPWAY_DASHBOARD_HOST SLIPWAY_APP_PORT_HOST SLIPWAY_PORT \
+    SLIPWAY_HTTP_PORT SLIPWAY_HTTPS_PORT SLIPWAY_APP_PORT_START \
+    SLIPWAY_APP_PORT_END SLIPWAY_NETWORK SLIPWAY_CONFIGURE_FIREWALL; do
+    if [ "${!setting+x}" = x ]; then
+        REQUESTED_NETWORK_SETTINGS+=("$setting")
+    fi
+done
+
 SLIPWAY_ENV_FILE="${SLIPWAY_ENV_FILE:-/etc/slipway/.env}"
 SLIPWAY_APPS_DIR="${SLIPWAY_APPS_DIR:-/var/slipway/apps}"
 SLIPWAY_IMAGE_REPOSITORY="${SLIPWAY_IMAGE_REPOSITORY:-ghcr.io/sailscastshq/slipway}"
@@ -364,6 +376,15 @@ verify_update_image() {
 }
 
 if command -v docker >/dev/null 2>&1 && container_exists "$SLIPWAY_CONTAINER"; then
+    if [ "${#REQUESTED_NETWORK_SETTINGS[@]}" -gt 0 ]; then
+        echo "Cannot reconfigure an existing installation with install.sh." >&2
+        echo "Unsupported settings: ${REQUESTED_NETWORK_SETTINGS[*]}" >&2
+        echo "Updates preserve the current environment, Docker bindings, proxy and firewall." >&2
+        echo "No update was started. For a version-only update, unset these variables and rerun." >&2
+        echo "To change exposure, keep working management access and follow the existing-install guidance:" >&2
+        echo "https://github.com/sailscastshq/slipway/blob/main/docs/ingress.md#existing-installations" >&2
+        exit 1
+    fi
     resolve_slipway_image
     if [ "$SLIPWAY_SKIP_PULL" != true ]; then
         docker pull "$SLIPWAY_IMAGE"

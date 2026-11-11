@@ -5,7 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 
-function fixture(version, overrides = {}) {
+function fixture(version, overrides = {}, environment = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'installer-capability-'))
   const bin = path.join(root, 'bin')
   fs.mkdirSync(bin)
@@ -29,7 +29,7 @@ function fixture(version, overrides = {}) {
 const fs=require('node:fs'),vm=require('node:vm');const args=process.argv.slice(2),file=process.env.PROBE_STATE;
 let state=JSON.parse(fs.readFileSync(file,'utf8'));
 fs.appendFileSync(process.env.PROBE_EVENTS,JSON.stringify(args)+'\\n');
-if(args[0]==='container'&&args[1]==='inspect')process.exit(0);
+if(args[0]==='container'&&args[1]==='inspect')process.exit(state.existing === false ? 1 : 0);
 if(args[0]==='pull')process.exit(0);
 if(args[0]==='image'&&args[1]==='inspect'){console.log(state.imageId);process.exit(0)}
 if(args[0]==='run'&&args.includes('--read-only')){
@@ -82,7 +82,11 @@ throw Error('Forbidden installation action '+JSON.stringify(args));
       encoding: 'utf8',
       timeout: 10000,
       env: {
-        ...process.env,
+        ...Object.fromEntries(
+          Object.entries(process.env).filter(
+            ([name]) => !name.startsWith('SLIPWAY_')
+          )
+        ),
         PATH: bin + path.delimiter + process.env.PATH,
         PROBE_STATE: stateFile,
         PROBE_EVENTS: eventsFile,
@@ -90,7 +94,8 @@ throw Error('Forbidden installation action '+JSON.stringify(args));
         SLIPWAY_CONTAINER: 'slipway',
         SLIPWAY_IMAGE_REPOSITORY: 'fixture/slipway',
         SLIPWAY_ENV_FILE: path.join(root, 'must-not-create'),
-        SLIPWAY_SKIP_PULL: 'false'
+        SLIPWAY_SKIP_PULL: 'false',
+        ...environment
       }
     }
   )
@@ -168,6 +173,102 @@ test('the latest alias still requires a compatible packaged engine', () => {
   try {
     assert.equal(f.result.status, 0, f.result.stderr)
     assert.equal(f.events.filter((args) => args.includes('start')).length, 1)
+  } finally {
+    f.cleanup()
+  }
+})
+
+const networkSettings = [
+  'SLIPWAY_URL',
+  'SLIPWAY_INGRESS',
+  'SLIPWAY_PROXY_HOST',
+  'SLIPWAY_DASHBOARD_HOST',
+  'SLIPWAY_APP_PORT_HOST',
+  'SLIPWAY_PORT',
+  'SLIPWAY_HTTP_PORT',
+  'SLIPWAY_HTTPS_PORT',
+  'SLIPWAY_APP_PORT_START',
+  'SLIPWAY_APP_PORT_END',
+  'SLIPWAY_NETWORK',
+  'SLIPWAY_CONFIGURE_FIREWALL'
+]
+
+for (const name of networkSettings)
+  test(`existing install rejects explicit ${name} before update or host actions`, () => {
+    const value = 'private-requested-value'
+    const f = fixture('0.0.122', {}, { [name]: value })
+    try {
+      assert.equal(f.result.status, 1)
+      assert.match(
+        f.result.stderr,
+        /Cannot reconfigure an existing installation/
+      )
+      assert.ok(f.result.stderr.includes(name))
+      assert.ok(!f.result.stderr.includes(value))
+      assert.match(f.result.stderr, /No update was started/)
+      assert.deepEqual(f.events, [['container', 'inspect', 'slipway']])
+      assert.deepEqual(f.state.identities, f.identities)
+    } finally {
+      f.cleanup()
+    }
+  })
+
+test('combined loopback and tunnel request is refused without resolving latest or applying any part', () => {
+  const f = fixture(
+    '',
+    {},
+    {
+      SLIPWAY_DASHBOARD_HOST: '127.0.0.1',
+      SLIPWAY_APP_PORT_HOST: '127.0.0.1',
+      SLIPWAY_INGRESS: 'cloudflare-tunnel'
+    }
+  )
+  try {
+    assert.equal(f.result.status, 1)
+    for (const name of [
+      'SLIPWAY_DASHBOARD_HOST',
+      'SLIPWAY_APP_PORT_HOST',
+      'SLIPWAY_INGRESS'
+    ])
+      assert.ok(f.result.stderr.includes(name))
+    assert.deepEqual(f.events, [['container', 'inspect', 'slipway']])
+  } finally {
+    f.cleanup()
+  }
+})
+
+test('explicit empty ingress setting is still rejected on an existing installation', () => {
+  const f = fixture('0.0.122', {}, { SLIPWAY_INGRESS: '' })
+  try {
+    assert.equal(f.result.status, 1)
+    assert.ok(f.result.stderr.includes('SLIPWAY_INGRESS'))
+    assert.deepEqual(f.events, [['container', 'inspect', 'slipway']])
+  } finally {
+    f.cleanup()
+  }
+})
+
+test('fresh install still accepts ingress settings and reaches fresh setup', () => {
+  const f = fixture(
+    '0.0.122',
+    { existing: false },
+    {
+      SLIPWAY_DASHBOARD_HOST: '127.0.0.1',
+      SLIPWAY_APP_PORT_HOST: '127.0.0.1',
+      SLIPWAY_INGRESS: 'cloudflare-tunnel'
+    }
+  )
+  try {
+    // The fake commands deliberately stop before any real host setup. This
+    // proves the new guard leaves the fresh-install path reachable, not that
+    // a complete Docker installation or public route has been exercised.
+    assert.notEqual(f.result.status, 0)
+    assert.doesNotMatch(f.result.stderr, /Cannot reconfigure/)
+    assert.ok(f.events.some((args) => args[0] === 'buildx'))
+    assert.equal(
+      f.events.some((args) => args.includes('start')),
+      false
+    )
   } finally {
     f.cleanup()
   }
